@@ -140,14 +140,6 @@ export default function MyComponent() {
 ### Health Check
 - `GET /api/health` - Returns API health status
 
-## Next Steps
-
-1. **Define your data models** in `backend/Models/`
-2. **Create controllers** in `backend/Controllers/` for your API endpoints
-3. **Build frontend components** in `frontend/app/components/`
-4. **Set up API integration** using the `lib/api.ts` utility
-5. **Add GSAP animations** to enhance the user experience
-
 ## Useful Commands
 
 ### Backend
