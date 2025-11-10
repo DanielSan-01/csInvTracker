@@ -196,15 +196,48 @@ export function convertSteamItemToCSItem(
     }
   }
 
+  // Determine item type from tags or name
+  let type: import('./mockData').ItemType = 'Rifle';
+  if (steamItem.tags) {
+    const typeTag = steamItem.tags.find(tag => tag.category === 'Type' || tag.category === 'Weapon');
+    if (typeTag) {
+      const typeName = typeTag.localized_tag_name.toLowerCase();
+      if (typeName.includes('glove')) type = 'Gloves';
+      else if (typeName.includes('knife')) type = 'Knife';
+      else if (typeName.includes('rifle')) type = 'Rifle';
+      else if (typeName.includes('pistol')) type = 'Pistol';
+      else if (typeName.includes('smg') || typeName.includes('submachine')) type = 'SMG';
+      else if (typeName.includes('sniper')) type = 'Sniper Rifle';
+      else if (typeName.includes('shotgun')) type = 'Shotgun';
+      else if (typeName.includes('machine gun') || typeName.includes('machinegun')) type = 'Machine Gun';
+      else if (typeName.includes('agent') || typeName.includes('character')) type = 'Agent';
+      else if (typeName.includes('equipment') || typeName.includes('gear')) type = 'Equipment';
+    }
+  }
+  // Fallback: check item name
+  if (!type || type === 'Rifle') {
+    const name = steamItem.marketName.toLowerCase();
+    if (name.includes('glove')) type = 'Gloves';
+    else if (name.includes('knife') || name.includes('karambit') || name.includes('bayonet') || name.includes('butterfly')) type = 'Knife';
+    else if (name.includes('ak-47') || name.includes('m4a4') || name.includes('m4a1-s') || name.includes('aug') || name.includes('sg 553') || name.includes('famas') || name.includes('galil')) type = 'Rifle';
+    else if (name.includes('glock') || name.includes('usp-s') || name.includes('p2000') || name.includes('p250') || name.includes('five-seven') || name.includes('tec-9') || name.includes('cz75') || name.includes('desert eagle') || name.includes('dual berettas') || name.includes('r8 revolver')) type = 'Pistol';
+    else if (name.includes('mac-10') || name.includes('mp9') || name.includes('mp7') || name.includes('mp5-sd') || name.includes('ump-45') || name.includes('p90') || name.includes('pp-bizon')) type = 'SMG';
+    else if (name.includes('awp') || name.includes('ssg 08') || name.includes('g3sg1') || name.includes('scar-20')) type = 'Sniper Rifle';
+    else if (name.includes('nova') || name.includes('xm1014') || name.includes('sawedoff') || name.includes('mag-7')) type = 'Shotgun';
+    else if (name.includes('m249') || name.includes('negev')) type = 'Machine Gun';
+    else if (name.includes('agent') || name.includes('operator') || name.includes('lieutenant') || name.includes('officer') || name.includes('soldier')) type = 'Agent';
+    else if (name.includes('zeus') || name.includes('sticker') || name.includes('patch') || name.includes('pin')) type = 'Equipment';
+  }
+
   return {
     id: steamItem.assetid,
     name: steamItem.marketName,
     rarity,
+    type,
     float: float ?? 0.5,
     exterior: exterior || 'Field-Tested',
     price: 0, // Would need to fetch from market API
     imageUrl: steamItem.imageUrl,
-    game: 'Counter-Strike 2',
   };
 }
 

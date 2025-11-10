@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useMemo, useState } from "react";
 import { gsap } from 'gsap';
 import { useEffect, useRef } from 'react';
-import { Rarity, rarityColors, rarityBorderColors } from '@/lib/mockData';
+import { Rarity, rarityColors, rarityBorderColors, mockItems, ItemType } from '@/lib/mockData';
 import { CSItem } from '@/lib/mockData';
 import { calculateTradeProtectionDate } from '@/lib/utils';
 
@@ -17,6 +17,7 @@ interface AddSkinFormProps {
 export interface NewSkinData {
   name: string;
   rarity: Rarity;
+  type: ItemType;
   float?: number;
   paintSeed?: number;
   patternName?: string;
@@ -29,17 +30,47 @@ export interface NewSkinData {
 export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinFormProps) {
   const isEditMode = !!item;
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [formData, setFormData] = useState<NewSkinData>({
-    name: item?.name || '',
-    rarity: item?.rarity || 'Mil-Spec',
+
+  const catalogItems = useMemo(() => {
+    const uniqueMap = new Map<string, CSItem>();
+    mockItems.forEach((mock) => {
+      if (!uniqueMap.has(mock.name)) {
+        uniqueMap.set(mock.name, mock);
+      }
+    });
+    return Array.from(uniqueMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  }, []);
+
+  const baseFormState = useMemo<NewSkinData>(() => ({
+    name: item?.name ?? '',
+    rarity: item?.rarity ?? 'Mil-Spec',
+    type: item?.type ?? 'Rifle',
     float: item?.float,
     paintSeed: item?.paintSeed,
-    patternName: undefined, // Not stored in CSItem currently
-    price: item?.price || 0,
+    patternName: undefined,
+    price: item?.price ?? 0,
     cost: item?.cost,
     imageUrl: item?.imageUrl,
-    tradeProtected: item?.tradeProtected || false,
-  });
+    tradeProtected: item?.tradeProtected ?? false,
+  }), [item]);
+
+  const [formData, setFormData] = useState<NewSkinData>(baseFormState);
+  const [selectedCatalogName, setSelectedCatalogName] = useState<string>('');
+
+  useEffect(() => {
+    setFormData(baseFormState);
+    if (
+      baseFormState.float !== undefined ||
+      baseFormState.paintSeed !== undefined ||
+      baseFormState.cost !== undefined ||
+      baseFormState.imageUrl
+    ) {
+      setShowAdvanced(true);
+    }
+  }, [baseFormState]);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const formRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -143,6 +174,43 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
     'Contraband',
   ];
 
+  const fillFromCatalog = (name: string) => {
+    setSelectedCatalogName(name);
+    const catalogItem = catalogItems.find((catalog) => catalog.name === name);
+    if (!catalogItem) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      name: catalogItem.name,
+      rarity: catalogItem.rarity,
+      type: catalogItem.type,
+      float: catalogItem.float,
+      paintSeed: catalogItem.paintSeed,
+      price: catalogItem.price,
+      cost: catalogItem.cost,
+      imageUrl: catalogItem.imageUrl,
+      tradeProtected: catalogItem.tradeProtected,
+    }));
+
+    // Open advanced section if catalog item has extra data
+    if (
+      catalogItem.float !== undefined ||
+      catalogItem.paintSeed !== undefined ||
+      catalogItem.cost !== undefined ||
+      catalogItem.imageUrl
+    ) {
+      setShowAdvanced(true);
+    }
+  };
+
+  const resetCatalogSelection = () => {
+    setSelectedCatalogName('');
+    if (!isEditMode) {
+      setFormData(baseFormState);
+      setShowAdvanced(false);
+    }
+  };
+
   return (
     <div
       ref={overlayRef}
@@ -169,6 +237,49 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Quick Fill */}
+          <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 shadow-inner shadow-purple-900/20 space-y-3">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-purple-200">Quick fill from catalog</p>
+                <p className="text-xs text-purple-300/70">
+                  Choose a skin you already have data for. Fields will pre-fill and stay editable.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={resetCatalogSelection}
+                className="self-start rounded-full border border-purple-400/50 px-3 py-1 text-xs font-medium text-purple-200 hover:bg-purple-500/10 transition-colors disabled:opacity-40"
+                disabled={!selectedCatalogName && !isEditMode}
+              >
+                Reset selection
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                list="skin-catalog"
+                value={selectedCatalogName}
+                onChange={(e) => fillFromCatalog(e.target.value)}
+                placeholder="Search catalog e.g. “AK-47 | Fire Serpent”"
+                className="flex-1 rounded-lg border border-purple-400/50 bg-gray-900/60 px-4 py-2 text-sm text-purple-100 placeholder-purple-200/40 focus:border-purple-300 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => selectedCatalogName && fillFromCatalog(selectedCatalogName)}
+                className="rounded-lg bg-purple-500 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-600 transition-colors"
+                disabled={!selectedCatalogName}
+              >
+                Apply
+              </button>
+            </div>
+            <datalist id="skin-catalog">
+              {catalogItems.map((catalogItem) => (
+                <option key={catalogItem.name} value={catalogItem.name} />
+              ))}
+            </datalist>
+          </div>
+
           {/* Required Fields */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-purple-400 border-b border-purple-500 pb-2">
@@ -234,6 +345,34 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
               </p>
             </div>
 
+            {/* Item Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Item Type <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value as ItemType })}
+                className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                required
+              >
+                <option value="Gloves">Gloves</option>
+                <option value="Knife">Knife</option>
+                <option value="Rifle">Rifle</option>
+                <option value="Pistol">Pistol</option>
+                <option value="SMG">SMG</option>
+                <option value="Sniper Rifle">Sniper Rifle</option>
+                <option value="Shotgun">Shotgun</option>
+                <option value="Machine Gun">Machine Gun</option>
+                <option value="Agent">Agent</option>
+                <option value="Equipment">Equipment</option>
+                <option value="Collectible">Collectible</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-500">
+                Select the category of this item
+              </p>
+            </div>
+
             {/* Price */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -283,139 +422,141 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
                 Optional Information
               </h3>
 
-              {/* Float Value */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Float Value (0.0 - 1.0)
-                </label>
-                <input
-                  type="number"
-                  step="0.0000001"
-                  min="0"
-                  max="1"
-                  value={formData.float ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    float: e.target.value ? parseFloat(e.target.value) : undefined,
-                  })}
-                  className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                    errors.float ? 'border-red-500' : 'border-gray-700'
-                  }`}
-                  placeholder="e.g., 0.564978"
-                />
-                {errors.float && (
-                  <p className="mt-1 text-sm text-red-400">{errors.float}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  Leave empty if unknown. Float determines wear condition.
-                </p>
-              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {/* Float Value */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Float Value (0.0 - 1.0)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.0000001"
+                    min="0"
+                    max="1"
+                    value={formData.float ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      float: e.target.value ? parseFloat(e.target.value) : undefined,
+                    })}
+                    className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                      errors.float ? 'border-red-500' : 'border-gray-700'
+                    }`}
+                    placeholder="e.g., 0.564978"
+                  />
+                  {errors.float && (
+                    <p className="mt-1 text-sm text-red-400">{errors.float}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Leave empty if unknown. Float determines wear condition.
+                  </p>
+                </div>
 
-              {/* Pattern Name/ID */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Pattern Name / Pattern ID
-                </label>
-                <input
-                  type="text"
-                  value={formData.patternName ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    patternName: e.target.value || undefined,
-                  })}
-                  className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  placeholder="e.g., Phase 4, Tiger Tooth, Urban Masked"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Pattern name or ID (e.g., "Doppler Phase 4" or pattern number)
-                </p>
-              </div>
+                {/* Paint Seed */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Paint Seed
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.paintSeed ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      paintSeed: e.target.value ? parseInt(e.target.value) : undefined,
+                    })}
+                    className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                      errors.paintSeed ? 'border-red-500' : 'border-gray-700'
+                    }`}
+                    placeholder="e.g., 396"
+                  />
+                  {errors.paintSeed && (
+                    <p className="mt-1 text-sm text-red-400">{errors.paintSeed}</p>
+                  )}
+                </div>
 
-              {/* Paint Seed */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Paint Seed
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.paintSeed ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    paintSeed: e.target.value ? parseInt(e.target.value) : undefined,
-                  })}
-                  className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                    errors.paintSeed ? 'border-red-500' : 'border-gray-700'
-                  }`}
-                  placeholder="e.g., 396"
-                />
-                {errors.paintSeed && (
-                  <p className="mt-1 text-sm text-red-400">{errors.paintSeed}</p>
-                )}
-              </div>
+                {/* Pattern Name/ID */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Pattern Name / Pattern ID
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.patternName ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      patternName: e.target.value || undefined,
+                    })}
+                    className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    placeholder="e.g., Phase 4, Tiger Tooth, Urban Masked"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Pattern name or ID (e.g., "Doppler Phase 4" or pattern number)
+                  </p>
+                </div>
 
-              {/* Cost */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Cost (USD)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.cost ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    cost: e.target.value ? parseFloat(e.target.value) : undefined,
-                  })}
-                  className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                    errors.cost ? 'border-red-500' : 'border-gray-700'
-                  }`}
-                  placeholder="0.00"
-                />
-                {errors.cost && (
-                  <p className="mt-1 text-sm text-red-400">{errors.cost}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  The amount you paid for this item (used for profit calculation)
-                </p>
-              </div>
+                {/* Cost */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Cost (USD)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.cost ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      cost: e.target.value ? parseFloat(e.target.value) : undefined,
+                    })}
+                    className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+                      errors.cost ? 'border-red-500' : 'border-gray-700'
+                    }`}
+                    placeholder="0.00"
+                  />
+                  {errors.cost && (
+                    <p className="mt-1 text-sm text-red-400">{errors.cost}</p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    The amount you paid for this item (used for profit calculation)
+                  </p>
+                </div>
 
-              {/* Image URL */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Image URL
-                </label>
-                <input
-                  type="url"
-                  value={formData.imageUrl ?? ''}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    imageUrl: e.target.value || undefined,
-                  })}
-                  className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                  placeholder="https://example.com/image.jpg"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Leave empty to auto-generate placeholder
-                </p>
-              </div>
+                {/* Image URL */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Image URL
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.imageUrl ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      imageUrl: e.target.value || undefined,
+                    })}
+                    className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    placeholder="https://example.com/image.jpg"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Leave empty to auto-generate placeholder
+                  </p>
+                </div>
 
-              {/* Trade Protected */}
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="tradeProtected"
-                  checked={formData.tradeProtected || false}
-                  onChange={(e) => setFormData({
-                    ...formData,
-                    tradeProtected: e.target.checked || undefined,
-                  })}
-                  className="w-5 h-5 rounded border-gray-700 bg-gray-800 text-purple-500 focus:ring-purple-500"
-                />
-                <label htmlFor="tradeProtected" className="text-sm font-medium text-gray-300">
-                  Trade Protected
-                </label>
+                {/* Trade Protected */}
+                <div className="md:col-span-2 flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/60 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    id="tradeProtected"
+                    checked={formData.tradeProtected || false}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      tradeProtected: e.target.checked || undefined,
+                    })}
+                    className="w-5 h-5 rounded border-gray-700 bg-gray-800 text-purple-500 focus:ring-purple-500"
+                  />
+                  <label htmlFor="tradeProtected" className="text-sm font-medium text-gray-300">
+                    Item is trade protected (set trade lock reminder)
+                  </label>
+                </div>
               </div>
             </div>
           )}

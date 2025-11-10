@@ -80,6 +80,13 @@ export default function ItemGrid() {
     }
   }, [items, isInitialized]);
 
+  // Auto-select the first item to populate detail view
+  useEffect(() => {
+    if (items.length > 0 && !selectedItem) {
+      setSelectedItem(items[0]);
+    }
+  }, [items, selectedItem]);
+
   // Helper function to determine exterior from float
   const determineExterior = (float?: number): Exterior => {
     if (float === undefined) return 'Field-Tested';
@@ -99,13 +106,13 @@ export default function ItemGrid() {
       id: Date.now().toString(), // Simple ID generation
       name: newSkinData.name,
       rarity: newSkinData.rarity,
+      type: newSkinData.type,
       float: newSkinData.float ?? 0.5, // Default float if not provided
       exterior: exterior, // Auto-determined from float
       paintSeed: newSkinData.paintSeed,
       price: newSkinData.price,
       cost: newSkinData.cost,
       imageUrl: newSkinData.imageUrl || `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(newSkinData.name)}`,
-      game: 'Counter-Strike 2',
       tradeProtected: newSkinData.tradeProtected,
       tradableAfter: tradableAfter,
     };
@@ -137,6 +144,7 @@ export default function ItemGrid() {
       ...existingItem!,
       name: updatedData.name,
       rarity: updatedData.rarity,
+      type: updatedData.type,
       float: updatedData.float ?? existingItem?.float ?? 0.5,
       exterior: exterior,
       paintSeed: updatedData.paintSeed,
@@ -182,11 +190,11 @@ export default function ItemGrid() {
             id: partial.id || steamItem.assetid,
             name: partial.name || steamItem.marketName,
             rarity: partial.rarity || 'Consumer Grade',
+            type: partial.type || 'Rifle',
             float: partial.float || 0.5,
             exterior: partial.exterior || 'Field-Tested',
             price: partial.price || 0,
             imageUrl: partial.imageUrl || '',
-            game: 'Counter-Strike 2',
           } as CSItem;
         })
         .filter(item => item.name && item.imageUrl); // Filter out invalid items
@@ -213,7 +221,18 @@ export default function ItemGrid() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-950 p-8">
+    <div className="relative min-h-screen bg-gray-950 p-8 pb-16">
+      {isLoadingSteam && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-gray-950/85 backdrop-blur-sm">
+          <svg className="h-10 w-10 animate-spin text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V1.5A10.5 10.5 0 002.5 12H4zm2 5.291A7.962 7.962 0 014 12H2.5c0 3.31 1.344 6.31 3.52 8.477L6 17.291z" />
+          </svg>
+          <div className="text-sm font-medium text-blue-200">Loading inventory from Steam…</div>
+          <p className="text-xs text-gray-400">This may take a moment if you have a large inventory.</p>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -285,6 +304,7 @@ export default function ItemGrid() {
                   key={item.id}
                   item={item}
                   onClick={() => setSelectedItem(item)}
+                  isSelected={selectedItem?.id === item.id}
                   variant="grid"
                 />
               ))}
@@ -299,19 +319,19 @@ export default function ItemGrid() {
 
           {/* Right Panel - Detailed View */}
           <div className="lg:col-span-1">
+            <div className="lg:sticky lg:top-8 space-y-6">
             {selectedItem ? (
-              <div className="sticky top-8">
-                <ItemCard
-                  item={selectedItem}
-                  variant="detailed"
-                  onEdit={() => handleEditClick(selectedItem)}
-                />
-              </div>
+              <ItemCard
+                item={selectedItem}
+                variant="detailed"
+                onEdit={() => handleEditClick(selectedItem)}
+              />
             ) : (
-              <div className="bg-gray-900 border-2 border-gray-700 rounded-lg p-8 text-center">
-                <p className="text-gray-400">Click an item to view details</p>
+              <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-gray-700 bg-gray-900/60 p-10 text-center text-sm text-gray-400">
+                Select an item from the grid to view detailed stats.
               </div>
             )}
+            </div>
           </div>
         </div>
       </div>

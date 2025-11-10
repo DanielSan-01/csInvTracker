@@ -1,5 +1,18 @@
 // Mock data for CS Inventory items
 
+export type ItemType =
+  | 'Gloves'
+  | 'Knife'
+  | 'Rifle'
+  | 'Pistol'
+  | 'SMG'
+  | 'Sniper Rifle'
+  | 'Shotgun'
+  | 'Machine Gun'
+  | 'Agent'
+  | 'Equipment'
+  | 'Collectible';
+
 export interface CSItem {
   id: string;
   name: string;
@@ -10,10 +23,9 @@ export interface CSItem {
   price: number;
   cost?: number;
   imageUrl: string;
-  game: string;
+  type: ItemType;
   tradeProtected?: boolean;
   tradableAfter?: Date;
-  type?: string
 }
 
 export type Rarity = 
@@ -115,7 +127,7 @@ export const mockItems: CSItem[] = [
     price: 4500,
     cost: 3232.66,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Sport+Gloves+Pandora',
-    game: 'Counter-Strike 2',
+    type: 'Gloves',
   },
   {
     id: '2',
@@ -126,7 +138,7 @@ export const mockItems: CSItem[] = [
     price: 680,
     cost: 429,
     imageUrl: 'https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk5UvzWCL2kpn2-DFk_OKherB0H_qSCXKR09F-teB_Vmfjwkh_smuAzdasdniWaVNzAsYmQuYJ5hTsk4KxP-PhtAGI2opFzin_kGoXufyYXYCg/330x192?allow_animated=1',
-    game: 'Counter-Strike 2',
+    type: 'Gloves',
   },
   {
     id: '3',
@@ -137,7 +149,7 @@ export const mockItems: CSItem[] = [
     price: 700,
     cost: 435,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Moto+Gloves+Spearmint',
-    game: 'Counter-Strike 2',
+    type: 'Gloves',
   },
   {
     id: '4',
@@ -148,7 +160,7 @@ export const mockItems: CSItem[] = [
     price: 290,
     cost: 150,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Specialist+Gloves+Foundation',
-    game: 'Counter-Strike 2',
+    type: 'Gloves',
   },
   
   // Knives (Extraordinary)
@@ -161,7 +173,7 @@ export const mockItems: CSItem[] = [
     price: 3500,
     cost: 4522,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Butterfly+Doppler',
-    game: 'Counter-Strike 2',
+    type: 'Knife',
   },
   {
     id: '6',
@@ -172,7 +184,7 @@ export const mockItems: CSItem[] = [
     price: 1500,
     cost: 939.97,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Karambit+Tiger+Tooth',
-    game: 'Counter-Strike 2',
+    type: 'Knife',
   },
   {
     id: '7',
@@ -183,7 +195,7 @@ export const mockItems: CSItem[] = [
     price: 800,
     cost: 655,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Butterfly+Black+Laminate',
-    game: 'Counter-Strike 2',
+    type: 'Knife',
   },
   {
     id: '8',
@@ -194,7 +206,7 @@ export const mockItems: CSItem[] = [
     price: 250,
     cost: 173,
     imageUrl: 'https://via.placeholder.com/300x200/EAB308/FFFFFF?text=Skeleton+Urban+Masked',
-    game: 'Counter-Strike 2',
+    type: 'Knife',
   },
   
   // Agents (Restricted)
@@ -207,7 +219,7 @@ export const mockItems: CSItem[] = [
     price: 80,
     cost: 55,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Vypa+Sista',
-    game: 'Counter-Strike 2',
+    type: 'Agent',
   },
   {
     id: '10',
@@ -218,7 +230,7 @@ export const mockItems: CSItem[] = [
     price: 70,
     cost: 50,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Number+K',
-    game: 'Counter-Strike 2',
+    type: 'Agent',
   },
   {
     id: '11',
@@ -229,7 +241,7 @@ export const mockItems: CSItem[] = [
     price: 20,
     cost: 17,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Ricksaw',
-    game: 'Counter-Strike 2',
+    type: 'Agent',
   },
   {
     id: '12',
@@ -240,7 +252,7 @@ export const mockItems: CSItem[] = [
     price: 21,
     cost: 17.37,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Syfers',
-    game: 'Counter-Strike 2',
+    type: 'Agent',
   },
   
   // Coverts
@@ -253,7 +265,7 @@ export const mockItems: CSItem[] = [
     price: 1049,
     cost: 945,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=AK-47+Fire+Serpent',
-    game: 'Counter-Strike 2',
+    type: 'Rifle',
   },
   {
     id: '14',
@@ -264,7 +276,7 @@ export const mockItems: CSItem[] = [
     price: 115,
     cost: 9.65,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=MAC-10+Neon+Rider',
-    game: 'Counter-Strike 2',
+    type: 'SMG',
   },
   {
     id: '15',
@@ -275,7 +287,7 @@ export const mockItems: CSItem[] = [
     price: 100,
     cost: 17,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=M4A4+X-Ray',
-    game: 'Counter-Strike 2',
+    type: 'Rifle',
   },
   {
     id: '16',
@@ -286,7 +298,7 @@ export const mockItems: CSItem[] = [
     price: 53,
     cost: 53,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=AWP+Printstream',
-    game: 'Counter-Strike 2',
+    type: 'Sniper Rifle',
   },
   {
     id: '17',
@@ -297,7 +309,7 @@ export const mockItems: CSItem[] = [
     price: 33,
     cost: 33,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=USP-S+Printstream',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '18',
@@ -308,7 +320,7 @@ export const mockItems: CSItem[] = [
     price: 30,
     cost: 30,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=Desert+Eagle+Printstream',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '19',
@@ -319,7 +331,7 @@ export const mockItems: CSItem[] = [
     price: 16,
     cost: 30,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=Glock+Gold+Toof',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '20',
@@ -330,7 +342,7 @@ export const mockItems: CSItem[] = [
     price: 33,
     cost: 5,
     imageUrl: 'https://via.placeholder.com/300x200/DC2626/FFFFFF?text=AK-47+Head+Shot',
-    game: 'Counter-Strike 2',
+    type: 'Rifle',
   },
   
   // Weapons (Various rarities)
@@ -343,7 +355,7 @@ export const mockItems: CSItem[] = [
     price: 80,
     cost: 56,
     imageUrl: 'https://via.placeholder.com/300x200/EC4899/FFFFFF?text=Kumicho+Dragon',
-    game: 'Counter-Strike 2',
+    type: 'Collectible',
   },
   {
     id: '22',
@@ -354,7 +366,7 @@ export const mockItems: CSItem[] = [
     price: 70,
     cost: 75,
     imageUrl: 'https://via.placeholder.com/300x200/EC4899/FFFFFF?text=AK-47+Midnight',
-    game: 'Counter-Strike 2',
+    type: 'Rifle',
   },
   {
     id: '23',
@@ -365,7 +377,7 @@ export const mockItems: CSItem[] = [
     price: 65,
     cost: 46,
     imageUrl: 'https://via.placeholder.com/300x200/EC4899/FFFFFF?text=UMP-45+Fade',
-    game: 'Counter-Strike 2',
+    type: 'SMG',
   },
   {
     id: '24',
@@ -376,7 +388,7 @@ export const mockItems: CSItem[] = [
     price: 0,
     cost: 0,
     imageUrl: 'https://via.placeholder.com/300x200/EC4899/FFFFFF?text=M4A1-S+Black+Lotus',
-    game: 'Counter-Strike 2',
+    type: 'Rifle',
   },
   {
     id: '25',
@@ -387,7 +399,7 @@ export const mockItems: CSItem[] = [
     price: 10,
     cost: 9,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=USP+Alpine',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '26',
@@ -398,7 +410,7 @@ export const mockItems: CSItem[] = [
     price: 20,
     cost: 20,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Glock+Mirror',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '27',
@@ -409,7 +421,7 @@ export const mockItems: CSItem[] = [
     price: 9,
     cost: 10,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Glock+Shinobu',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '28',
@@ -420,7 +432,7 @@ export const mockItems: CSItem[] = [
     price: 5,
     cost: 1,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Tec-9+Sandstorm',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '29',
@@ -431,7 +443,7 @@ export const mockItems: CSItem[] = [
     price: 3,
     cost: 5,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=MP7+Fade',
-    game: 'Counter-Strike 2',
+    type: 'SMG',
   },
   {
     id: '30',
@@ -442,7 +454,7 @@ export const mockItems: CSItem[] = [
     price: 3,
     cost: 5,
     imageUrl: 'https://via.placeholder.com/300x200/A855F7/FFFFFF?text=Zeus+Olympus',
-    game: 'Counter-Strike 2',
+    type: 'Equipment',
   },
   {
     id: '31',
@@ -453,7 +465,7 @@ export const mockItems: CSItem[] = [
     price: 0.5,
     cost: 0.5,
     imageUrl: 'https://via.placeholder.com/300x200/2563EB/FFFFFF?text=P250+X-Ray',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '32',
@@ -464,7 +476,7 @@ export const mockItems: CSItem[] = [
     price: 1,
     cost: 1,
     imageUrl: 'https://via.placeholder.com/300x200/2563EB/FFFFFF?text=Glock+Moonrise',
-    game: 'Counter-Strike 2',
+    type: 'Pistol',
   },
   {
     id: '33',
@@ -475,7 +487,7 @@ export const mockItems: CSItem[] = [
     price: 2,
     cost: 2,
     imageUrl: 'https://via.placeholder.com/300x200/2563EB/FFFFFF?text=MP9+Black+Sand',
-    game: 'Counter-Strike 2',
+    type: 'SMG',
   },
   {
     id: '34',
@@ -486,7 +498,7 @@ export const mockItems: CSItem[] = [
     price: 1,
     cost: 1,
     imageUrl: 'https://via.placeholder.com/300x200/2563EB/FFFFFF?text=P90+Elite',
-    game: 'Counter-Strike 2',
+    type: 'SMG',
   },
 ];
 
