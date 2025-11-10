@@ -8,6 +8,7 @@ export interface CSItem {
   exterior: Exterior;
   paintSeed?: number;
   price: number;
+  cost?: number;
   imageUrl: string;
   game: string;
   tradeProtected?: boolean;
@@ -43,7 +44,7 @@ export const rarityColors: Record<Rarity, string> = {
   'Contraband': 'bg-orange-500',
 };
 
-// Rarity border colors
+// Rarity border colors (for condition badges)
 export const rarityBorderColors: Record<Rarity, string> = {
   'Consumer Grade': 'border-gray-500',
   'Industrial Grade': 'border-blue-500',
@@ -53,6 +54,18 @@ export const rarityBorderColors: Record<Rarity, string> = {
   'Covert': 'border-red-500',
   'Extraordinary': 'border-yellow-500',
   'Contraband': 'border-orange-500',
+};
+
+// Rarity gradient colors for image backgrounds (very subtle vertical gradient)
+export const rarityGradients: Record<Rarity, string> = {
+  'Consumer Grade': 'from-gray-800/20 to-gray-900/30',
+  'Industrial Grade': 'from-blue-900/20 to-blue-950/30',
+  'Mil-Spec': 'from-blue-950/20 to-blue-950/30',
+  'Restricted': 'from-purple-950/20 to-purple-950/30',
+  'Classified': 'from-pink-950/20 to-pink-950/30',
+  'Covert': 'from-red-950/20 to-red-950/30',
+  'Extraordinary': 'from-yellow-950/20 to-yellow-950/30',
+  'Contraband': 'from-orange-950/20 to-orange-950/30',
 };
 
 // Exterior abbreviation mapping
@@ -74,7 +87,7 @@ export const mockItems: CSItem[] = [
     exterior: 'Battle-Scarred',
     paintSeed: 396,
     price: 881.86,
-    imageUrl: 'https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=Sport+Gloves+Nocts',
+    imageUrl: 'https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk5UvzWCL2kpn2-DFk_OKherB0H_qSCXKR09F-teB_Vmfjwkh_smuAzdasdniWaVNzAsYmQuYJ5hTsk4KxP-PhtAGI2opFzin_kGoXufyYXYCg/330x192?allow_animated=1',
     game: 'Counter-Strike 2',
     tradeProtected: true,
     tradableAfter: new Date('2025-11-12T09:00:00'),
@@ -187,5 +200,17 @@ export function formatPrice(price: number): string {
 // Helper function to format float
 export function formatFloat(float: number, precision: number = 3): string {
   return float.toFixed(precision);
+}
+
+// Helper function to calculate profit
+export function calculateProfit(price: number, cost?: number): number | undefined {
+  if (cost === undefined) return undefined;
+  return price - cost;
+}
+
+// Helper function to calculate profit percentage
+export function calculateProfitPercentage(price: number, cost?: number): number | undefined {
+  if (cost === undefined || cost === 0) return undefined;
+  return ((price - cost) / cost) * 100;
 }
 
