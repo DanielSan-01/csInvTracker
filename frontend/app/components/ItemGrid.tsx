@@ -5,6 +5,8 @@ import { CSItem, mockItems, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
 import AddSkinForm, { NewSkinData } from './AddSkinForm';
 import { calculateTradeProtectionDate } from '@/lib/utils';
+import { fetchSteamInventory, convertSteamItemToCSItem } from '@/lib/steamApi';
+import { getStoredSteamId } from '@/lib/steamAuth';
 
 export default function ItemGrid() {
   const [items, setItems] = useState<CSItem[]>(mockItems);
@@ -12,6 +14,26 @@ export default function ItemGrid() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoadingSteam, setIsLoadingSteam] = useState(false);
+  const [steamId, setSteamId] = useState<string | null>(null);
+
+  // Load Steam ID on mount and listen for changes
+  useEffect(() => {
+    const loadSteamId = () => {
+      const stored = getStoredSteamId();
+      if (stored) {
+        setSteamId(stored);
+      }
+    };
+    
+    loadSteamId();
+    
+    // Check periodically in case Steam ID was just set
+    const interval = setInterval(loadSteamId, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Load items from localStorage on mount
   useEffect(() => {
@@ -19,22 +41,44 @@ export default function ItemGrid() {
     if (savedItems) {
       try {
         const parsed = JSON.parse(savedItems);
-        // Convert date strings back to Date objects
-        const itemsWithDates = parsed.map((item: any) => ({
-          ...item,
-          tradableAfter: item.tradableAfter ? new Date(item.tradableAfter) : undefined,
-        }));
-        setItems(itemsWithDates);
+        // Check if localStorage has old mock data by checking for old item names
+        const oldItemNames = ['AK-47 | Redline', 'AWP | Dragon Lore', 'M4A4 | Howl', 'Glock-18 | Fade', 'USP-S | Kill Confirmed', 'AWP | Asiimov'];
+        const hasOldData = parsed && parsed.some((item: any) => oldItemNames.includes(item.name));
+        
+        if (hasOldData) {
+          // Old mock data detected, clear localStorage and use new mockItems
+          localStorage.removeItem('csInventoryItems');
+          setItems(mockItems);
+        } else if (parsed && parsed.length > 0) {
+          // Valid saved data, use it
+          const itemsWithDates = parsed.map((item: any) => ({
+            ...item,
+            tradableAfter: item.tradableAfter ? new Date(item.tradableAfter) : undefined,
+          }));
+          setItems(itemsWithDates);
+        } else {
+          // Empty array, use mockItems
+          setItems(mockItems);
+        }
       } catch (error) {
         console.error('Error loading saved items:', error);
+        // On error, clear localStorage and use mockItems
+        localStorage.removeItem('csInventoryItems');
+        setItems(mockItems);
       }
+    } else {
+      // No localStorage data, use mockItems
+      setItems(mockItems);
     }
+    setIsInitialized(true);
   }, []);
 
-  // Save items to localStorage whenever items change
+  // Save items to localStorage whenever items change (but not on initial load)
   useEffect(() => {
-    localStorage.setItem('csInventoryItems', JSON.stringify(items));
-  }, [items]);
+    if (isInitialized) {
+      localStorage.setItem('csInventoryItems', JSON.stringify(items));
+    }
+  }, [items, isInitialized]);
 
   // Helper function to determine exterior from float
   const determineExterior = (float?: number): Exterior => {
@@ -116,6 +160,54 @@ export default function ItemGrid() {
     setEditingItem(item);
   };
 
+  const handleLoadFromSteam = async () => {
+    if (!steamId) {
+      alert('Please login with Steam first');
+      return;
+    }
+
+    setIsLoadingSteam(true);
+    try {
+      console.log('Fetching Steam inventory for:', steamId);
+      const steamItems = await fetchSteamInventory(steamId);
+      console.log('Fetched Steam items:', steamItems);
+      
+      // Convert Steam items to CSItems
+      const convertedItems: CSItem[] = steamItems
+        .map((steamItem, index) => {
+          const partial = convertSteamItemToCSItem(steamItem, index);
+          return {
+            ...partial,
+            // Ensure all required fields are present
+            id: partial.id || steamItem.assetid,
+            name: partial.name || steamItem.marketName,
+            rarity: partial.rarity || 'Consumer Grade',
+            float: partial.float || 0.5,
+            exterior: partial.exterior || 'Field-Tested',
+            price: partial.price || 0,
+            imageUrl: partial.imageUrl || '',
+            game: 'Counter-Strike 2',
+          } as CSItem;
+        })
+        .filter(item => item.name && item.imageUrl); // Filter out invalid items
+
+      console.log('Converted items:', convertedItems);
+
+      if (convertedItems.length > 0) {
+        setItems(convertedItems);
+        alert(`Loaded ${convertedItems.length} items from Steam inventory!`);
+      } else {
+        alert('No items found in your Steam inventory. This could mean:\n- Your inventory is empty\n- Items are in a different game context\n- Check browser console for details');
+      }
+    } catch (error) {
+      console.error('Error loading Steam inventory:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to load inventory from Steam.\n\nError: ${errorMessage}\n\nCheck browser console (F12) for more details.`);
+    } finally {
+      setIsLoadingSteam(false);
+    }
+  };
+
   const filteredItems = items.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -127,15 +219,41 @@ export default function ItemGrid() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-3xl font-bold text-white">CS Inventory Tracker</h1>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Skin
-            </button>
+            <div className="flex items-center gap-3">
+              {steamId && (
+                <button
+                  onClick={handleLoadFromSteam}
+                  disabled={isLoadingSteam}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                >
+                  {isLoadingSteam ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                      </svg>
+                      <span>Load from Steam</span>
+                    </>
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Skin
+              </button>
+            </div>
           </div>
           
           {/* Search Bar */}
