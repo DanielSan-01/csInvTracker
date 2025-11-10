@@ -353,9 +353,6 @@ export default function ItemCard({ item, onClick, onEdit, variant = 'grid', isSe
           <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider ${rarityBadgeClasses[item.rarity]}`}>
             {item.rarity.split(' ')[0]}
           </span>
-          <span className="px-1.5 py-0.5 rounded border border-white/40 bg-black/60 text-[9px] font-bold text-white">
-            {exteriorAbbr[item.exterior]}
-          </span>
           <span className="px-1.5 py-0.5 rounded border border-gray-500/40 bg-black/60 text-[9px] font-medium text-gray-300 uppercase">
             {item.type}
           </span>
