@@ -117,32 +117,34 @@ export async function fetchSteamInventory(
     });
 
     // Parse items
-    const parsedItems: ParsedSteamItem[] = data.assets.map(asset => {
-      const key = `${asset.classid}_${asset.instanceid}`;
-      const description = itemMap.get(key);
+    const parsedItems: ParsedSteamItem[] = data.assets
+      .map(asset => {
+        const key = `${asset.classid}_${asset.instanceid}`;
+        const description = itemMap.get(key);
 
-      if (!description) {
-        // Skip items without descriptions
-        return null;
-      }
+        if (!description) {
+          // Skip items without descriptions
+          return null;
+        }
 
-      // Convert relative icon URL to full Steam economy image URL
-      const imageUrl = description.icon_url
-        ? `https://community.fastly.steamstatic.com/economy/image/${description.icon_url}/330x192?allow_animated=1`
-        : '';
+        // Convert relative icon URL to full Steam economy image URL
+        const imageUrl = description.icon_url
+          ? `https://community.fastly.steamstatic.com/economy/image/${description.icon_url}/330x192?allow_animated=1`
+          : '';
 
-      return {
-        assetid: asset.assetid,
-        name: description.name,
-        marketName: description.market_name || description.name,
-        imageUrl,
-        type: description.type,
-        tradable: description.tradable === 1,
-        marketable: description.marketable === 1,
-        descriptions: description.descriptions,
-        tags: description.tags,
-      };
-    }).filter((item): item is ParsedSteamItem => item !== null);
+        return {
+          assetid: asset.assetid,
+          name: description.name,
+          marketName: description.market_name || description.name,
+          imageUrl,
+          type: description.type,
+          tradable: description.tradable === 1,
+          marketable: description.marketable === 1,
+          descriptions: description.descriptions,
+          tags: description.tags,
+        } as ParsedSteamItem;
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
     return parsedItems;
   } catch (error) {

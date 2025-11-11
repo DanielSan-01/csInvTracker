@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 import { gsap } from 'gsap';
 import { useEffect, useRef } from 'react';
-import { Rarity, rarityColors, rarityBorderColors, mockItems, ItemType } from '@/lib/mockData';
+import { Rarity, rarityColors, rarityBorderColors, ItemType } from '@/lib/mockData';
 import { CSItem } from '@/lib/mockData';
 import { calculateTradeProtectionDate } from '@/lib/utils';
+import { useSkinCatalog } from '@/hooks/useSkinCatalog';
+import { SkinDto } from '@/lib/api';
 
 interface AddSkinFormProps {
   onAdd: (skinData: NewSkinData) => void;
@@ -15,6 +17,7 @@ interface AddSkinFormProps {
 }
 
 export interface NewSkinData {
+  skinId?: number; // Backend skin catalog ID
   name: string;
   rarity: Rarity;
   type: ItemType;
@@ -30,18 +33,8 @@ export interface NewSkinData {
 export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinFormProps) {
   const isEditMode = !!item;
   const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const catalogItems = useMemo(() => {
-    const uniqueMap = new Map<string, CSItem>();
-    mockItems.forEach((mock) => {
-      if (!uniqueMap.has(mock.name)) {
-        uniqueMap.set(mock.name, mock);
-      }
-    });
-    return Array.from(uniqueMap.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
-  }, []);
+  const [skinSearchTerm, setSkinSearchTerm] = useState('');
+  const { skins: catalogSkins, loading: catalogLoading } = useSkinCatalog(skinSearchTerm);
 
   const baseFormState = useMemo<NewSkinData>(() => ({
     name: item?.name ?? '',
@@ -111,6 +104,10 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!formData.skinId) {
+      newErrors.skinId = 'Please select a skin from the catalog';
+    }
+
     if (!formData.name.trim()) {
       newErrors.name = 'Skin name is required';
     }
@@ -174,31 +171,37 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
     'Contraband',
   ];
 
-  const fillFromCatalog = (name: string) => {
-    setSelectedCatalogName(name);
-    const catalogItem = catalogItems.find((catalog) => catalog.name === name);
-    if (!catalogItem) return;
-
+  const fillFromCatalog = (skin: SkinDto) => {
+    setSelectedCatalogName(skin.name);
+    
     setFormData((prev) => ({
       ...prev,
-      name: catalogItem.name,
-      rarity: catalogItem.rarity,
-      type: catalogItem.type,
-      float: catalogItem.float,
-      paintSeed: catalogItem.paintSeed,
-      price: catalogItem.price,
-      cost: catalogItem.cost,
-      imageUrl: catalogItem.imageUrl,
-      tradeProtected: catalogItem.tradeProtected,
+      skinId: skin.id,
+      name: skin.name,
+      rarity: skin.rarity as Rarity,
+      type: skin.type as ItemType,
+      price: skin.defaultPrice ? Number(skin.defaultPrice) : prev.price,
+      imageUrl: skin.imageUrl,
+      // Keep user's existing float, cost, paintSeed, etc.
     }));
 
-    // Open advanced section if catalog item has extra data
-    if (
-      catalogItem.float !== undefined ||
-      catalogItem.paintSeed !== undefined ||
-      catalogItem.cost !== undefined ||
-      catalogItem.imageUrl
-    ) {
+    // Close the search dropdown
+    setSkinSearchTerm('');
+  };
+
+  // Auto-fill search when editing
+  useEffect(() => {
+    if (isEditMode && item) {
+      // In edit mode, we already have the item populated
+      // but we still need the skinId - for now we'll need to search for it
+      // This is a limitation we can improve later
+    }
+  }, [isEditMode, item]);
+
+  const handleSearchSelect = (skin: SkinDto) => {
+    fillFromCatalog(skin);
+    const advancedNeeded = skin.defaultPrice !== undefined || skin.imageUrl;
+    if (advancedNeeded) {
       setShowAdvanced(true);
     }
   };
@@ -241,43 +244,61 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
           <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 shadow-inner shadow-purple-900/20 space-y-3">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm font-semibold text-purple-200">Quick fill from catalog</p>
+                <p className="text-sm font-semibold text-purple-200">Search Skin Catalog (1,071 skins)</p>
                 <p className="text-xs text-purple-300/70">
-                  Choose a skin you already have data for. Fields will pre-fill and stay editable.
+                  Search by name (e.g., "AK-47", "Dragon Lore"). Selected skin will pre-fill fields.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={resetCatalogSelection}
-                className="self-start rounded-full border border-purple-400/50 px-3 py-1 text-xs font-medium text-purple-200 hover:bg-purple-500/10 transition-colors disabled:opacity-40"
-                disabled={!selectedCatalogName && !isEditMode}
-              >
-                Reset selection
-              </button>
+              {selectedCatalogName && (
+                <div className="text-xs text-purple-300 bg-purple-900/40 px-2 py-1 rounded">
+                  Selected: {selectedCatalogName}
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="relative">
               <input
-                list="skin-catalog"
-                value={selectedCatalogName}
-                onChange={(e) => fillFromCatalog(e.target.value)}
-                placeholder="Search catalog e.g. “AK-47 | Fire Serpent”"
-                className="flex-1 rounded-lg border border-purple-400/50 bg-gray-900/60 px-4 py-2 text-sm text-purple-100 placeholder-purple-200/40 focus:border-purple-300 focus:outline-none"
+                type="text"
+                value={skinSearchTerm}
+                onChange={(e) => setSkinSearchTerm(e.target.value)}
+                placeholder="Type to search (e.g., AWP, AK-47, Fade)..."
+                className="flex-1 w-full rounded-lg border border-purple-400/50 bg-gray-900/60 px-4 py-2 text-sm text-purple-100 placeholder-purple-200/40 focus:border-purple-300 focus:outline-none"
               />
-              <button
-                type="button"
-                onClick={() => selectedCatalogName && fillFromCatalog(selectedCatalogName)}
-                className="rounded-lg bg-purple-500 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-600 transition-colors"
-                disabled={!selectedCatalogName}
-              >
-                Apply
-              </button>
+              
+              {/* Search Results Dropdown */}
+              {skinSearchTerm.length >= 2 && (
+                <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-gray-900 border border-purple-500/50 rounded-lg shadow-xl">
+                  {catalogLoading ? (
+                    <div className="p-4 text-center text-purple-300 text-sm">
+                      Searching...
+                    </div>
+                  ) : catalogSkins.length > 0 ? (
+                    <div className="py-1">
+                      {catalogSkins.slice(0, 50).map((skin) => (
+                        <button
+                          key={skin.id}
+                          type="button"
+                          onClick={() => handleSearchSelect(skin)}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-purple-500/20 transition-colors flex items-center justify-between group"
+                        >
+                          <span className="text-purple-100 group-hover:text-white">{skin.name}</span>
+                          <span className="text-xs text-gray-400">{skin.rarity}</span>
+                        </button>
+                      ))}
+                      {catalogSkins.length > 50 && (
+                        <div className="px-4 py-2 text-xs text-gray-400 border-t border-purple-500/30">
+                          Showing first 50 of {catalogSkins.length} results. Type more to narrow down.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-gray-400 text-sm">
+                      No skins found. Try a different search.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <datalist id="skin-catalog">
-              {catalogItems.map((catalogItem) => (
-                <option key={catalogItem.name} value={catalogItem.name} />
-              ))}
-            </datalist>
           </div>
 
           {/* Required Fields */}

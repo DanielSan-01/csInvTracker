@@ -1,26 +1,121 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://localhost:5001';
+// API configuration
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
 
-export async function fetchApi<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`API Error: ${response.statusText}`);
-  }
-
-  return response.json();
+// Types matching backend DTOs
+export interface SkinDto {
+  id: number;
+  name: string;
+  rarity: string;
+  type: string;
+  collection?: string;
+  weapon?: string;
+  imageUrl?: string;
+  defaultPrice?: number;
 }
 
-// Example API functions
-export const healthApi = {
-  check: () => fetchApi<{ status: string; timestamp: string }>('/api/health'),
+export interface InventoryItemDto {
+  id: number;
+  skinId: number;
+  skinName: string;
+  rarity: string;
+  type: string;
+  float: number;
+  exterior: string;
+  paintSeed?: number;
+  price: number;
+  cost?: number;
+  imageUrl?: string;
+  tradeProtected: boolean;
+  tradableAfter?: string;
+  acquiredAt: string;
+}
+
+export interface CreateInventoryItemDto {
+  skinId: number;
+  float: number;
+  paintSeed?: number;
+  price: number;
+  cost?: number;
+  imageUrl?: string;
+  tradeProtected: boolean;
+}
+
+export interface UpdateInventoryItemDto {
+  float: number;
+  paintSeed?: number;
+  price: number;
+  cost?: number;
+  imageUrl?: string;
+  tradeProtected: boolean;
+}
+
+// Skins API
+export const skinsApi = {
+  getSkins: async (search?: string): Promise<SkinDto[]> => {
+    const url = new URL(`${API_BASE_URL}/skins`);
+    if (search) {
+      url.searchParams.append('search', search);
+    }
+    
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch skins');
+    }
+    return response.json();
+  },
+
+  getSkinById: async (id: number): Promise<SkinDto> => {
+    const response = await fetch(`${API_BASE_URL}/skins/${id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch skin');
+    }
+    return response.json();
+  },
 };
 
+// Inventory API
+export const inventoryApi = {
+  getInventoryItems: async (): Promise<InventoryItemDto[]> => {
+    const response = await fetch(`${API_BASE_URL}/inventory`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch inventory');
+    }
+    return response.json();
+  },
+
+  createInventoryItem: async (item: CreateInventoryItemDto): Promise<InventoryItemDto> => {
+    const response = await fetch(`${API_BASE_URL}/inventory`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(item),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to create inventory item');
+    }
+    return response.json();
+  },
+
+  updateInventoryItem: async (id: number, item: UpdateInventoryItemDto): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(item),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update inventory item');
+    }
+  },
+
+  deleteInventoryItem: async (id: number): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete inventory item');
+    }
+  },
+};
