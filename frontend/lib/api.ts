@@ -7,6 +7,8 @@ export interface SkinDto {
   name: string;
   rarity: string;
   type: string;
+  collection?: string;
+  weapon?: string;
   imageUrl?: string;
   defaultPrice?: number;
 }
@@ -49,7 +51,7 @@ export interface UpdateInventoryItemDto {
 
 // Skins API
 export const skinsApi = {
-  async getAll(search?: string): Promise<SkinDto[]> {
+  getSkins: async (search?: string): Promise<SkinDto[]> => {
     const url = new URL(`${API_BASE_URL}/skins`);
     if (search) {
       url.searchParams.append('search', search);
@@ -62,7 +64,7 @@ export const skinsApi = {
     return response.json();
   },
 
-  async getById(id: number): Promise<SkinDto> {
+  getSkinById: async (id: number): Promise<SkinDto> => {
     const response = await fetch(`${API_BASE_URL}/skins/${id}`);
     if (!response.ok) {
       throw new Error('Failed to fetch skin');
@@ -73,7 +75,7 @@ export const skinsApi = {
 
 // Inventory API
 export const inventoryApi = {
-  async getAll(): Promise<InventoryItemDto[]> {
+  getInventoryItems: async (): Promise<InventoryItemDto[]> => {
     const response = await fetch(`${API_BASE_URL}/inventory`);
     if (!response.ok) {
       throw new Error('Failed to fetch inventory');
@@ -81,15 +83,7 @@ export const inventoryApi = {
     return response.json();
   },
 
-  async getById(id: number): Promise<InventoryItemDto> {
-    const response = await fetch(`${API_BASE_URL}/inventory/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch inventory item');
-    }
-    return response.json();
-  },
-
-  async create(item: CreateInventoryItemDto): Promise<InventoryItemDto> {
+  createInventoryItem: async (item: CreateInventoryItemDto): Promise<InventoryItemDto> => {
     const response = await fetch(`${API_BASE_URL}/inventory`, {
       method: 'POST',
       headers: {
@@ -103,7 +97,7 @@ export const inventoryApi = {
     return response.json();
   },
 
-  async update(id: number, item: UpdateInventoryItemDto): Promise<InventoryItemDto> {
+  updateInventoryItem: async (id: number, item: UpdateInventoryItemDto): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
       method: 'PUT',
       headers: {
@@ -114,10 +108,9 @@ export const inventoryApi = {
     if (!response.ok) {
       throw new Error('Failed to update inventory item');
     }
-    return response.json();
   },
 
-  async delete(id: number): Promise<void> {
+  deleteInventoryItem: async (id: number): Promise<void> => {
     const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
       method: 'DELETE',
     });

@@ -385,17 +385,21 @@ export default function ItemCard({ item, onClick, onEdit, variant = 'grid', isSe
           </div>
           
           {/* Profit and Wear */}
-          {item.cost !== undefined && (
-            <div className="flex items-center justify-between gap-2">
-              <div className={`text-[10px] font-semibold ${calculateProfit(item.price, item.cost) >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                Profit {calculateProfit(item.price, item.cost) >= 0 ? '+' : ''}
-                {formatPrice(calculateProfit(item.price, item.cost))}
+          {item.cost !== undefined && item.cost !== null && (() => {
+            const cost = item.cost as number;
+            const profit = calculateProfit(item.price, cost);
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <div className={`text-[10px] font-semibold ${profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  Profit {profit >= 0 ? '+' : ''}
+                  {formatPrice(profit)}
+                </div>
+                <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${getFloatColor(item.float)} text-white`}>
+                  {exteriorAbbr[item.exterior]}
+                </span>
               </div>
-              <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${getFloatColor(item.float)} text-white`}>
-                {exteriorAbbr[item.exterior]}
-              </span>
-            </div>
-          )}
+            );
+          })()}
           
           {/* Float bar at bottom */}
           <div className="flex items-center gap-1.5 pt-0.5">

@@ -1,20 +1,24 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CSItem, mockItems, Exterior } from '@/lib/mockData';
+import { CSItem, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
 import AddSkinForm, { NewSkinData } from './AddSkinForm';
-import { calculateTradeProtectionDate } from '@/lib/utils';
+import GlobalSearchBar from './GlobalSearchBar';
+import { useInventory } from '@/hooks/useInventory';
+import { inventoryItemsToCSItems } from '@/lib/dataConverter';
+import { CreateInventoryItemDto, UpdateInventoryItemDto } from '@/lib/api';
 import { fetchSteamInventory, convertSteamItemToCSItem } from '@/lib/steamApi';
 import { getStoredSteamId } from '@/lib/steamAuth';
 
 export default function ItemGrid() {
-  const [items, setItems] = useState<CSItem[]>(mockItems);
+  const { items: backendItems, loading, error, createItem, updateItem, deleteItem, refresh } = useInventory();
+  const items = inventoryItemsToCSItems(backendItems);
+  
   const [selectedItem, setSelectedItem] = useState<CSItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
 
@@ -35,50 +39,7 @@ export default function ItemGrid() {
     return () => clearInterval(interval);
   }, []);
 
-  // Load items from localStorage on mount
-  useEffect(() => {
-    const savedItems = localStorage.getItem('csInventoryItems');
-    if (savedItems) {
-      try {
-        const parsed = JSON.parse(savedItems);
-        // Check if localStorage has old mock data by checking for old item names
-        const oldItemNames = ['AK-47 | Redline', 'AWP | Dragon Lore', 'M4A4 | Howl', 'Glock-18 | Fade', 'USP-S | Kill Confirmed', 'AWP | Asiimov'];
-        const hasOldData = parsed && parsed.some((item: any) => oldItemNames.includes(item.name));
-        
-        if (hasOldData) {
-          // Old mock data detected, clear localStorage and use new mockItems
-          localStorage.removeItem('csInventoryItems');
-          setItems(mockItems);
-        } else if (parsed && parsed.length > 0) {
-          // Valid saved data, use it
-          const itemsWithDates = parsed.map((item: any) => ({
-            ...item,
-            tradableAfter: item.tradableAfter ? new Date(item.tradableAfter) : undefined,
-          }));
-          setItems(itemsWithDates);
-        } else {
-          // Empty array, use mockItems
-          setItems(mockItems);
-        }
-      } catch (error) {
-        console.error('Error loading saved items:', error);
-        // On error, clear localStorage and use mockItems
-        localStorage.removeItem('csInventoryItems');
-        setItems(mockItems);
-      }
-    } else {
-      // No localStorage data, use mockItems
-      setItems(mockItems);
-    }
-    setIsInitialized(true);
-  }, []);
-
-  // Save items to localStorage whenever items change (but not on initial load)
-  useEffect(() => {
-    if (isInitialized) {
-      localStorage.setItem('csInventoryItems', JSON.stringify(items));
-    }
-  }, [items, isInitialized]);
+  // No more localStorage - data comes from backend!
 
   // Auto-select the first item to populate detail view
   useEffect(() => {
@@ -87,80 +48,52 @@ export default function ItemGrid() {
     }
   }, [items, selectedItem]);
 
-  // Helper function to determine exterior from float
-  const determineExterior = (float?: number): Exterior => {
-    if (float === undefined) return 'Field-Tested';
-    if (float < 0.07) return 'Factory New';
-    if (float < 0.15) return 'Minimal Wear';
-    if (float < 0.38) return 'Field-Tested';
-    if (float < 0.45) return 'Well-Worn';
-    return 'Battle-Scarred';
+  // Handler for GlobalSearchBar quick-add
+  const handleQuickAddSkin = (skinId: number, skinName: string) => {
+    setEditingItem(null);
+    setShowAddForm(true);
+    // The AddSkinForm will auto-populate with this skin's data via useSkinCatalog
+    // We can pass the skinId via state later if needed
   };
 
-  const handleAddSkin = (newSkinData: NewSkinData) => {
-    const exterior = determineExterior(newSkinData.float);
-    const tradableAfter = newSkinData.tradeProtected ? calculateTradeProtectionDate() : undefined;
-
-    // Create new item
-    const newItem: CSItem = {
-      id: Date.now().toString(), // Simple ID generation
-      name: newSkinData.name,
-      rarity: newSkinData.rarity,
-      type: newSkinData.type,
-      float: newSkinData.float ?? 0.5, // Default float if not provided
-      exterior: exterior, // Auto-determined from float
+  const handleAddSkin = async (newSkinData: NewSkinData) => {
+    // Convert NewSkinData to CreateInventoryItemDto
+    const createDto: CreateInventoryItemDto = {
+      skinId: newSkinData.skinId!, // Will be provided by updated AddSkinForm
+      float: newSkinData.float ?? 0.5,
       paintSeed: newSkinData.paintSeed,
       price: newSkinData.price,
       cost: newSkinData.cost,
-      imageUrl: newSkinData.imageUrl || `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(newSkinData.name)}`,
-      tradeProtected: newSkinData.tradeProtected,
-      tradableAfter: tradableAfter,
+      tradeProtected: newSkinData.tradeProtected ?? false,
     };
 
-    // Add to items list
-    setItems([...items, newItem]);
-    setShowAddForm(false);
-    
-    // Optionally select the new item
-    setSelectedItem(newItem);
+    const newItem = await createItem(createDto);
+    if (newItem) {
+      setShowAddForm(false);
+      // Select the newly added item
+      const csItem = inventoryItemsToCSItems([newItem])[0];
+      setSelectedItem(csItem);
+    }
   };
 
-  const handleUpdateSkin = (id: string, updatedData: NewSkinData) => {
-    const exterior = determineExterior(updatedData.float);
-    const existingItem = items.find(item => item.id === id);
-    
-    // If trade protection is being enabled, set the date. If disabled, clear it.
-    // If it's already protected and staying protected, keep the existing date
-    let tradableAfter = existingItem?.tradableAfter;
-    if (updatedData.tradeProtected && !existingItem?.tradeProtected) {
-      // Newly protected - set 7 days from now
-      tradableAfter = calculateTradeProtectionDate();
-    } else if (!updatedData.tradeProtected) {
-      // Protection removed
-      tradableAfter = undefined;
-    }
-
-    const updatedItem: CSItem = {
-      ...existingItem!,
-      name: updatedData.name,
-      rarity: updatedData.rarity,
-      type: updatedData.type,
-      float: updatedData.float ?? existingItem?.float ?? 0.5,
-      exterior: exterior,
+  const handleUpdateSkin = async (id: string, updatedData: NewSkinData) => {
+    const updateDto: UpdateInventoryItemDto = {
+      float: updatedData.float ?? 0.5,
       paintSeed: updatedData.paintSeed,
       price: updatedData.price,
       cost: updatedData.cost,
-      imageUrl: updatedData.imageUrl || existingItem?.imageUrl || `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(updatedData.name)}`,
-      tradeProtected: updatedData.tradeProtected,
-      tradableAfter: tradableAfter,
+      tradeProtected: updatedData.tradeProtected ?? false,
     };
 
-    setItems(items.map(item => item.id === id ? updatedItem : item));
-    setEditingItem(null);
-    
-    // Update selected item if it was the one being edited
-    if (selectedItem?.id === id) {
-      setSelectedItem(updatedItem);
+    const success = await updateItem(parseInt(id), updateDto);
+    if (success) {
+      setEditingItem(null);
+      // Refresh will happen automatically via the hook
+      // Update selected item
+      const updatedItem = items.find(item => item.id === id);
+      if (updatedItem) {
+        setSelectedItem(updatedItem);
+      }
     }
   };
 
@@ -180,33 +113,13 @@ export default function ItemGrid() {
       const steamItems = await fetchSteamInventory(steamId);
       console.log('Fetched Steam items:', steamItems);
       
-      // Convert Steam items to CSItems
-      const convertedItems: CSItem[] = steamItems
-        .map((steamItem, index) => {
-          const partial = convertSteamItemToCSItem(steamItem, index);
-          return {
-            ...partial,
-            // Ensure all required fields are present
-            id: partial.id || steamItem.assetid,
-            name: partial.name || steamItem.marketName,
-            rarity: partial.rarity || 'Consumer Grade',
-            type: partial.type || 'Rifle',
-            float: partial.float || 0.5,
-            exterior: partial.exterior || 'Field-Tested',
-            price: partial.price || 0,
-            imageUrl: partial.imageUrl || '',
-          } as CSItem;
-        })
-        .filter(item => item.name && item.imageUrl); // Filter out invalid items
-
-      console.log('Converted items:', convertedItems);
-
-      if (convertedItems.length > 0) {
-        setItems(convertedItems);
-        alert(`Loaded ${convertedItems.length} items from Steam inventory!`);
-      } else {
-        alert('No items found in your Steam inventory. This could mean:\n- Your inventory is empty\n- Items are in a different game context\n- Check browser console for details');
-      }
+      // Note: Steam inventory loading is currently disabled when using backend.
+      // To implement this, we would need to:
+      // 1. Match Steam items to skins in our catalog by name
+      // 2. Create inventory items via the backend API
+      // 3. Handle items that don't exist in our catalog yet
+      
+      alert(`Found ${steamItems.length} items in Steam inventory.\n\nSteam inventory import is coming soon!\n\nFor now, please use the "Add Item" button to manually add items from our catalog.`);
     } catch (error) {
       console.error('Error loading Steam inventory:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -222,6 +135,28 @@ export default function ItemGrid() {
 
   return (
     <div className="relative min-h-screen bg-gray-950 p-8 pb-16">
+      {/* Backend Loading State */}
+      {loading && (
+        <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-gray-950/95 backdrop-blur-sm">
+          <svg className="h-10 w-10 animate-spin text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p className="text-purple-400 font-medium">Loading inventory from database...</p>
+        </div>
+      )}
+
+      {/* Backend Error State */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-200">
+          <p className="font-semibold">Error loading inventory:</p>
+          <p className="text-sm">{error}</p>
+          <button onClick={() => refresh()} className="mt-2 px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+            Retry
+          </button>
+        </div>
+      )}
+
       {isLoadingSteam && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-gray-950/85 backdrop-blur-sm">
           <svg className="h-10 w-10 animate-spin text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -236,7 +171,7 @@ export default function ItemGrid() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold text-white">CS Inventory Tracker</h1>
             <div className="flex items-center gap-3">
               {steamId && (
@@ -275,14 +210,23 @@ export default function ItemGrid() {
             </div>
           </div>
           
-          {/* Search Bar */}
-          <div className="mb-4">
+          {/* Global Search Bar - Search ALL Skins */}
+          <div className="mb-6 flex items-center justify-center">
+            <GlobalSearchBar 
+              userInventory={items}
+              onAddSkin={handleQuickAddSkin}
+            />
+          </div>
+          
+          {/* Filter Your Inventory */}
+          <div className="mb-4 flex items-center gap-3">
+            <label className="text-sm text-gray-400 font-medium">Filter your inventory:</label>
             <input
               type="text"
-              placeholder="Looking for a specific item?"
+              placeholder="Filter your items..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full max-w-md px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="flex-1 max-w-md px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
             />
           </div>
 

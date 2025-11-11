@@ -4,7 +4,7 @@ namespace backend.Models;
 
 public class Skin
 {
-rtt sowa     [Key]
+    [Key]
     public int Id { get; set; }
     
     [Required]

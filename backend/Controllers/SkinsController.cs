@@ -24,14 +24,8 @@ public class SkinsController : ControllerBase
     {
         try
         {
-            var query = _context.Skins.AsQueryable();
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                query = query.Where(s => s.Name.Contains(search));
-            }
-
-            var skins = await query
+            // Fetch all skins from database
+            var allSkins = await _context.Skins
                 .OrderBy(s => s.Name)
                 .Select(s => new SkinDto
                 {
@@ -39,12 +33,37 @@ public class SkinsController : ControllerBase
                     Name = s.Name,
                     Rarity = s.Rarity,
                     Type = s.Type,
+                    Collection = s.Collection,
+                    Weapon = s.Weapon,
                     ImageUrl = s.ImageUrl,
                     DefaultPrice = s.DefaultPrice
                 })
                 .ToListAsync();
 
-            return Ok(skins);
+            // Apply case-insensitive search in memory if search term provided
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                _logger.LogInformation($"Searching for: '{search}' (before filtering: {allSkins.Count} skins)");
+                var searchLower = search.ToLower();
+                
+                // Split search into words and check if ALL words appear in the name
+                // This allows "butterfly doppler" to match "★ Butterfly Knife | Doppler"
+                var searchWords = searchLower.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                
+                allSkins = allSkins
+                    .Where(s => {
+                        var nameLower = s.Name.ToLower();
+                        // Remove special characters for better matching
+                        var nameNormalized = nameLower.Replace("★", "").Replace("|", " ").Trim();
+                        
+                        // Check if all search words are in the normalized name
+                        return searchWords.All(word => nameNormalized.Contains(word));
+                    })
+                    .ToList();
+                _logger.LogInformation($"After filtering: {allSkins.Count} results");
+            }
+
+            return Ok(allSkins);
         }
         catch (Exception ex)
         {
@@ -67,6 +86,8 @@ public class SkinsController : ControllerBase
                     Name = s.Name,
                     Rarity = s.Rarity,
                     Type = s.Type,
+                    Collection = s.Collection,
+                    Weapon = s.Weapon,
                     ImageUrl = s.ImageUrl,
                     DefaultPrice = s.DefaultPrice
                 })
