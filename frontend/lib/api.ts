@@ -31,6 +31,7 @@ export interface InventoryItemDto {
 }
 
 export interface CreateInventoryItemDto {
+  userId: number;
   skinId: number;
   float: number;
   paintSeed?: number;
@@ -73,10 +74,42 @@ export const skinsApi = {
   },
 };
 
+// User API
+export interface User {
+  id: number;
+  steamId: string;
+  username?: string;
+  createdAt: string;
+  lastLoginAt: string;
+}
+
+export const usersApi = {
+  getOrCreateUserBySteamId: async (steamId: string): Promise<User> => {
+    const response = await fetch(`${API_BASE_URL}/users/by-steam/${steamId}`);
+    if (!response.ok) {
+      throw new Error('Failed to get/create user');
+    }
+    return response.json();
+  },
+
+  getUserById: async (id: number): Promise<User> => {
+    const response = await fetch(`${API_BASE_URL}/users/${id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch user');
+    }
+    return response.json();
+  },
+};
+
 // Inventory API
 export const inventoryApi = {
-  getInventoryItems: async (): Promise<InventoryItemDto[]> => {
-    const response = await fetch(`${API_BASE_URL}/inventory`);
+  getInventoryItems: async (userId?: number): Promise<InventoryItemDto[]> => {
+    const url = new URL(`${API_BASE_URL}/inventory`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+    
+    const response = await fetch(url.toString());
     if (!response.ok) {
       throw new Error('Failed to fetch inventory');
     }

@@ -10,6 +10,7 @@ public class ApplicationDbContext : DbContext
     {
     }
 
+    public DbSet<User> Users { get; set; } = null!;
     public DbSet<Skin> Skins { get; set; } = null!;
     public DbSet<InventoryItem> InventoryItems { get; set; } = null!;
 
@@ -17,7 +18,19 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
         
-        // Configure relationships
+        // Configure User unique constraint on SteamId
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.SteamId)
+            .IsUnique();
+        
+        // Configure User -> InventoryItems relationship
+        modelBuilder.Entity<User>()
+            .HasMany(u => u.InventoryItems)
+            .WithOne(i => i.User)
+            .HasForeignKey(i => i.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        // Configure InventoryItem -> Skin relationship
         modelBuilder.Entity<InventoryItem>()
             .HasOne(i => i.Skin)
             .WithMany(s => s.InventoryItems)

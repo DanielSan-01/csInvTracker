@@ -20,6 +20,7 @@ public class InventoryItemDto
 
 public class CreateInventoryItemDto
 {
+    public int UserId { get; set; }
     public int SkinId { get; set; }
     public double Float { get; set; }
     public int? PaintSeed { get; set; }

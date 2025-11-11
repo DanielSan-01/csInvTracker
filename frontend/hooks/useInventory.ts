@@ -3,17 +3,17 @@
 import { useState, useEffect } from 'react';
 import { inventoryApi, InventoryItemDto, CreateInventoryItemDto, UpdateInventoryItemDto } from '@/lib/api';
 
-export function useInventory() {
+export function useInventory(userId?: number) {
   const [items, setItems] = useState<InventoryItemDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch inventory on mount
+  // Fetch inventory on mount or when userId changes
   const fetchInventory = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await inventoryApi.getInventoryItems();
+      const data = await inventoryApi.getInventoryItems(userId);
       setItems(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch inventory');
@@ -24,8 +24,13 @@ export function useInventory() {
   };
 
   useEffect(() => {
-    fetchInventory();
-  }, []);
+    if (userId) {
+      fetchInventory();
+    } else {
+      setItems([]);
+      setLoading(false);
+    }
+  }, [userId]);
 
   // Create new inventory item
   const createItem = async (data: CreateInventoryItemDto): Promise<InventoryItemDto | null> => {

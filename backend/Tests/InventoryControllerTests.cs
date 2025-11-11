@@ -27,6 +27,15 @@ public class InventoryControllerTests : IDisposable
             
         _controller = new InventoryController(_context, logger);
         
+        // Create test user
+        var testUser = new User
+        {
+            Id = 1,
+            SteamId = "76561197996404463",
+            Username = "TestUser"
+        };
+        _context.Users.Add(testUser);
+        
         // Create test skin
         _testSkin = new Skin
         {
@@ -47,7 +56,7 @@ public class InventoryControllerTests : IDisposable
     public async Task GetInventory_ReturnsEmptyList_WhenNoItems()
     {
         // Act
-        var actionResult = await _controller.GetInventory();
+        var actionResult = await _controller.GetInventory(null);
         
         // Assert
         var okResult = Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(actionResult.Result);
@@ -61,6 +70,7 @@ public class InventoryControllerTests : IDisposable
         // Arrange
         var createDto = new CreateInventoryItemDto
         {
+            UserId = 1,
             SkinId = 1,
             Float = 0.15f,
             Price = 20.0m,
@@ -85,6 +95,7 @@ public class InventoryControllerTests : IDisposable
         // Arrange
         var createDto = new CreateInventoryItemDto
         {
+            UserId = 1,
             SkinId = 999, // Non-existent skin
             Float = 0.15f,
             Price = 20.0m,
@@ -179,6 +190,7 @@ public class InventoryControllerTests : IDisposable
         // Arrange
         var createDto = new CreateInventoryItemDto
         {
+            UserId = 1,
             SkinId = 1,
             Float = floatValue,
             Price = 20.0m,

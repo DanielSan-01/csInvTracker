@@ -57,6 +57,8 @@ backend/*.sln.docstates
 !.vscode/extensions.json
 
 # Database
+# Allow the seeded database to be committed (contains skin catalog)
+!backend/csInvTracker.db
 *.db
 *.db-shm
 *.db-wal
