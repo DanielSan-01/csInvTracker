@@ -92,19 +92,28 @@ The frontend will be available at `http://localhost:3000`
 
 ## Development
 
-### Running Both Services
+#  How to Start Your CS Inventory Tracker
 
-**Terminal 1 - Backend:**
+## Quick Start (2 Terminals)
+
+### Terminal 1 - Backend (Port 5027)
 ```bash
 cd backend
-dotnet watch run
+dotnet run
 ```
 
-**Terminal 2 - Frontend:**
+**Wait for**: `Now listening on: http://localhost:5027`
+
+### Terminal 2 - Frontend (Port 3002)
 ```bash
 cd frontend
 npm run dev
 ```
+
+**Wait for**: `Ready in X seconds`
+
+### Open Browser
+Go to: **http://localhost:3002**
 
 ### Adding New Database Models
 
@@ -113,34 +122,7 @@ npm run dev
 3. Create a migration: `dotnet ef migrations add MigrationName --project backend`
 4. Apply migration: `dotnet ef database update --project backend`
 
-### Using GSAP
 
-GSAP is already installed. Import it in your components:
-
-```tsx
-'use client';
-import { gsap } from 'gsap';
-import { useEffect, useRef } from 'react';
-
-export default function MyComponent() {
-  const ref = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    if (ref.current) {
-      gsap.from(ref.current, { opacity: 0, y: 20, duration: 1 });
-    }
-  }, []);
-  
-  return <div ref={ref}>Animated content</div>;
-}
-```
-
-## API Endpoints
-
-### Health Check
-- `GET /api/health` - Returns API health status
-
-## Useful Commands
 
 ### Backend
 - `dotnet run` - Run the API
@@ -155,23 +137,4 @@ export default function MyComponent() {
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
 
-## Environment Variables
-
-### Backend (`appsettings.json`)
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=csInvTracker;Username=postgres;Password=postgres"
-  }
-}
-```
-
-### Frontend (`.env.local`)
-```
-NEXT_PUBLIC_API_URL=http://localhost:5000
-```
-
-## License
-
-MIT
 
