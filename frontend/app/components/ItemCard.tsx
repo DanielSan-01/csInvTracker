@@ -180,8 +180,8 @@ export default function ItemCard({ item, onClick, onEdit, variant = 'grid', isSe
           >
             <div
               ref={imageRef}
-              className="w-full h-full bg-cover bg-center"
-              style={{ backgroundImage: `url(${item.imageUrl})` }}
+              className="w-full h-full bg-contain bg-center bg-no-repeat"
+              style={{ backgroundImage: item.imageUrl ? `url("${item.imageUrl}")` : 'none' }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-gray-950/60 via-gray-950/0 to-gray-950/40 pointer-events-none" />
           </div>
@@ -344,7 +344,7 @@ export default function ItemCard({ item, onClick, onEdit, variant = 'grid', isSe
         <div
           ref={imageRef}
           className="w-full h-full bg-contain bg-center bg-no-repeat scale-90"
-          style={{ backgroundImage: `url(${item.imageUrl})` }}
+          style={{ backgroundImage: item.imageUrl ? `url("${item.imageUrl}")` : 'none' }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent pointer-events-none" />
 

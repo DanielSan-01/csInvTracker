@@ -32,14 +32,23 @@ public class InventoryController : ControllerBase
         };
     }
 
-    // GET: api/inventory
+    // GET: api/inventory?userId={userId}
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<InventoryItemDto>>> GetInventory()
+    public async Task<ActionResult<IEnumerable<InventoryItemDto>>> GetInventory([FromQuery] int? userId)
     {
         try
         {
-            var items = await _context.InventoryItems
+            var query = _context.InventoryItems
                 .Include(i => i.Skin)
+                .AsQueryable();
+            
+            // Filter by user if userId provided
+            if (userId.HasValue)
+            {
+                query = query.Where(i => i.UserId == userId.Value);
+            }
+            
+            var items = await query
                 .OrderByDescending(i => i.AcquiredAt)
                 .Select(i => new InventoryItemDto
                 {
@@ -117,6 +126,13 @@ public class InventoryController : ControllerBase
     {
         try
         {
+            // Verify user exists
+            var user = await _context.Users.FindAsync(dto.UserId);
+            if (user == null)
+            {
+                return BadRequest("Invalid user ID");
+            }
+            
             // Verify skin exists
             var skin = await _context.Skins.FindAsync(dto.SkinId);
             if (skin == null)
@@ -126,6 +142,7 @@ public class InventoryController : ControllerBase
 
             var item = new InventoryItem
             {
+                UserId = dto.UserId,
                 SkinId = dto.SkinId,
                 Float = dto.Float,
                 Exterior = GetExteriorFromFloat(dto.Float),

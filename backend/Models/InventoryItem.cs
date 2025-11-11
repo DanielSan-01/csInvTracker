@@ -9,6 +9,9 @@ public class InventoryItem
     public int Id { get; set; }
     
     [Required]
+    public int UserId { get; set; }
+    
+    [Required]
     public int SkinId { get; set; }
     
     [Required]
@@ -36,7 +39,10 @@ public class InventoryItem
     
     public DateTime AcquiredAt { get; set; } = DateTime.UtcNow;
     
-    // Navigation property
+    // Navigation properties
+    [ForeignKey("UserId")]
+    public User User { get; set; } = null!;
+    
     [ForeignKey("SkinId")]
     public Skin Skin { get; set; } = null!;
 }

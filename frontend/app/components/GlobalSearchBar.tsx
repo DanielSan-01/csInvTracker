@@ -7,9 +7,10 @@ import { CSItem } from '@/lib/mockData';
 interface GlobalSearchBarProps {
   userInventory: CSItem[];
   onAddSkin: (skinId: number, skinName: string) => void;
+  isLoggedIn?: boolean;
 }
 
-export default function GlobalSearchBar({ userInventory, onAddSkin }: GlobalSearchBarProps) {
+export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn = false }: GlobalSearchBarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showResults, setShowResults] = useState(false);
   const { skins, loading } = useSkinCatalog(searchTerm);
@@ -117,7 +118,11 @@ export default function GlobalSearchBar({ userInventory, onAddSkin }: GlobalSear
                     </div>
 
                     {/* Action Button */}
-                    {inInventory ? (
+                    {!isLoggedIn ? (
+                      <span className="px-4 py-2 text-sm text-gray-500 font-medium">
+                        Login to add
+                      </span>
+                    ) : inInventory ? (
                       <span className="px-4 py-2 text-sm text-green-400 font-medium">
                         ✓ In Inventory
                       </span>
