@@ -16,6 +16,7 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
     float: dto.float,
     exterior: dto.exterior as Exterior,
     paintSeed: dto.paintSeed,
+    paintIndex: dto.paintIndex,
     price: dto.price,
     cost: dto.cost,
     imageUrl: dto.imageUrl || '',

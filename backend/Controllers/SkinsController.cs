@@ -36,7 +36,8 @@ public class SkinsController : ControllerBase
                     Collection = s.Collection,
                     Weapon = s.Weapon,
                     ImageUrl = s.ImageUrl,
-                    DefaultPrice = s.DefaultPrice
+                    DefaultPrice = s.DefaultPrice,
+                    PaintIndex = s.PaintIndex
                 })
                 .ToListAsync();
 
@@ -89,7 +90,8 @@ public class SkinsController : ControllerBase
                     Collection = s.Collection,
                     Weapon = s.Weapon,
                     ImageUrl = s.ImageUrl,
-                    DefaultPrice = s.DefaultPrice
+                    DefaultPrice = s.DefaultPrice,
+                    PaintIndex = s.PaintIndex
                 })
                 .FirstOrDefaultAsync();
 

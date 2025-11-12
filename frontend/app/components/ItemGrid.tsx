@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { CSItem, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
 import AddSkinForm, { NewSkinData } from './AddSkinForm';
@@ -20,14 +20,33 @@ export default function ItemGrid() {
     return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
   }, [items]);
   
-  const [selectedItem, setSelectedItem] = useState<CSItem | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
   const [isImportingCsv, setIsImportingCsv] = useState(false);
-  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<CSItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load Steam ID on mount and listen for changes
   useEffect(() => {
@@ -51,19 +70,22 @@ export default function ItemGrid() {
   // Auto-select the first item to populate detail view
   useEffect(() => {
     if (sortedItems.length === 0) {
-      setSelectedItem(null);
+      setSelectedItemId(null);
       return;
     }
 
-    setSelectedItem(prev => {
-      if (!prev) {
-        return sortedItems[0];
+    setSelectedItemId(prev => {
+      if (prev && sortedItems.some(item => item.id === prev)) {
+        return prev;
       }
-
-      const match = sortedItems.find(item => item.id === prev.id);
-      return match ?? sortedItems[0];
+      return sortedItems[0].id;
     });
   }, [sortedItems]);
+
+  const selectedItem = useMemo(
+    () => (selectedItemId ? sortedItems.find(item => item.id === selectedItemId) ?? null : null),
+    [sortedItems, selectedItemId]
+  );
 
   // Handler for GlobalSearchBar quick-add
   const handleQuickAddSkin = (skinId: number, skinName: string) => {
@@ -75,7 +97,7 @@ export default function ItemGrid() {
 
   const handleAddSkin = async (newSkinData: NewSkinData) => {
     if (!user) {
-      alert('Please log in with Steam first!');
+      showToast('Please log in with Steam first!', 'error');
       return;
     }
     
@@ -95,7 +117,7 @@ export default function ItemGrid() {
       setShowAddForm(false);
       // Select the newly added item
       const csItem = inventoryItemsToCSItems([newItem])[0];
-      setSelectedItem(csItem);
+      setSelectedItemId(csItem.id);
     }
   };
 
@@ -115,7 +137,7 @@ export default function ItemGrid() {
       // Update selected item
       const updatedItem = sortedItems.find(item => item.id === id);
       if (updatedItem) {
-        setSelectedItem(updatedItem);
+        setSelectedItemId(updatedItem.id);
       }
     }
   };
@@ -124,24 +146,31 @@ export default function ItemGrid() {
     setEditingItem(item);
   };
 
-  const handleDeleteSkin = async (item: CSItem) => {
+  const handleRequestDelete = (item: CSItem) => {
     if (!user) {
-      alert('Please log in with Steam first!');
+      showToast('Please log in with Steam first!', 'error');
       return;
     }
+    setDeleteCandidate(item);
+  };
 
-    const confirmed = window.confirm(`Are you sure you want to delete "${item.name}" from your inventory?`);
-    if (!confirmed) {
-      return;
-    }
-
-    const success = await deleteItem(Number(item.id));
+  const handleConfirmDelete = async () => {
+    if (!deleteCandidate) return;
+    setIsDeleting(true);
+    const success = await deleteItem(Number(deleteCandidate.id));
+    setIsDeleting(false);
     if (success) {
-      setSelectedItem(null);
-      alert('Item deleted successfully.');
+      setDeleteCandidate(null);
+      setSelectedItemId(null);
+      showToast('Item deleted successfully.', 'success');
     } else {
-      alert('Failed to delete item. Please try again.');
+      showToast('Failed to delete item. Please try again.', 'error');
     }
+  };
+
+  const handleCancelDelete = () => {
+    if (isDeleting) return;
+    setDeleteCandidate(null);
   };
 
   const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,27 +180,23 @@ export default function ItemGrid() {
     }
 
     setIsImportingCsv(true);
-    setImportResult(null);
 
     try {
       const result = await adminApi.importInventoryFromCsv(user.id, file);
-      setImportResult({
-        success: result.successCount,
-        failed: result.failedCount,
-        errors: result.errors,
-      });
       
       // Refresh inventory
       await refresh();
       
-      // Show success message
       if (result.successCount > 0) {
-        alert(`✅ Successfully imported ${result.successCount} items!${result.failedCount > 0 ? `\n⚠️ ${result.failedCount} items failed.` : ''}`);
+        showToast(
+          `Imported ${result.successCount} item${result.successCount !== 1 ? 's' : ''}.${result.failedCount > 0 ? ` ${result.failedCount} failed.` : ''}`,
+          result.failedCount > 0 ? 'info' : 'success'
+        );
       } else {
-        alert(`❌ Import failed. ${result.errors.join('\n')}`);
+        showToast(`Import failed: ${result.errors.join(', ')}`, 'error');
       }
     } catch (error) {
-      alert(`Error importing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast(`Error importing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
     } finally {
       setIsImportingCsv(false);
       // Reset file input
@@ -181,7 +206,7 @@ export default function ItemGrid() {
 
   const handleLoadFromSteam = async () => {
     if (!steamId) {
-      alert('Please login with Steam first');
+      showToast('Please log in with Steam first!', 'error');
       return;
     }
 
@@ -197,11 +222,11 @@ export default function ItemGrid() {
       // 2. Create inventory items via the backend API
       // 3. Handle items that don't exist in our catalog yet
       
-      alert(`Found ${steamItems.length} items in Steam inventory.\n\nSteam inventory import is coming soon!\n\nFor now, please use the "Add Item" button to manually add items from our catalog.`);
+      showToast(`Found ${steamItems.length} item${steamItems.length !== 1 ? 's' : ''} in Steam inventory. Steam import is coming soon!`, 'info');
     } catch (error) {
       console.error('Error loading Steam inventory:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Failed to load inventory from Steam.\n\nError: ${errorMessage}\n\nCheck browser console (F12) for more details.`);
+      showToast(`Failed to load inventory from Steam: ${errorMessage}`, 'error');
     } finally {
       setIsLoadingSteam(false);
     }
@@ -213,6 +238,60 @@ export default function ItemGrid() {
 
   return (
     <div className="relative min-h-screen bg-gray-950 p-8 pb-16">
+      {toast && (
+        <div className="fixed top-6 left-1/2 z-[60] w-full max-w-lg -translate-x-1/2 px-4">
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm transition-opacity ${
+              toast.type === 'success'
+                ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+                : toast.type === 'error'
+                  ? 'border-rose-400/40 bg-rose-500/15 text-rose-200'
+                  : 'border-blue-400/40 bg-blue-500/15 text-blue-200'
+            }`}
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
+
+      {deleteCandidate && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-gray-950/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-red-500/40 bg-gray-900/95 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-red-200">
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <h3 className="text-lg font-semibold">Delete item?</h3>
+            </div>
+            <p className="text-sm text-gray-300">
+              Are you sure you want to remove <span className="font-medium text-white">{deleteCandidate.name}</span> from your inventory? This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-600 text-gray-200 hover:bg-gray-800 transition-colors disabled:opacity-60"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-60"
+                disabled={isDeleting}
+              >
+                {isDeleting && (
+                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V2.5A9.5 9.5 0 003.5 12H4zm2 5.291A7.962 7.962 0 014 12H2.5c0 3.31 1.344 6.31 3.52 8.477L6 17.291z" />
+                  </svg>
+                )}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Backend Loading State */}
       {loading && user && (
         <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-gray-950/95 backdrop-blur-sm">
@@ -354,8 +433,8 @@ export default function ItemGrid() {
                 <ItemCard
                   key={item.id}
                   item={item}
-                  onClick={() => setSelectedItem(item)}
-                  isSelected={selectedItem?.id === item.id}
+                  onClick={() => setSelectedItemId(item.id)}
+                  isSelected={selectedItemId === item.id}
                   variant="grid"
                 />
               ))}
@@ -376,7 +455,7 @@ export default function ItemGrid() {
                 item={selectedItem}
                 variant="detailed"
                 onEdit={user ? () => handleEditClick(selectedItem) : undefined}
-                onDelete={user ? () => handleDeleteSkin(selectedItem) : undefined}
+                onDelete={user ? () => handleRequestDelete(selectedItem) : undefined}
               />
             ) : (
               <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-gray-700 bg-gray-900/60 p-10 text-center text-sm text-gray-400">

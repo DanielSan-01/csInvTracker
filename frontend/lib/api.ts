@@ -11,6 +11,7 @@ export interface SkinDto {
   weapon?: string;
   imageUrl?: string;
   defaultPrice?: number;
+  paintIndex?: number;
 }
 
 export interface InventoryItemDto {
@@ -28,6 +29,7 @@ export interface InventoryItemDto {
   tradeProtected: boolean;
   tradableAfter?: string;
   acquiredAt: string;
+  paintIndex?: number;
 }
 
 export interface CreateInventoryItemDto {

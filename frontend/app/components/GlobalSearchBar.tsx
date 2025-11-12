@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import { CSItem } from '@/lib/mockData';
+import type { SkinDto } from '@/lib/api';
 
 interface GlobalSearchBarProps {
   userInventory: CSItem[];
@@ -90,6 +91,8 @@ export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn =
             <div className="py-2">
               {skins.map((skin) => {
                 const inInventory = isInInventory(skin.id);
+                const phaseLabel = getDopplerPhaseLabel(skin);
+                const displayName = getSkinDisplayName(skin, phaseLabel);
                 
                 return (
                   <div
@@ -107,7 +110,10 @@ export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn =
                       )}
                       
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-white truncate">{skin.name}</p>
+                        <p className="font-medium text-white truncate">{displayName}</p>
+                        {phaseLabel && (
+                          <p className="text-xs text-emerald-300 font-semibold mt-0.5">{phaseLabel}</p>
+                        )}
                         <div className="flex items-center gap-2 mt-1">
                           <span className={`text-xs px-2 py-0.5 rounded ${getRarityColor(skin.rarity)}`}>
                             {skin.rarity}
@@ -166,5 +172,44 @@ function getRarityColor(rarity: string): string {
     default:
       return 'bg-gray-600 text-gray-100';
   }
+}
+
+const dopplerPhaseLabels: Record<number, string> = {
+  415: 'Ruby',
+  416: 'Sapphire',
+  417: 'Black Pearl',
+  418: 'Doppler Phase 1',
+  419: 'Doppler Phase 2',
+  420: 'Doppler Phase 3',
+  421: 'Doppler Phase 4',
+  568: 'Gamma Emerald',
+  569: 'Gamma Phase 1',
+  570: 'Gamma Phase 2',
+  571: 'Gamma Phase 3',
+  572: 'Gamma Phase 4',
+  617: 'Black Pearl',
+  618: 'Doppler Phase 2',
+  619: 'Sapphire',
+  852: 'Doppler Phase 1',
+  853: 'Doppler Phase 2',
+  854: 'Doppler Phase 3',
+  855: 'Doppler Phase 4',
+  1119: 'Gamma Emerald',
+  1120: 'Gamma Phase 1',
+  1121: 'Gamma Phase 2',
+  1122: 'Gamma Phase 3',
+  1123: 'Gamma Phase 4',
+};
+
+function getDopplerPhaseLabel(skin: SkinDto): string | null {
+  if (!skin.paintIndex) return null;
+  const name = skin.name.toLowerCase();
+  if (!name.includes('doppler')) return null;
+  return dopplerPhaseLabels[skin.paintIndex] ?? null;
+}
+
+function getSkinDisplayName(skin: SkinDto, phaseLabel: string | null): string {
+  if (!phaseLabel) return skin.name;
+  return `${skin.name} (${phaseLabel})`;
 }
 

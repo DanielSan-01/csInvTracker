@@ -64,7 +64,8 @@ public class InventoryController : ControllerBase
                     ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
                     TradeProtected = i.TradeProtected,
                     TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt
+                    AcquiredAt = i.AcquiredAt,
+                    PaintIndex = i.Skin.PaintIndex
                 })
                 .ToListAsync();
 
@@ -101,7 +102,8 @@ public class InventoryController : ControllerBase
                     ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
                     TradeProtected = i.TradeProtected,
                     TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt
+                    AcquiredAt = i.AcquiredAt,
+                    PaintIndex = i.Skin.PaintIndex
                 })
                 .FirstOrDefaultAsync();
 
@@ -176,7 +178,8 @@ public class InventoryController : ControllerBase
                     ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
                     TradeProtected = i.TradeProtected,
                     TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt
+                    AcquiredAt = i.AcquiredAt,
+                    PaintIndex = i.Skin.PaintIndex
                 })
                 .FirstAsync();
 

@@ -11,7 +11,16 @@ export type ItemType =
   | 'Machine Gun'
   | 'Agent'
   | 'Equipment'
-  | 'Collectible';
+  | 'Collectible'
+  | 'Sticker'
+  | 'Graffiti'
+  | 'Patch'
+  | 'Music Kit'
+  | 'Case'
+  | 'Key'
+  | 'Keychain'
+  | 'Tool'
+  | 'Other';
 
 export interface CSItem {
   id: string;
@@ -20,6 +29,7 @@ export interface CSItem {
   float: number;
   exterior: Exterior;
   paintSeed?: number;
+  paintIndex?: number;
   price: number;
   cost?: number;
   imageUrl: string;

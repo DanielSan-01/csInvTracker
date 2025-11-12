@@ -8,6 +8,7 @@ import { CSItem } from '@/lib/mockData';
 import { calculateTradeProtectionDate } from '@/lib/utils';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import { SkinDto } from '@/lib/api';
+import { getDopplerPhaseLabel, getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
 
 interface AddSkinFormProps {
   onAdd: (skinData: NewSkinData) => void;
@@ -34,20 +35,25 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
   const isEditMode = !!item;
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [skinSearchTerm, setSkinSearchTerm] = useState('');
-  const { skins: catalogSkins, loading: catalogLoading } = useSkinCatalog(skinSearchTerm);
+  const initialSearch = item?.name?.replace(/^★\s*/u, '') ?? undefined;
+  const { skins: catalogSkins, loading: catalogLoading, selectedSkin } = useSkinCatalog(
+    skinSearchTerm,
+    initialSearch
+  );
 
   const baseFormState = useMemo<NewSkinData>(() => ({
-    name: item?.name ?? '',
-    rarity: item?.rarity ?? 'Mil-Spec',
-    type: item?.type ?? 'Rifle',
+    skinId: selectedSkin?.id,
+    name: item?.name ?? selectedSkin?.name ?? '',
+    rarity: item?.rarity ?? (selectedSkin?.rarity as Rarity) ?? 'Mil-Spec',
+    type: item?.type ?? (selectedSkin?.type as ItemType) ?? 'Rifle',
     float: item?.float,
     paintSeed: item?.paintSeed,
     patternName: undefined,
-    price: item?.price ?? 0,
+    price: item?.price ?? Number(selectedSkin?.defaultPrice ?? 0),
     cost: item?.cost,
-    imageUrl: item?.imageUrl,
+    imageUrl: item?.imageUrl ?? selectedSkin?.imageUrl,
     tradeProtected: item?.tradeProtected ?? false,
-  }), [item]);
+  }), [item, selectedSkin]);
 
   const [formData, setFormData] = useState<NewSkinData>(baseFormState);
   const [selectedCatalogName, setSelectedCatalogName] = useState<string>('');
@@ -172,7 +178,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
   ];
 
   const fillFromCatalog = (skin: SkinDto) => {
-    setSelectedCatalogName(skin.name);
+    setSelectedCatalogName(getSkinDopplerDisplayName(skin));
     
     setFormData((prev) => ({
       ...prev,
@@ -274,17 +280,41 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
                     </div>
                   ) : catalogSkins.length > 0 ? (
                     <div className="py-1">
-                      {catalogSkins.slice(0, 50).map((skin) => (
-                        <button
-                          key={skin.id}
-                          type="button"
-                          onClick={() => handleSearchSelect(skin)}
-                          className="w-full px-4 py-2 text-left text-sm hover:bg-purple-500/20 transition-colors flex items-center justify-between group"
-                        >
-                          <span className="text-purple-100 group-hover:text-white">{skin.name}</span>
-                          <span className="text-xs text-gray-400">{skin.rarity}</span>
-                        </button>
-                      ))}
+                      {catalogSkins.slice(0, 50).map((skin) => {
+                        const phaseLabel = getDopplerPhaseLabel(skin);
+                        const displayName = getSkinDopplerDisplayName(skin);
+                        return (
+                          <button
+                            key={skin.id}
+                            type="button"
+                            onClick={() => handleSearchSelect(skin)}
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-purple-500/20 transition-colors flex items-center gap-3 group"
+                          >
+                            {skin.imageUrl ? (
+                              <img
+                                src={skin.imageUrl}
+                                alt={skin.name}
+                                className="w-12 h-10 object-contain rounded border border-purple-500/40 bg-gray-950/60"
+                              />
+                            ) : (
+                              <div className="w-12 h-10 rounded border border-purple-500/40 bg-purple-900/40 flex items-center justify-center text-xs text-purple-200">
+                                No Img
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-purple-100 group-hover:text-white truncate">{displayName}</p>
+                              <div className="flex items-center gap-2 mt-1 text-xs">
+                                <span className="text-gray-400">{skin.rarity}</span>
+                                {phaseLabel && (
+                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 font-semibold">
+                                    {phaseLabel}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                       {catalogSkins.length > 50 && (
                         <div className="px-4 py-2 text-xs text-gray-400 border-t border-purple-500/30">
                           Showing first 50 of {catalogSkins.length} results. Type more to narrow down.
@@ -388,6 +418,15 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
                 <option value="Agent">Agent</option>
                 <option value="Equipment">Equipment</option>
                 <option value="Collectible">Collectible</option>
+                <option value="Sticker">Sticker</option>
+                <option value="Graffiti">Graffiti</option>
+                <option value="Patch">Patch</option>
+                <option value="Music Kit">Music Kit</option>
+                <option value="Case">Case</option>
+                <option value="Key">Key</option>
+                <option value="Keychain">Keychain</option>
+                <option value="Tool">Tool</option>
+                <option value="Other">Other</option>
               </select>
               <p className="mt-1 text-xs text-gray-500">
                 Select the category of this item
@@ -602,5 +641,31 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
       </div>
     </div>
   );
+}
+
+const dopplerPhaseLabels: Record<number, string> = {
+  415: 'Ruby',
+  416: 'Sapphire',
+  417: 'Black Pearl',
+  418: 'Doppler Phase 1',
+  419: 'Doppler Phase 2',
+  420: 'Doppler Phase 3',
+  421: 'Doppler Phase 4',
+  568: 'Gamma Emerald',
+  569: 'Gamma Phase 1',
+  570: 'Gamma Phase 2',
+  571: 'Gamma Phase 3',
+  572: 'Gamma Phase 4',
+};
+
+function getDopplerPhaseLabel(skin: SkinDto): string | null {
+  if (!skin.paintIndex) return null;
+  if (!skin.name.toLowerCase().includes('doppler')) return null;
+  return dopplerPhaseLabels[skin.paintIndex] ?? null;
+}
+
+function getSkinDisplayName(skin: SkinDto, phaseLabel: string | null): string {
+  if (!phaseLabel) return skin.name;
+  return `${skin.name} (${phaseLabel})`;
 }
 

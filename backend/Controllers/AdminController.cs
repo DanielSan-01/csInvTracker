@@ -83,7 +83,22 @@ public class AdminController : ControllerBase
             
             using var httpClient = new HttpClient();
             var baseUrl = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en";
-            var itemTypes = new[] { "skins", "knives", "gloves" };
+            var itemTypes = new[]
+            {
+                "skins",
+                "knives",
+                "gloves",
+                "agents",
+                "stickers",
+                "graffiti",
+                "patches",
+                "music_kits",
+                "collectibles",
+                "crates",
+                "keys",
+                "keychains",
+                "tools"
+            };
             
             int totalProcessed = 0;
             int totalCreated = 0;
@@ -123,6 +138,7 @@ public class AdminController : ControllerBase
                         var collection = GetCollectionName(item);
                         var weapon = GetStringFromProperty(item, "weapon");
                         var imageUrl = item.TryGetProperty("image", out var img) ? img.GetString() : "";
+                        var paintIndex = GetIntFromProperty(item, "paint_index");
                         
                         // Determine type
                         var type = DetermineTypeFromCategory(itemType, weapon);
@@ -139,6 +155,7 @@ public class AdminController : ControllerBase
                             existingSkin.Weapon = weapon;
                             existingSkin.ImageUrl = imageUrl ?? existingSkin.ImageUrl;
                             existingSkin.DefaultPrice = GetDefaultPriceForRarity(rarity);
+                            existingSkin.PaintIndex = paintIndex ?? existingSkin.PaintIndex;
                             totalUpdated++;
                         }
                         else
@@ -151,7 +168,8 @@ public class AdminController : ControllerBase
                                 Collection = collection,
                                 Weapon = weapon,
                                 ImageUrl = imageUrl ?? "",
-                                DefaultPrice = GetDefaultPriceForRarity(rarity)
+                                DefaultPrice = GetDefaultPriceForRarity(rarity),
+                                PaintIndex = paintIndex
                             };
                             _context.Skins.Add(newSkin);
                             totalCreated++;
@@ -237,11 +255,37 @@ public class AdminController : ControllerBase
                 _ => "Rifle"
             },
             "stickers" => "Sticker",
-            "cases" => "Case",
+            "graffiti" => "Graffiti",
+            "patches" => "Patch",
+            "music_kits" => "Music Kit",
+            "collectibles" => "Collectible",
+            "crates" => "Case",
             "keys" => "Key",
+            "keychains" => "Keychain",
+            "tools" => "Tool",
             "agents" => "Agent",
-            _ => "Collectible"
+            _ => "Other"
         };
+    }
+    
+    private int? GetIntFromProperty(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var prop))
+            return null;
+        
+        try
+        {
+            return prop.ValueKind switch
+            {
+                JsonValueKind.Number when prop.TryGetInt32(out var intValue) => intValue,
+                JsonValueKind.String when int.TryParse(prop.GetString(), out var parsed) => parsed,
+                _ => (int?)null
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     [HttpPost("import-from-csfloat")]
