@@ -9,6 +9,7 @@ interface ItemCardProps {
   item: CSItem;
   onClick?: () => void;
   onEdit?: () => void;
+  onDelete?: () => void;
   variant?: 'grid' | 'detailed';
   isSelected?: boolean;
 }
@@ -61,7 +62,7 @@ function formatProfitDisplay(profit?: number, profitPercent?: number) {
   return { label: 'Profit', value: `${value}${percent}`, className };
 }
 
-export default function ItemCard({ item, onClick, onEdit, variant = 'grid', isSelected = false }: ItemCardProps) {
+export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'grid', isSelected = false }: ItemCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -254,6 +255,17 @@ export default function ItemCard({ item, onClick, onEdit, variant = 'grid', isSe
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit Item
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={onDelete}
+                  className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-500/20 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m11 0H6" />
+                  </svg>
+                  Delete Item
                 </button>
               )}
             </div>

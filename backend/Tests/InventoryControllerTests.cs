@@ -206,6 +206,46 @@ public class InventoryControllerTests : IDisposable
         Assert.Equal(expectedExterior, item.Exterior);
     }
     
+    [Fact]
+    public async Task CreateInventoryItem_BulkAdd_AddsMultipleItemsForUser()
+    {
+        // Arrange - Create multiple test skins
+        var skins = new List<Skin>
+        {
+            new Skin { Id = 2, Name = "★ Sport Gloves | Pandora's Box", Rarity = "Covert", Type = "Gloves", ImageUrl = "https://test.com/pandora.png", DefaultPrice = 4500m },
+            new Skin { Id = 3, Name = "★ Butterfly Knife | Doppler", Rarity = "Covert", Type = "Knife", ImageUrl = "https://test.com/doppler.png", DefaultPrice = 3500m },
+            new Skin { Id = 4, Name = "AK-47 | Fire Serpent", Rarity = "Covert", Type = "Rifle", ImageUrl = "https://test.com/fire.png", DefaultPrice = 1049m }
+        };
+        _context.Skins.AddRange(skins);
+        await _context.SaveChangesAsync();
+        
+        var itemsToAdd = new List<CreateInventoryItemDto>
+        {
+            new CreateInventoryItemDto { UserId = 1, SkinId = 2, Float = 0.4679, Price = 4500m, Cost = 3232.66m, TradeProtected = false },
+            new CreateInventoryItemDto { UserId = 1, SkinId = 3, Float = 0.01, Price = 3500m, Cost = 4522m, TradeProtected = false },
+            new CreateInventoryItemDto { UserId = 1, SkinId = 4, Float = 0.22, Price = 1049m, Cost = 946m, TradeProtected = false }
+        };
+        
+        // Act - Add all items
+        var results = new List<InventoryItemDto>();
+        foreach (var item in itemsToAdd)
+        {
+            var result = await _controller.CreateInventoryItem(item);
+            var createdResult = Assert.IsType<Microsoft.AspNetCore.Mvc.CreatedAtActionResult>(result.Result);
+            results.Add(Assert.IsType<InventoryItemDto>(createdResult.Value));
+        }
+        
+        // Assert - Verify all items were created for the user
+        var inventoryResult = await _controller.GetInventory(1);
+        var okResult = Assert.IsType<Microsoft.AspNetCore.Mvc.OkObjectResult>(inventoryResult.Result);
+        var inventory = Assert.IsAssignableFrom<IEnumerable<InventoryItemDto>>(okResult.Value);
+        var userItems = inventory.Where(i => i.SkinId >= 2 && i.SkinId <= 4).ToList();
+        
+        Assert.Equal(3, userItems.Count);
+        Assert.All(userItems, item => Assert.True(item.Price > 0));
+        Assert.All(userItems, item => Assert.NotNull(item.SkinName));
+    }
+    
     public void Dispose()
     {
         _context.Database.EnsureDeleted();

@@ -101,6 +101,34 @@ export const usersApi = {
   },
 };
 
+export interface BulkImportInventoryResult {
+  userId: number;
+  totalRequested: number;
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
+export const adminApi = {
+  importInventoryFromCsv: async (userId: number, file: File): Promise<BulkImportInventoryResult> => {
+    const formData = new FormData();
+    formData.append('userId', userId.toString());
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/admin/import-inventory-csv`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to import CSV' }));
+      throw new Error(error.error || 'Failed to import CSV');
+    }
+
+    return response.json();
+  },
+};
+
 // Inventory API
 export const inventoryApi = {
   getInventoryItems: async (userId?: number): Promise<InventoryItemDto[]> => {

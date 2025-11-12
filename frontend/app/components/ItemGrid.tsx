@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CSItem, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
 import AddSkinForm, { NewSkinData } from './AddSkinForm';
@@ -8,7 +8,7 @@ import GlobalSearchBar from './GlobalSearchBar';
 import { useInventory } from '@/hooks/useInventory';
 import { useUser } from '@/contexts/UserContext';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
-import { CreateInventoryItemDto, UpdateInventoryItemDto } from '@/lib/api';
+import { CreateInventoryItemDto, UpdateInventoryItemDto, adminApi } from '@/lib/api';
 import { fetchSteamInventory, convertSteamItemToCSItem } from '@/lib/steamApi';
 import { getStoredSteamId } from '@/lib/steamAuth';
 
@@ -16,6 +16,9 @@ export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
   const { items: backendItems, loading, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
   const items = inventoryItemsToCSItems(backendItems);
+  const sortedItems = useMemo(() => {
+    return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+  }, [items]);
   
   const [selectedItem, setSelectedItem] = useState<CSItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +26,8 @@ export default function ItemGrid() {
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
 
   // Load Steam ID on mount and listen for changes
   useEffect(() => {
@@ -45,10 +50,20 @@ export default function ItemGrid() {
 
   // Auto-select the first item to populate detail view
   useEffect(() => {
-    if (items.length > 0 && !selectedItem) {
-      setSelectedItem(items[0]);
+    if (sortedItems.length === 0) {
+      setSelectedItem(null);
+      return;
     }
-  }, [items, selectedItem]);
+
+    setSelectedItem(prev => {
+      if (!prev) {
+        return sortedItems[0];
+      }
+
+      const match = sortedItems.find(item => item.id === prev.id);
+      return match ?? sortedItems[0];
+    });
+  }, [sortedItems]);
 
   // Handler for GlobalSearchBar quick-add
   const handleQuickAddSkin = (skinId: number, skinName: string) => {
@@ -98,7 +113,7 @@ export default function ItemGrid() {
       setEditingItem(null);
       // Refresh will happen automatically via the hook
       // Update selected item
-      const updatedItem = items.find(item => item.id === id);
+      const updatedItem = sortedItems.find(item => item.id === id);
       if (updatedItem) {
         setSelectedItem(updatedItem);
       }
@@ -107,6 +122,61 @@ export default function ItemGrid() {
 
   const handleEditClick = (item: CSItem) => {
     setEditingItem(item);
+  };
+
+  const handleDeleteSkin = async (item: CSItem) => {
+    if (!user) {
+      alert('Please log in with Steam first!');
+      return;
+    }
+
+    const confirmed = window.confirm(`Are you sure you want to delete "${item.name}" from your inventory?`);
+    if (!confirmed) {
+      return;
+    }
+
+    const success = await deleteItem(Number(item.id));
+    if (success) {
+      setSelectedItem(null);
+      alert('Item deleted successfully.');
+    } else {
+      alert('Failed to delete item. Please try again.');
+    }
+  };
+
+  const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) {
+      return;
+    }
+
+    setIsImportingCsv(true);
+    setImportResult(null);
+
+    try {
+      const result = await adminApi.importInventoryFromCsv(user.id, file);
+      setImportResult({
+        success: result.successCount,
+        failed: result.failedCount,
+        errors: result.errors,
+      });
+      
+      // Refresh inventory
+      await refresh();
+      
+      // Show success message
+      if (result.successCount > 0) {
+        alert(`✅ Successfully imported ${result.successCount} items!${result.failedCount > 0 ? `\n⚠️ ${result.failedCount} items failed.` : ''}`);
+      } else {
+        alert(`❌ Import failed. ${result.errors.join('\n')}`);
+      }
+    } catch (error) {
+      alert(`Error importing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsImportingCsv(false);
+      // Reset file input
+      event.target.value = '';
+    }
   };
 
   const handleLoadFromSteam = async () => {
@@ -137,7 +207,7 @@ export default function ItemGrid() {
     }
   };
 
-  const filteredItems = items.filter(item =>
+  const filteredItems = sortedItems.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -218,15 +288,30 @@ export default function ItemGrid() {
                 </button>
               )}
               {user && (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Skin
-                </button>
+                <>
+                  <label className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    {isImportingCsv ? 'Importing...' : 'Import CSV'}
+                    <input
+                      type="file"
+                      accept=".csv,.txt"
+                      onChange={handleCsvImport}
+                      disabled={isImportingCsv}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Skin
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -234,7 +319,7 @@ export default function ItemGrid() {
           {/* Global Search Bar - Search ALL Skins */}
           <div className="mb-6 flex items-center justify-center">
             <GlobalSearchBar 
-              userInventory={items}
+              userInventory={sortedItems}
               onAddSkin={handleQuickAddSkin}
               isLoggedIn={!!user}
             />
@@ -254,9 +339,9 @@ export default function ItemGrid() {
 
           {/* Stats */}
           <div className="flex items-center gap-6 text-sm text-gray-400">
-            <span>Total Items: <span className="text-white font-semibold">{items.length}</span></span>
+            <span>Total Items: <span className="text-white font-semibold">{sortedItems.length}</span></span>
             <span>Total Value: <span className="text-green-400 font-semibold">
-              ${items.reduce((sum, item) => sum + item.price, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${sortedItems.reduce((sum, item) => sum + item.price, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span></span>
           </div>
         </div>
@@ -291,6 +376,7 @@ export default function ItemGrid() {
                 item={selectedItem}
                 variant="detailed"
                 onEdit={user ? () => handleEditClick(selectedItem) : undefined}
+                onDelete={user ? () => handleDeleteSkin(selectedItem) : undefined}
               />
             ) : (
               <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-gray-700 bg-gray-900/60 p-10 text-center text-sm text-gray-400">

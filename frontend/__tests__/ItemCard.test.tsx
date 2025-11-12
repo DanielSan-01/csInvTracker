@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import ItemCard from '@/app/components/ItemCard';
 import { CSItem } from '@/lib/mockData';
 
@@ -48,9 +48,19 @@ describe('ItemCard Component', () => {
     render(<ItemCard item={mockItem} onClick={handleClick} />);
     
     const card = screen.getByText('AK-47 | Redline').closest('div');
-    card?.click();
+    fireEvent.click(card!);
     
-    expect(handleClick).toHaveBeenCalledWith(mockItem);
+    expect(handleClick).toHaveBeenCalled();
+  });
+
+  it('renders delete button when onDelete is provided', () => {
+    const handleDelete = jest.fn();
+    render(<ItemCard item={mockItem} variant="detailed" onDelete={handleDelete} />);
+
+    const deleteButton = screen.getByText('Delete Item');
+    fireEvent.click(deleteButton);
+
+    expect(handleDelete).toHaveBeenCalled();
   });
 
   it('displays item type', () => {

@@ -49,7 +49,6 @@ public class InventoryController : ControllerBase
             }
             
             var items = await query
-                .OrderByDescending(i => i.AcquiredAt)
                 .Select(i => new InventoryItemDto
                 {
                     Id = i.Id,
