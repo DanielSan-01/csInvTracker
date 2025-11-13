@@ -16,7 +16,6 @@ const dopplerPhaseLabels: Record<number, string> = {
   568: 'Gamma Emerald',
   569: 'Gamma Phase 1',
   570: 'Gamma Phase 2',
-  571: 'Gamma Phase 3',
   572: 'Gamma Phase 4',
   617: 'Black Pearl',
   618: 'Doppler Phase 2',

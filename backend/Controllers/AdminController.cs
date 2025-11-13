@@ -21,6 +21,127 @@ public class AdminController : ControllerBase
         _logger = logger;
     }
 
+    // GET: api/admin/users
+    [HttpGet("users")]
+    public async Task<ActionResult<List<AdminUserDto>>> GetAllUsers()
+    {
+        try
+        {
+            var users = await _context.Users
+                .Include(u => u.InventoryItems)
+                .ThenInclude(i => i.Skin)
+                .Select(u => new AdminUserDto
+                {
+                    Id = u.Id,
+                    SteamId = u.SteamId,
+                    Username = u.Username,
+                    CreatedAt = u.CreatedAt,
+                    LastLoginAt = u.LastLoginAt,
+                    ItemCount = u.InventoryItems.Count,
+                    TotalValue = u.InventoryItems
+                        .Select(i => i.Price)
+                        .DefaultIfEmpty(0m)
+                        .Sum(),
+                    TotalCost = u.InventoryItems
+                        .Select(i => i.Cost ?? 0m)
+                        .DefaultIfEmpty(0m)
+                        .Sum()
+                })
+                .OrderByDescending(u => u.LastLoginAt)
+                .ToListAsync();
+
+            return Ok(users);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching users");
+            return StatusCode(500, new { error = "An error occurred while fetching users" });
+        }
+    }
+
+    // GET: api/admin/stats
+    [HttpGet("stats")]
+    public async Task<ActionResult<AdminStats>> GetSystemStats()
+    {
+        try
+        {
+            var totalUsers = await _context.Users.CountAsync();
+            var totalSkins = await _context.Skins.CountAsync();
+            var totalItems = await _context.InventoryItems.CountAsync();
+            var totalValue = await _context.InventoryItems
+                .Select(i => (decimal?)i.Price)
+                .SumAsync() ?? 0m;
+            
+            var recentActivity = await _context.InventoryItems
+                .OrderByDescending(i => i.AcquiredAt)
+                .Take(10)
+                .Include(i => i.Skin)
+                .Include(i => i.User)
+                .Select(i => new RecentActivityDto
+                {
+                    UserName = i.User.Username ?? i.User.SteamId,
+                    SkinName = i.Skin.Name,
+                    Action = "Added",
+                    Timestamp = i.AcquiredAt
+                })
+                .ToListAsync();
+
+            return Ok(new AdminStats
+            {
+                TotalUsers = totalUsers,
+                TotalSkins = totalSkins,
+                TotalInventoryItems = totalItems,
+                TotalInventoryValue = totalValue,
+                RecentActivity = recentActivity
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching system stats");
+            return StatusCode(500, new { error = "An error occurred while fetching system stats" });
+        }
+    }
+
+    // POST: api/admin/skins
+    [HttpPost("skins")]
+    public async Task<ActionResult<Skin>> CreateSkin([FromBody] CreateSkinDto dto)
+    {
+        try
+        {
+            // Check if skin already exists
+            var existingSkin = await _context.Skins
+                .FirstOrDefaultAsync(s => s.Name == dto.Name);
+
+            if (existingSkin != null)
+            {
+                return BadRequest(new { error = "A skin with this name already exists" });
+            }
+
+            var newSkin = new Skin
+            {
+                Name = dto.Name,
+                Rarity = dto.Rarity,
+                Type = dto.Type,
+                Collection = dto.Collection,
+                Weapon = dto.Weapon,
+                ImageUrl = dto.ImageUrl ?? "",
+                DefaultPrice = dto.DefaultPrice,
+                PaintIndex = dto.PaintIndex
+            };
+
+            _context.Skins.Add(newSkin);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation($"Created new skin: {newSkin.Name} (ID: {newSkin.Id})");
+            return CreatedAtAction(nameof(CreateSkin), new { id = newSkin.Id }, newSkin);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating skin");
+            return StatusCode(500, new { error = "An error occurred while creating the skin" });
+        }
+    }
+
     [HttpGet("skin-stats")]
     public async Task<ActionResult<SkinStats>> GetSkinStats()
     {
@@ -838,5 +959,46 @@ public class BulkImportInventoryResult
     public int SuccessCount { get; set; }
     public int FailedCount { get; set; }
     public List<string> Errors { get; set; } = new();
+}
+
+public class AdminUserDto
+{
+    public int Id { get; set; }
+    public string SteamId { get; set; } = string.Empty;
+    public string? Username { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime LastLoginAt { get; set; }
+    public int ItemCount { get; set; }
+    public decimal TotalValue { get; set; }
+    public decimal TotalCost { get; set; }
+}
+
+public class AdminStats
+{
+    public int TotalUsers { get; set; }
+    public int TotalSkins { get; set; }
+    public int TotalInventoryItems { get; set; }
+    public decimal TotalInventoryValue { get; set; }
+    public List<RecentActivityDto> RecentActivity { get; set; } = new();
+}
+
+public class RecentActivityDto
+{
+    public string UserName { get; set; } = string.Empty;
+    public string SkinName { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+}
+
+public class CreateSkinDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Rarity { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string? Collection { get; set; }
+    public string? Weapon { get; set; }
+    public string? ImageUrl { get; set; }
+    public decimal? DefaultPrice { get; set; }
+    public int? PaintIndex { get; set; }
 }
 

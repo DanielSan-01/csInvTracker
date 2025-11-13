@@ -95,10 +95,10 @@ export default function ItemGrid() {
     // We can pass the skinId via state later if needed
   };
 
-  const handleAddSkin = async (newSkinData: NewSkinData) => {
+  const handleAddSkin = async (newSkinData: NewSkinData): Promise<boolean> => {
     if (!user) {
       showToast('Please log in with Steam first!', 'error');
-      return;
+      return false;
     }
     
     // Convert NewSkinData to CreateInventoryItemDto
@@ -109,37 +109,44 @@ export default function ItemGrid() {
       paintSeed: newSkinData.paintSeed,
       price: newSkinData.price,
       cost: newSkinData.cost,
+      imageUrl: newSkinData.imageUrl,
       tradeProtected: newSkinData.tradeProtected ?? false,
     };
 
     const newItem = await createItem(createDto);
     if (newItem) {
-      setShowAddForm(false);
       // Select the newly added item
       const csItem = inventoryItemsToCSItems([newItem])[0];
-      setSelectedItemId(csItem.id);
+      if (csItem) {
+        setSelectedItemId(csItem.id);
+      }
+      showToast('Skin added successfully.', 'success');
+      return true;
     }
+
+    showToast('Failed to add skin. Please try again.', 'error');
+    return false;
   };
 
-  const handleUpdateSkin = async (id: string, updatedData: NewSkinData) => {
+  const handleUpdateSkin = async (id: string, updatedData: NewSkinData): Promise<boolean> => {
     const updateDto: UpdateInventoryItemDto = {
       float: updatedData.float ?? 0.5,
       paintSeed: updatedData.paintSeed,
       price: updatedData.price,
       cost: updatedData.cost,
+      imageUrl: updatedData.imageUrl,
       tradeProtected: updatedData.tradeProtected ?? false,
     };
 
     const success = await updateItem(parseInt(id), updateDto);
     if (success) {
-      setEditingItem(null);
-      // Refresh will happen automatically via the hook
-      // Update selected item
-      const updatedItem = sortedItems.find(item => item.id === id);
-      if (updatedItem) {
-        setSelectedItemId(updatedItem.id);
-      }
+      setSelectedItemId(id);
+      showToast('Skin updated successfully.', 'success');
+      return true;
     }
+
+    showToast('Failed to update skin. Please try again.', 'error');
+    return false;
   };
 
   const handleEditClick = (item: CSItem) => {

@@ -11,8 +11,8 @@ import { SkinDto } from '@/lib/api';
 import { getDopplerPhaseLabel, getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
 
 interface AddSkinFormProps {
-  onAdd: (skinData: NewSkinData) => void;
-  onUpdate?: (id: string, skinData: NewSkinData) => void;
+  onAdd: (skinData: NewSkinData) => Promise<boolean | void> | boolean | void;
+  onUpdate?: (id: string, skinData: NewSkinData) => Promise<boolean | void> | boolean | void;
   onClose: () => void;
   item?: CSItem; // If provided, form is in edit mode
 }
@@ -140,7 +140,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validate()) {
@@ -157,13 +157,23 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
       tradeProtected: formData.tradeProtected || false,
     };
 
-    if (isEditMode && item && onUpdate) {
-      onUpdate(item.id, submitData);
-    } else {
-      onAdd(submitData);
-    }
+    try {
+      let result: boolean | void | undefined;
 
-    handleClose();
+      if (isEditMode && item && onUpdate) {
+        result = await Promise.resolve(onUpdate(item.id, submitData));
+      } else {
+        result = await Promise.resolve(onAdd(submitData));
+      }
+
+      if (result === false) {
+        return;
+      }
+
+      handleClose();
+    } catch (error) {
+      console.error('Error submitting skin form:', error);
+    }
   };
 
   const rarities: Rarity[] = [
@@ -641,31 +651,5 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinF
       </div>
     </div>
   );
-}
-
-const dopplerPhaseLabels: Record<number, string> = {
-  415: 'Ruby',
-  416: 'Sapphire',
-  417: 'Black Pearl',
-  418: 'Doppler Phase 1',
-  419: 'Doppler Phase 2',
-  420: 'Doppler Phase 3',
-  421: 'Doppler Phase 4',
-  568: 'Gamma Emerald',
-  569: 'Gamma Phase 1',
-  570: 'Gamma Phase 2',
-  571: 'Gamma Phase 3',
-  572: 'Gamma Phase 4',
-};
-
-function getDopplerPhaseLabel(skin: SkinDto): string | null {
-  if (!skin.paintIndex) return null;
-  if (!skin.name.toLowerCase().includes('doppler')) return null;
-  return dopplerPhaseLabels[skin.paintIndex] ?? null;
-}
-
-function getSkinDisplayName(skin: SkinDto, phaseLabel: string | null): string {
-  if (!phaseLabel) return skin.name;
-  return `${skin.name} (${phaseLabel})`;
 }
 
