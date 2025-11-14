@@ -44,8 +44,12 @@ Install and start PostgreSQL:
 brew install postgresql@14
 brew services start postgresql@14
 
+# Create matching superuser/password for local development
+/opt/homebrew/opt/postgresql@14/bin/createuser -s postgres
+/opt/homebrew/opt/postgresql@14/bin/psql -U postgres -d postgres -c "ALTER ROLE postgres WITH PASSWORD 'postgres';"
+
 # Create database
-createdb csInvTracker
+createdb csinvtracker
 
 # Or using Docker
 docker run --name postgres-csinv -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=csInvTracker -p 5432:5432 -d postgres:14
@@ -59,10 +63,9 @@ cd backend
 # Update connection string in appsettings.json if needed
 # Default: Host=localhost;Port=5432;Database=csInvTracker;Username=postgres;Password=postgres
 
-# Create initial migration
-dotnet ef migrations add InitialCreate --project .
-
 # Apply migration to database
+# (If `dotnet ef` is not on your PATH, run `dotnet tool install --global dotnet-ef` once
+# or invoke `~/.dotnet/tools/dotnet-ef`.)
 dotnet ef database update --project .
 
 # Run the backend
