@@ -8,7 +8,7 @@ import GlobalSearchBar from './GlobalSearchBar';
 import { useInventory } from '@/hooks/useInventory';
 import { useUser } from '@/contexts/UserContext';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
-import { CreateInventoryItemDto, UpdateInventoryItemDto, adminApi } from '@/lib/api';
+import { CreateInventoryItemDto, UpdateInventoryItemDto, adminApi, SkinDto } from '@/lib/api';
 import { fetchSteamInventory, convertSteamItemToCSItem } from '@/lib/steamApi';
 import { getStoredSteamId } from '@/lib/steamAuth';
 
@@ -39,6 +39,7 @@ export default function ItemGrid() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [quickAddSkin, setQuickAddSkin] = useState<SkinDto | null>(null);
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
@@ -88,8 +89,9 @@ export default function ItemGrid() {
   );
 
   // Handler for GlobalSearchBar quick-add
-  const handleQuickAddSkin = (skinId: number, skinName: string) => {
+  const handleQuickAddSkin = (skin: SkinDto) => {
     setEditingItem(null);
+    setQuickAddSkin(skin);
     setShowAddForm(true);
     // The AddSkinForm will auto-populate with this skin's data via useSkinCatalog
     // We can pass the skinId via state later if needed
@@ -478,7 +480,11 @@ export default function ItemGrid() {
       {showAddForm && (
         <AddSkinForm
           onAdd={handleAddSkin}
-          onClose={() => setShowAddForm(false)}
+          onClose={() => {
+            setShowAddForm(false);
+            setQuickAddSkin(null);
+          }}
+          initialSkin={quickAddSkin ?? undefined}
         />
       )}
 

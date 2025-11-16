@@ -12,6 +12,8 @@ export interface SkinDto {
   imageUrl?: string;
   defaultPrice?: number;
   paintIndex?: number;
+  dopplerPhase?: string;
+  dopplerPhaseImageUrl?: string;
 }
 
 export interface InventoryItemDto {
@@ -30,6 +32,8 @@ export interface InventoryItemDto {
   tradableAfter?: string;
   acquiredAt: string;
   paintIndex?: number;
+  dopplerPhase?: string;
+  dopplerPhaseImageUrl?: string;
 }
 
 export interface CreateInventoryItemDto {

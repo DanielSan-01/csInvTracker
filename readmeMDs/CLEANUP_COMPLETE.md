@@ -33,12 +33,12 @@
 - ✅ Models: Skin, InventoryItem
 - ✅ DTOs: SkinDto, InventoryItemDto
 - ✅ Tests: SkinsControllerTests, InventoryControllerTests
-- ✅ Database: SQLite (csInvTracker.db)
+- ✅ Database: PostgreSQL (`csinvtracker`)
 
 ### Frontend (`/frontend`)
 - ✅ Components: ItemCard, ItemGrid, AddSkinForm, GlobalSearchBar, SteamLoginButton
 - ✅ Hooks: useInventory, useSkinCatalog
-- ✅ API Routes: `/api/auth/steam`, `/api/csgo-items`, `/api/steam/inventory`
+- ✅ API Routes: `/api/auth/steam`, `/api/steam/inventory`
 - ✅ Tests: ItemCard.test.tsx, useInventory.test.ts
 - ✅ Libraries: api, steamApi, searchShorthands, dataConverter, mockData
 

@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 using backend.Data;
-using backend.Models;
 using backend.DTOs;
+using backend.Models;
+using backend.Services;
 
 namespace backend.Controllers;
 
@@ -12,10 +14,12 @@ public class InventoryController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<InventoryController> _logger;
+    private readonly DopplerPhaseService _dopplerPhaseService;
 
-    public InventoryController(ApplicationDbContext context, ILogger<InventoryController> logger)
+    public InventoryController(ApplicationDbContext context, DopplerPhaseService dopplerPhaseService, ILogger<InventoryController> logger)
     {
         _context = context;
+        _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
     }
 
@@ -41,35 +45,17 @@ public class InventoryController : ControllerBase
             var query = _context.InventoryItems
                 .Include(i => i.Skin)
                 .AsQueryable();
-            
+
             // Filter by user if userId provided
             if (userId.HasValue)
             {
                 query = query.Where(i => i.UserId == userId.Value);
             }
             
-            var items = await query
-                .Select(i => new InventoryItemDto
-                {
-                    Id = i.Id,
-                    SkinId = i.SkinId,
-                    SkinName = i.Skin.Name,
-                    Rarity = i.Skin.Rarity,
-                    Type = i.Skin.Type,
-                    Float = i.Float,
-                    Exterior = i.Exterior,
-                    PaintSeed = i.PaintSeed,
-                    Price = i.Price,
-                    Cost = i.Cost,
-                    ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
-                    TradeProtected = i.TradeProtected,
-                    TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt,
-                    PaintIndex = i.Skin.PaintIndex
-                })
-                .ToListAsync();
+            var items = await query.ToListAsync();
+            var dtoItems = items.Select(MapToDto).ToList();
 
-            return Ok(items);
+            return Ok(dtoItems);
         }
         catch (Exception ex)
         {
@@ -86,33 +72,14 @@ public class InventoryController : ControllerBase
         {
             var item = await _context.InventoryItems
                 .Include(i => i.Skin)
-                .Where(i => i.Id == id)
-                .Select(i => new InventoryItemDto
-                {
-                    Id = i.Id,
-                    SkinId = i.SkinId,
-                    SkinName = i.Skin.Name,
-                    Rarity = i.Skin.Rarity,
-                    Type = i.Skin.Type,
-                    Float = i.Float,
-                    Exterior = i.Exterior,
-                    PaintSeed = i.PaintSeed,
-                    Price = i.Price,
-                    Cost = i.Cost,
-                    ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
-                    TradeProtected = i.TradeProtected,
-                    TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt,
-                    PaintIndex = i.Skin.PaintIndex
-                })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(i => i.Id == id);
 
             if (item == null)
             {
                 return NotFound();
             }
 
-            return Ok(item);
+            return Ok(MapToDto(item));
         }
         catch (Exception ex)
         {
@@ -162,28 +129,9 @@ public class InventoryController : ControllerBase
             // Fetch the complete item with skin data
             var createdItem = await _context.InventoryItems
                 .Include(i => i.Skin)
-                .Where(i => i.Id == item.Id)
-                .Select(i => new InventoryItemDto
-                {
-                    Id = i.Id,
-                    SkinId = i.SkinId,
-                    SkinName = i.Skin.Name,
-                    Rarity = i.Skin.Rarity,
-                    Type = i.Skin.Type,
-                    Float = i.Float,
-                    Exterior = i.Exterior,
-                    PaintSeed = i.PaintSeed,
-                    Price = i.Price,
-                    Cost = i.Cost,
-                    ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
-                    TradeProtected = i.TradeProtected,
-                    TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt,
-                    PaintIndex = i.Skin.PaintIndex
-                })
-                .FirstAsync();
+                .FirstAsync(i => i.Id == item.Id);
 
-            return CreatedAtAction(nameof(GetInventoryItem), new { id = item.Id }, createdItem);
+            return CreatedAtAction(nameof(GetInventoryItem), new { id = item.Id }, MapToDto(createdItem));
         }
         catch (Exception ex)
         {
@@ -230,27 +178,9 @@ public class InventoryController : ControllerBase
             // Fetch the updated item with skin data
             var updatedItem = await _context.InventoryItems
                 .Include(i => i.Skin)
-                .Where(i => i.Id == id)
-                .Select(i => new InventoryItemDto
-                {
-                    Id = i.Id,
-                    SkinId = i.SkinId,
-                    SkinName = i.Skin.Name,
-                    Rarity = i.Skin.Rarity,
-                    Type = i.Skin.Type,
-                    Float = i.Float,
-                    Exterior = i.Exterior,
-                    PaintSeed = i.PaintSeed,
-                    Price = i.Price,
-                    Cost = i.Cost,
-                    ImageUrl = i.ImageUrl ?? i.Skin.ImageUrl,
-                    TradeProtected = i.TradeProtected,
-                    TradableAfter = i.TradableAfter,
-                    AcquiredAt = i.AcquiredAt
-                })
-                .FirstAsync();
+                .FirstAsync(i => i.Id == id);
 
-            return Ok(updatedItem);
+            return Ok(MapToDto(updatedItem));
         }
         catch (Exception ex)
         {
@@ -281,6 +211,37 @@ public class InventoryController : ControllerBase
             _logger.LogError(ex, "Error deleting inventory item {ItemId}", id);
             return StatusCode(500, "An error occurred while deleting the item");
         }
+    }
+
+    private InventoryItemDto MapToDto(InventoryItem item)
+    {
+        var dto = new InventoryItemDto
+        {
+            Id = item.Id,
+            SkinId = item.SkinId,
+            SkinName = item.Skin.Name,
+            Rarity = item.Skin.Rarity,
+            Type = item.Skin.Type,
+            Float = item.Float,
+            Exterior = item.Exterior,
+            PaintSeed = item.PaintSeed,
+            Price = item.Price,
+            Cost = item.Cost,
+            ImageUrl = item.ImageUrl ?? item.Skin.ImageUrl,
+            TradeProtected = item.TradeProtected,
+            TradableAfter = item.TradableAfter,
+            AcquiredAt = item.AcquiredAt,
+            PaintIndex = item.Skin.PaintIndex
+        };
+
+        var phaseInfo = _dopplerPhaseService.GetPhaseInfo(item.Skin.PaintIndex);
+        if (phaseInfo != null)
+        {
+            dto.DopplerPhase = phaseInfo.Phase;
+            dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
+        }
+
+        return dto;
     }
 }
 

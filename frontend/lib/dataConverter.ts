@@ -23,6 +23,8 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
     type: dto.type as ItemType,
     tradeProtected: dto.tradeProtected,
     tradableAfter: dto.tradableAfter ? new Date(dto.tradableAfter) : undefined,
+    dopplerPhase: dto.dopplerPhase,
+    dopplerPhaseImageUrl: dto.dopplerPhaseImageUrl,
   };
 }
 

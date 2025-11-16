@@ -31,7 +31,8 @@ Edit `backend/bulk_inventory_import.json` with your actual inventory data:
 }
 ```
 
-**Note**: Update the `userId` if needed (check with: `sqlite3 backend/csInvTracker.db "SELECT Id FROM Users WHERE SteamId = 'YOUR_STEAM_ID';"`)
+**Note**: Update the `userId` if needed (check with:  
+`psql "postgresql://postgres:postgres@localhost:5432/csinvtracker" -c 'SELECT "Id","SteamId" FROM "Users";'`)
 
 ### 2. Make Sure Backend is Running
 
@@ -95,13 +96,14 @@ dotnet test --filter "FullyQualifiedName~CreateInventoryItem_BulkAdd"
 ## Troubleshooting
 
 **"User with ID X not found"**
-- Check your user ID: `sqlite3 backend/csInvTracker.db "SELECT * FROM Users;"`
+- Check your user ID: `psql "postgresql://postgres:postgres@localhost:5432/csinvtracker" -c 'SELECT "Id","SteamId" FROM "Users";"'`
 - Update `userId` in the JSON file
 
 **"Skin not found: [name]"**
 - The skin might not be in the catalog
 - Try a different name variation
-- Check available skins: `sqlite3 backend/csInvTracker.db "SELECT Name FROM Skins WHERE Name LIKE '%PARTIAL_NAME%';"`
+- Check available skins:
+  `psql "postgresql://postgres:postgres@localhost:5432/csinvtracker" -c 'SELECT "Name" FROM "Skins" WHERE "Name" ILIKE ''%PARTIAL_NAME%'';'`
 
 **Backend not responding**
 - Make sure backend is running: `cd backend && dotnet run`

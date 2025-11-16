@@ -36,6 +36,8 @@ export interface CSItem {
   type: ItemType;
   tradeProtected?: boolean;
   tradableAfter?: Date;
+  dopplerPhase?: string;
+  dopplerPhaseImageUrl?: string;
 }
 
 export type Rarity = 

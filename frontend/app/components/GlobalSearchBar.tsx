@@ -7,7 +7,7 @@ import type { SkinDto } from '@/lib/api';
 
 interface GlobalSearchBarProps {
   userInventory: CSItem[];
-  onAddSkin: (skinId: number, skinName: string) => void;
+  onAddSkin: (skin: SkinDto) => void;
   isLoggedIn?: boolean;
 }
 
@@ -38,8 +38,8 @@ export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn =
     setShowResults(true);
   };
 
-  const handleAddClick = (skinId: number, skinName: string) => {
-    onAddSkin(skinId, skinName);
+  const handleAddClick = (skin: SkinDto) => {
+    onAddSkin(skin);
     setSearchTerm('');
     setShowResults(false);
   };
@@ -134,7 +134,7 @@ export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn =
                       </span>
                     ) : (
                       <button
-                        onClick={() => handleAddClick(skin.id, skin.name)}
+                        onClick={() => handleAddClick(skin)}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                       >
                         + Add

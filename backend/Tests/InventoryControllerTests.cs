@@ -1,3 +1,4 @@
+using System.IO;
 using Xunit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -5,6 +6,10 @@ using backend.Controllers;
 using backend.Data;
 using backend.Models;
 using backend.DTOs;
+using backend.Services;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace backend.Tests;
 
@@ -24,8 +29,12 @@ public class InventoryControllerTests : IDisposable
         
         var logger = LoggerFactory.Create(builder => builder.AddConsole())
             .CreateLogger<InventoryController>();
-            
-        _controller = new InventoryController(_context, logger);
+
+        var dopplerLogger = NullLogger<DopplerPhaseService>.Instance;
+        var env = new TestWebHostEnvironment();
+        var dopplerService = new DopplerPhaseService(env, dopplerLogger);
+
+        _controller = new InventoryController(_context, dopplerService, logger);
         
         // Create test user
         var testUser = new User
@@ -50,6 +59,16 @@ public class InventoryControllerTests : IDisposable
         
         _context.Skins.Add(_testSkin);
         _context.SaveChanges();
+    }
+    
+    private sealed class TestWebHostEnvironment : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "TestHost";
+        public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+        public string WebRootPath { get; set; } = string.Empty;
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+        public string ContentRootPath { get; set; } = Directory.GetCurrentDirectory();
+        public string EnvironmentName { get; set; } = Environments.Development;
     }
     
     [Fact]

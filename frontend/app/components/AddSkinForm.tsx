@@ -15,6 +15,7 @@ interface AddSkinFormProps {
   onUpdate?: (id: string, skinData: NewSkinData) => Promise<boolean | void> | boolean | void;
   onClose: () => void;
   item?: CSItem; // If provided, form is in edit mode
+  initialSkin?: SkinDto; // When provided, pre-fill with catalog skin (quick add)
 }
 
 export interface NewSkinData {
@@ -31,32 +32,38 @@ export interface NewSkinData {
   tradeProtected?: boolean;
 }
 
-export default function AddSkinForm({ onAdd, onUpdate, onClose, item }: AddSkinFormProps) {
+export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSkin }: AddSkinFormProps) {
   const isEditMode = !!item;
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [skinSearchTerm, setSkinSearchTerm] = useState('');
-  const initialSearch = item?.name?.replace(/^★\s*/u, '') ?? undefined;
+  const [skinSearchTerm, setSkinSearchTerm] = useState(initialSkin?.name ?? '');
+  const initialSearch = item?.name?.replace(/^★\s*/u, '') ?? initialSkin?.name ?? undefined;
   const { skins: catalogSkins, loading: catalogLoading, selectedSkin } = useSkinCatalog(
     skinSearchTerm,
     initialSearch
   );
 
+  const effectiveSkin = selectedSkin ?? initialSkin;
+
   const baseFormState = useMemo<NewSkinData>(() => ({
-    skinId: selectedSkin?.id,
-    name: item?.name ?? selectedSkin?.name ?? '',
-    rarity: item?.rarity ?? (selectedSkin?.rarity as Rarity) ?? 'Mil-Spec',
-    type: item?.type ?? (selectedSkin?.type as ItemType) ?? 'Rifle',
+    skinId: effectiveSkin?.id,
+    name: item?.name ?? effectiveSkin?.name ?? '',
+    rarity: item?.rarity ?? (effectiveSkin?.rarity as Rarity) ?? 'Mil-Spec',
+    type: item?.type ?? (effectiveSkin?.type as ItemType) ?? 'Rifle',
     float: item?.float,
     paintSeed: item?.paintSeed,
     patternName: undefined,
-    price: item?.price ?? Number(selectedSkin?.defaultPrice ?? 0),
+    price: item?.price ?? Number(effectiveSkin?.defaultPrice ?? 0),
     cost: item?.cost,
-    imageUrl: item?.imageUrl ?? selectedSkin?.imageUrl,
+    imageUrl: item?.imageUrl ?? effectiveSkin?.imageUrl,
     tradeProtected: item?.tradeProtected ?? false,
-  }), [item, selectedSkin]);
+  }), [item, effectiveSkin]);
 
   const [formData, setFormData] = useState<NewSkinData>(baseFormState);
   const [selectedCatalogName, setSelectedCatalogName] = useState<string>('');
+
+  useEffect(() => {
+    setSkinSearchTerm(initialSkin?.name ?? '');
+  }, [initialSkin]);
 
   useEffect(() => {
     setFormData(baseFormState);

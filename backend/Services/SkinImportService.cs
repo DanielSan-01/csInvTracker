@@ -33,15 +33,18 @@ public class SkinImportService
 
     private readonly ApplicationDbContext _context;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly ILogger<SkinImportService> _logger;
 
     public SkinImportService(
         ApplicationDbContext context,
         IHttpClientFactory httpClientFactory,
+        DopplerPhaseService dopplerPhaseService,
         ILogger<SkinImportService> logger)
     {
         _context = context;
         _httpClientFactory = httpClientFactory;
+        _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
     }
 
@@ -108,39 +111,106 @@ public class SkinImportService
                     var collection = GetCollectionName(item);
                     var weapon = GetStringFromProperty(item, "weapon");
                     var imageUrl = item.TryGetProperty("image", out var img) ? img.GetString() : "";
+                    var rawPhase = GetStringFromProperty(item, "phase");
                     var paintIndex = GetIntFromProperty(item, "paint_index");
+                    var dopplerInfo = _dopplerPhaseService.GetPhaseInfo(paintIndex);
+                    if (dopplerInfo?.ImageUrl is { } dopplerImage && string.IsNullOrWhiteSpace(imageUrl))
+                    {
+                        imageUrl = dopplerImage;
+                    }
                     var type = DetermineTypeFromCategory(itemType, weapon);
 
-                    var existingSkin = await _context.Skins
-                        .FirstOrDefaultAsync(s => s.Name == skinName, cancellationToken);
-
-                    if (existingSkin != null)
+                    if (dopplerInfo != null)
                     {
-                        existingSkin.Rarity = rarity;
-                        existingSkin.Type = type;
-                        existingSkin.Collection = collection;
-                        existingSkin.Weapon = weapon;
-                        existingSkin.ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? existingSkin.ImageUrl : imageUrl;
-                        existingSkin.DefaultPrice = GetDefaultPriceForRarity(rarity);
-                        existingSkin.PaintIndex = paintIndex ?? existingSkin.PaintIndex;
-                        totalUpdated++;
+                        var displayName = $"{skinName} ({dopplerInfo.Phase})";
+                        await TryRenameSkinAsync(skinName, paintIndex, displayName, cancellationToken);
+                        var wasUpdate = await UpsertSkinAsync(
+                            displayName,
+                            rarity,
+                            type,
+                            collection,
+                            weapon,
+                            imageUrl,
+                            paintIndex,
+                            cancellationToken);
+
+                        if (wasUpdate)
+                        {
+                            totalUpdated++;
+                        }
+                        else
+                        {
+                            totalCreated++;
+                        }
                     }
                     else
                     {
-                        var newSkin = new Skin
-                        {
-                            Name = skinName,
-                            Rarity = rarity,
-                            Type = type,
-                            Collection = collection,
-                            Weapon = weapon,
-                            ImageUrl = imageUrl ?? "",
-                            DefaultPrice = GetDefaultPriceForRarity(rarity),
-                            PaintIndex = paintIndex
-                        };
+                        var family = DetermineDopplerFamily(skinName);
+                        var handledFamily = false;
 
-                        await _context.Skins.AddAsync(newSkin, cancellationToken);
-                        totalCreated++;
+                        if (!string.IsNullOrWhiteSpace(family) &&
+                            string.Equals(type, "Knife", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var phases = _dopplerPhaseService
+                                .GetFamilyPhases(family!, weapon)
+                                .ToList();
+
+                            if (phases.Count > 0)
+                            {
+                                handledFamily = true;
+                                foreach (var phase in phases)
+                                {
+                                    var phaseDisplayName = $"{skinName} ({phase.Phase})";
+                                    var phaseImage = string.IsNullOrWhiteSpace(phase.ImageUrl) ? imageUrl : phase.ImageUrl;
+                                    await TryRenameSkinAsync(skinName, phase.PaintSeed, phaseDisplayName, cancellationToken);
+                                    var wasUpdate = await UpsertSkinAsync(
+                                        phaseDisplayName,
+                                        rarity,
+                                        type,
+                                        collection,
+                                        weapon,
+                                        phaseImage,
+                                        phase.PaintSeed,
+                                        cancellationToken);
+
+                                    if (wasUpdate)
+                                    {
+                                        totalUpdated++;
+                                    }
+                                    else
+                                    {
+                                        totalCreated++;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!handledFamily)
+                        {
+                            var baseDisplayName = !string.IsNullOrWhiteSpace(rawPhase)
+                                ? $"{skinName} ({rawPhase})"
+                                : skinName;
+
+                            await TryRenameSkinAsync(skinName, paintIndex, baseDisplayName, cancellationToken);
+                            var wasUpdate = await UpsertSkinAsync(
+                                baseDisplayName,
+                                rarity,
+                                type,
+                                collection,
+                                weapon,
+                                imageUrl,
+                                paintIndex,
+                                cancellationToken);
+
+                            if (wasUpdate)
+                            {
+                                totalUpdated++;
+                            }
+                            else
+                            {
+                                totalCreated++;
+                            }
+                        }
                     }
 
                     if (totalProcessed % 100 == 0)
@@ -157,6 +227,7 @@ public class SkinImportService
             }
         }
 
+        await DeduplicateSkinsAsync(cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
         var message = $"Successfully processed {totalProcessed} records ({totalCreated} created, {totalUpdated} updated)";
@@ -251,6 +322,125 @@ public class SkinImportService
             _logger.LogError(ex, "Failed to import from CSFloat");
             return new CsFloatImportResult(false, 0, 0, 0, 0, $"Failed to import from CSFloat: {ex.Message}");
         }
+    }
+
+    private async Task DeduplicateSkinsAsync(CancellationToken cancellationToken)
+    {
+        var skinKeys = await _context.Skins
+            .AsNoTracking()
+            .Select(s => new { s.Id, s.Name })
+            .ToListAsync(cancellationToken);
+
+        var duplicateIds = skinKeys
+            .GroupBy(s => s.Name)
+            .SelectMany(g => g.OrderBy(s => s.Id).Skip(1).Select(s => s.Id))
+            .ToList();
+
+        if (duplicateIds.Count > 0)
+        {
+            var redundant = await _context.Skins
+                .Where(s => duplicateIds.Contains(s.Id))
+                .ToListAsync(cancellationToken);
+
+            if (redundant.Count > 0)
+            {
+                _context.Skins.RemoveRange(redundant);
+            }
+        }
+    }
+
+    private async Task<bool> UpsertSkinAsync(
+        string name,
+        string rarity,
+        string type,
+        string? collection,
+        string? weapon,
+        string? imageUrl,
+        int? paintIndex,
+        CancellationToken cancellationToken)
+    {
+        var existingSkin = await _context.Skins
+            .FirstOrDefaultAsync(s => s.Name == name, cancellationToken);
+
+        if (existingSkin != null)
+        {
+            existingSkin.Rarity = rarity;
+            existingSkin.Type = type;
+            existingSkin.Collection = collection;
+            existingSkin.Weapon = weapon;
+            if (!string.IsNullOrWhiteSpace(imageUrl))
+            {
+                existingSkin.ImageUrl = imageUrl;
+            }
+            existingSkin.DefaultPrice = GetDefaultPriceForRarity(rarity);
+            if (paintIndex.HasValue)
+            {
+                existingSkin.PaintIndex = paintIndex.Value;
+            }
+            return true;
+        }
+
+        var newSkin = new Skin
+        {
+            Name = name,
+            Rarity = rarity,
+            Type = type,
+            Collection = collection,
+            Weapon = weapon,
+            ImageUrl = imageUrl ?? "",
+            DefaultPrice = GetDefaultPriceForRarity(rarity),
+            PaintIndex = paintIndex
+        };
+
+        await _context.Skins.AddAsync(newSkin, cancellationToken);
+        return false;
+    }
+
+    private async Task TryRenameSkinAsync(string originalName, int? paintIndex, string newName, CancellationToken cancellationToken)
+    {
+        var query = _context.Skins.AsQueryable().Where(s => s.Name == originalName);
+        if (paintIndex.HasValue)
+        {
+            query = query.Where(s => s.PaintIndex == paintIndex.Value || s.PaintIndex == null);
+        }
+
+        var existing = await query.FirstOrDefaultAsync(cancellationToken);
+        if (existing != null)
+        {
+            var targetQuery = _context.Skins.AsQueryable().Where(s => s.Name == newName);
+            if (paintIndex.HasValue)
+            {
+                targetQuery = targetQuery.Where(s => s.PaintIndex == paintIndex.Value);
+            }
+
+            var target = await targetQuery.FirstOrDefaultAsync(cancellationToken);
+            if (target != null)
+            {
+                _context.Skins.Remove(existing);
+                return;
+            }
+
+            existing.Name = newName;
+            if (paintIndex.HasValue)
+            {
+                existing.PaintIndex = paintIndex.Value;
+            }
+        }
+    }
+
+    private static string? DetermineDopplerFamily(string skinName)
+    {
+        if (skinName.Contains("Gamma Doppler", StringComparison.OrdinalIgnoreCase))
+        {
+            return "gammaDoppler";
+        }
+
+        if (skinName.Contains("Doppler", StringComparison.OrdinalIgnoreCase))
+        {
+            return "doppler";
+        }
+
+        return null;
     }
 
     private static string GetStringFromProperty(JsonElement element, string propertyName)

@@ -11,5 +11,7 @@ public class SkinDto
     public string? ImageUrl { get; set; }
     public decimal? DefaultPrice { get; set; }
     public int? PaintIndex { get; set; }
+    public string? DopplerPhase { get; set; }
+    public string? DopplerPhaseImageUrl { get; set; }
 }
 
