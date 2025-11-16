@@ -16,6 +16,9 @@ public class InventoryItemDto
     public bool TradeProtected { get; set; }
     public DateTime? TradableAfter { get; set; }
     public DateTime AcquiredAt { get; set; }
+    public int? PaintIndex { get; set; }
+    public string? DopplerPhase { get; set; }
+    public string? DopplerPhaseImageUrl { get; set; }
 }
 
 public class CreateInventoryItemDto

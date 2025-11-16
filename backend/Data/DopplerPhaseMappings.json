@@ -1,0 +1,113 @@
+{
+  "_meta": {
+    "description": "Valve Doppler/Gamma Doppler phase catalog ids shared across all knife finishes that use the Doppler paint kit.",
+    "lastUpdated": "2025-11-12",
+    "notes": [
+      "paintSeed corresponds to Valve's paint_index / finish catalog id (Phase ID), not the random wear seed.",
+      "These values apply to every classic Doppler-enabled knife (Bayonet, Karambit, M9, Butterfly, etc.).",
+      "Gamma Doppler phases are only available on knives released with the Gamma cases (e.g., Bayonet, Karambit, Gut, M9, Flip)."
+    ]
+  },
+  "families": {
+    "doppler": {
+      "supportedWeapons": [
+        "Bayonet",
+        "Bowie Knife",
+        "Butterfly Knife",
+        "Classic Knife",
+        "Falchion Knife",
+        "Flip Knife",
+        "Gut Knife",
+        "Huntsman Knife",
+        "Karambit",
+        "M9 Bayonet",
+        "Navaja Knife",
+        "Nomad Knife",
+        "Paracord Knife",
+        "Shadow Daggers",
+        "Skeleton Knife",
+        "Stiletto Knife",
+        "Survival Knife",
+        "Talon Knife",
+        "Ursus Knife"
+      ],
+      "phases": [
+        {
+          "phase": "Phase 1",
+          "paintSeed": 418,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6BiMOCfC3Wv0eZ3o-Q4cCW6khUz_TvWmIygcnnGaVIlC5N5QOINt0S8lYDkMOu2sgTWgoxExCmqi3hN7i11o7FV2n5aQD4"
+        },
+        {
+          "phase": "Phase 2",
+          "paintSeed": 419,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6BiMOCfC3Wv0eZ3o-Q7cCW6khUz_TjRnNesInvCZ1chXsZ0FLZfsEKxltOyZOzitQLdj40WnCSq3SpO5yt1o7FVDNJZV5E"
+        },
+        {
+          "phase": "Phase 3",
+          "paintSeed": 420,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6BiMOCfC3Wv0eZ3o-Q6cCW6khUz_T_TydyheXmVZwYoXpR5R-YIsRe6lIazP-7h4Qzbj4hEzSyq3HgY7ix1o7FVS1Hc8lA"
+        },
+        {
+          "phase": "Phase 4",
+          "paintSeed": 421,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6BiMOCfC3Wv0eZ3o-Q9cCW6khUz_WvQmNaqcHvDPVUpC8B5E7ICtkW-wYK0NO204FbW2t1NxC_72y4d53l1o7FVWhjV62M"
+        },
+        {
+          "phase": "Ruby",
+          "paintSeed": 415,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV7Z4IumsA2aCw-JzuftsSxa_nBovp3PWnomsdn2QPVN0D5UiEOUP50LtltTvY-Ll4g3YjItFmSv-2i9A6X4-_a9cBu2YVmHc"
+        },
+        {
+          "phase": "Sapphire",
+          "paintSeed": 416,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV7dsMOCbB3WV_uN3ouNlSiCpkBkYvzSCkpu3d3_FaFUnXpRwEO4O50G5xoW1Y7zn5wLe3oxBxHn6jiwf7XposO8LBb1lpPPeBvHrwA"
+        },
+        {
+          "phase": "Black Pearl",
+          "paintSeed": 417,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6ZhIfOYHmKR0-JJveB7TSW2nAcitwKJk4jxNWWVZ1AmDJIlQuZcu0btx9e0Y-205gOL3dhGzS333CpBvHxi6ucEBfcg5OSJ2MqXuBCE"
+        }
+      ]
+    },
+    "gammaDoppler": {
+      "supportedWeapons": [
+        "Bayonet",
+        "Butterfly Knife",
+        "Falchion Knife",
+        "Flip Knife",
+        "Gut Knife",
+        "Karambit",
+        "M9 Bayonet",
+        "Shadow Daggers"
+      ],
+      "phases": [
+        {
+          "phase": "Phase 1",
+          "paintSeed": 569,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6NsLf2SMWOf0f56tfNWXyGyhhh2jDGMnYftb3KfOlVxDpt5RbRf5ES8kdfhZenq7lPc3tgQySj5hyNL53k9troLUvI7uvqAwkE80cI"
+        },
+        {
+          "phase": "Phase 2",
+          "paintSeed": 570,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6NsLf2SMWOf0f56tfNWXyGyhhh1jDGMnYftby7FbARxDZUkF7NfsUK5lYbmZO3ktAWKj40Qznn_intPvX1i5e4DVfI7uvqAz_bVj6c"
+        },
+        {
+          "phase": "Phase 3",
+          "paintSeed": 571,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6NsLf2SMWOf0f56tfNWXyGyhhh0jDGMnYftb3ifPQd2ApZ3Redb5xG-mtzkNuPr5ADXg4tGm33_23hLvCZrt-9XV_Y7uvqA1Mz9WrE"
+        },
+        {
+          "phase": "Phase 4",
+          "paintSeed": 572,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0POjV6NsLf2SMWOf0f56tfNWXyGyhhhzkDGMnYftb2iO6Rq1FrYc5de9kuJQeROtlajbor4A2Kq5Fyi7vaxf56i5-CY7ty9Xl63PqA7uvqAyK4CXPQ"
+        },
+        {
+          "phase": "Emerald",
+          "paintSeed": 568,
+          "imageUrl": "https://community.akamai.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpotLu8JAllx8zJfAJH4dmklYyPqPr1Ibndk2JL7cFOhuDG_Zi73VG2qUQ_am36LNKWcwM2Ml3X_FS8wL3vhMC0vJXOn3ZkuSAl7HiOmwv3308XDHXucw"
+        }
+      ]
+    }
+  }
+}
+

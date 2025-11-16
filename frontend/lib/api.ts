@@ -11,6 +11,9 @@ export interface SkinDto {
   weapon?: string;
   imageUrl?: string;
   defaultPrice?: number;
+  paintIndex?: number;
+  dopplerPhase?: string;
+  dopplerPhaseImageUrl?: string;
 }
 
 export interface InventoryItemDto {
@@ -28,6 +31,9 @@ export interface InventoryItemDto {
   tradeProtected: boolean;
   tradableAfter?: string;
   acquiredAt: string;
+  paintIndex?: number;
+  dopplerPhase?: string;
+  dopplerPhaseImageUrl?: string;
 }
 
 export interface CreateInventoryItemDto {
@@ -97,6 +103,34 @@ export const usersApi = {
     if (!response.ok) {
       throw new Error('Failed to fetch user');
     }
+    return response.json();
+  },
+};
+
+export interface BulkImportInventoryResult {
+  userId: number;
+  totalRequested: number;
+  successCount: number;
+  failedCount: number;
+  errors: string[];
+}
+
+export const adminApi = {
+  importInventoryFromCsv: async (userId: number, file: File): Promise<BulkImportInventoryResult> => {
+    const formData = new FormData();
+    formData.append('userId', userId.toString());
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/admin/import-inventory-csv`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to import CSV' }));
+      throw new Error(error.error || 'Failed to import CSV');
+    }
+
     return response.json();
   },
 };

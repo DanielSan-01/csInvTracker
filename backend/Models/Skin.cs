@@ -30,6 +30,8 @@ public class Skin
     
     public decimal? DefaultPrice { get; set; }
     
+    public int? PaintIndex { get; set; }
+    
     // Navigation property
     public ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.DTOs;
+using backend.Services;
 
 namespace backend.Controllers;
 
@@ -11,10 +12,12 @@ public class SkinsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SkinsController> _logger;
+    private readonly DopplerPhaseService _dopplerPhaseService;
 
-    public SkinsController(ApplicationDbContext context, ILogger<SkinsController> logger)
+    public SkinsController(ApplicationDbContext context, DopplerPhaseService dopplerPhaseService, ILogger<SkinsController> logger)
     {
         _context = context;
+        _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
     }
 
@@ -24,21 +27,13 @@ public class SkinsController : ControllerBase
     {
         try
         {
-            // Fetch all skins from database
-            var allSkins = await _context.Skins
+            var skins = await _context.Skins
                 .OrderBy(s => s.Name)
-                .Select(s => new SkinDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Rarity = s.Rarity,
-                    Type = s.Type,
-                    Collection = s.Collection,
-                    Weapon = s.Weapon,
-                    ImageUrl = s.ImageUrl,
-                    DefaultPrice = s.DefaultPrice
-                })
                 .ToListAsync();
+
+            var allSkins = skins
+                .Select(MapToDto)
+                .ToList();
 
             // Apply case-insensitive search in memory if search term provided
             if (!string.IsNullOrWhiteSpace(search))
@@ -78,33 +73,46 @@ public class SkinsController : ControllerBase
     {
         try
         {
-            var skin = await _context.Skins
-                .Where(s => s.Id == id)
-                .Select(s => new SkinDto
-                {
-                    Id = s.Id,
-                    Name = s.Name,
-                    Rarity = s.Rarity,
-                    Type = s.Type,
-                    Collection = s.Collection,
-                    Weapon = s.Weapon,
-                    ImageUrl = s.ImageUrl,
-                    DefaultPrice = s.DefaultPrice
-                })
-                .FirstOrDefaultAsync();
+            var skinEntity = await _context.Skins
+                .FirstOrDefaultAsync(s => s.Id == id);
 
-            if (skin == null)
+            if (skinEntity == null)
             {
                 return NotFound();
             }
 
-            return Ok(skin);
+            return Ok(MapToDto(skinEntity));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching skin {SkinId}", id);
             return StatusCode(500, "An error occurred while fetching the skin");
         }
+    }
+
+    private SkinDto MapToDto(backend.Models.Skin skin)
+    {
+        var dto = new SkinDto
+        {
+            Id = skin.Id,
+            Name = skin.Name,
+            Rarity = skin.Rarity,
+            Type = skin.Type,
+            Collection = skin.Collection,
+            Weapon = skin.Weapon,
+            ImageUrl = skin.ImageUrl,
+            DefaultPrice = skin.DefaultPrice,
+            PaintIndex = skin.PaintIndex
+        };
+
+        var phaseInfo = _dopplerPhaseService.GetPhaseInfo(skin.PaintIndex);
+        if (phaseInfo != null)
+        {
+            dto.DopplerPhase = phaseInfo.Phase;
+            dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
+        }
+
+        return dto;
     }
 }
 
