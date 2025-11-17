@@ -11,10 +11,11 @@ import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import { CreateInventoryItemDto, UpdateInventoryItemDto, adminApi, SkinDto } from '@/lib/api';
 import { fetchSteamInventory, convertSteamItemToCSItem } from '@/lib/steamApi';
 import { getStoredSteamId } from '@/lib/steamAuth';
+import { formatCurrency } from '@/lib/utils';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
-  const { items: backendItems, loading, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
+  const { items: backendItems, stats, loading, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
   const items = inventoryItemsToCSItems(backendItems);
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
@@ -426,11 +427,27 @@ export default function ItemGrid() {
           </div>
 
           {/* Stats */}
-          <div className="flex items-center gap-6 text-sm text-gray-400">
-            <span>Total Items: <span className="text-white font-semibold">{sortedItems.length}</span></span>
-            <span>Total Value: <span className="text-green-400 font-semibold">
-              ${sortedItems.reduce((sum, item) => sum + item.price, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span></span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-400">
+            <DashboardStatCard
+              label="Total Items"
+              value={stats ? stats.totalItems.toLocaleString() : '–'}
+            />
+            <DashboardStatCard
+              label="Market Value"
+              value={stats ? formatCurrency(stats.marketValue) : '–'}
+            />
+            <DashboardStatCard
+              label="Acquisition Cost"
+              value={stats ? formatCurrency(stats.acquisitionCost) : '–'}
+            />
+            <DashboardStatCard
+              label="Net Profit"
+              value={stats ? formatCurrency(stats.netProfit) : '–'}
+              valueClass={stats ? (stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400') : undefined}
+              subValue={stats?.averageProfitPercent !== undefined && stats?.averageProfitPercent !== null
+                ? `${stats.averageProfitPercent >= 0 ? '+' : ''}${stats.averageProfitPercent.toFixed(2)}%`
+                : '–'}
+            />
           </div>
         </div>
 
@@ -496,6 +513,25 @@ export default function ItemGrid() {
           onUpdate={handleUpdateSkin}
           onClose={() => setEditingItem(null)}
         />
+      )}
+    </div>
+  );
+}
+
+type DashboardStatCardProps = {
+  label: string;
+  value: string;
+  valueClass?: string;
+  subValue?: string;
+};
+
+function DashboardStatCard({ label, value, valueClass, subValue }: DashboardStatCardProps) {
+  return (
+    <div className="bg-gray-900/60 border border-gray-800 rounded-xl px-4 py-5 shadow-lg">
+      <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">{label}</p>
+      <p className={`text-2xl font-semibold text-white ${valueClass ?? ''}`}>{value}</p>
+      {subValue !== undefined && (
+        <p className="text-xs text-gray-400 mt-1">{subValue}</p>
       )}
     </div>
   );

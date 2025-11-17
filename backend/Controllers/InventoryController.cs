@@ -121,7 +121,7 @@ public class InventoryController : ControllerBase
     }
 
     // GET: api/inventory/{id}
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<ActionResult<InventoryItemDto>> GetInventoryItem(int id)
     {
         try
