@@ -278,6 +278,8 @@ public class InventoryController : ControllerBase
             SkinName = item.Skin.Name,
             Rarity = item.Skin.Rarity,
             Type = item.Skin.Type,
+                Collection = item.Skin.Collection,
+                Weapon = item.Skin.Weapon,
             Float = item.Float,
             Exterior = item.Exterior,
             PaintSeed = item.PaintSeed,

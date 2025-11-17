@@ -7,6 +7,8 @@ public class InventoryItemDto
     public string SkinName { get; set; } = string.Empty;
     public string Rarity { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
+    public string? Collection { get; set; }
+    public string? Weapon { get; set; }
     public double Float { get; set; }
     public string Exterior { get; set; } = string.Empty;
     public int? PaintSeed { get; set; }

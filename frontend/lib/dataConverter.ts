@@ -21,6 +21,8 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
     cost: dto.cost,
     imageUrl: dto.imageUrl || '',
     type: dto.type as ItemType,
+    collection: dto.collection ?? undefined,
+    weapon: dto.weapon ?? undefined,
     tradeProtected: dto.tradeProtected,
     tradableAfter: dto.tradableAfter ? new Date(dto.tradableAfter) : undefined,
     dopplerPhase: dto.dopplerPhase,

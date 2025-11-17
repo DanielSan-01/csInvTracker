@@ -34,6 +34,8 @@ export interface CSItem {
   cost?: number;
   imageUrl: string;
   type: ItemType;
+   collection?: string;
+   weapon?: string;
   tradeProtected?: boolean;
   tradableAfter?: Date;
   dopplerPhase?: string;

@@ -22,6 +22,8 @@ export interface InventoryItemDto {
   skinName: string;
   rarity: string;
   type: string;
+  collection?: string | null;
+  weapon?: string | null;
   float: number;
   exterior: string;
   paintSeed?: number;
