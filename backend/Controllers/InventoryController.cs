@@ -36,6 +36,62 @@ public class InventoryController : ControllerBase
         };
     }
 
+    // GET: api/inventory/stats?userId={userId}
+    [HttpGet("stats")]
+    public async Task<ActionResult<InventoryStatsDto>> GetInventoryStats([FromQuery] int? userId)
+    {
+        try
+        {
+            var query = _context.InventoryItems.AsQueryable();
+
+            if (userId.HasValue)
+            {
+                query = query.Where(i => i.UserId == userId.Value);
+            }
+
+            var aggregate = await query
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    TotalItems = g.Count(),
+                    MarketValue = g.Sum(i => i.Price),
+                    AcquisitionCost = g.Sum(i => i.Cost ?? 0m)
+                })
+                .FirstOrDefaultAsync();
+
+            if (aggregate == null)
+            {
+                return Ok(new InventoryStatsDto
+                {
+                    TotalItems = 0,
+                    MarketValue = 0m,
+                    AcquisitionCost = 0m,
+                    NetProfit = 0m,
+                    AverageProfitPercent = null
+                });
+            }
+
+            var profit = aggregate.MarketValue - aggregate.AcquisitionCost;
+            decimal? avgProfitPercent = aggregate.AcquisitionCost > 0
+                ? (profit / aggregate.AcquisitionCost) * 100m
+                : null;
+
+            return Ok(new InventoryStatsDto
+            {
+                TotalItems = aggregate.TotalItems,
+                MarketValue = decimal.Round(aggregate.MarketValue, 2),
+                AcquisitionCost = decimal.Round(aggregate.AcquisitionCost, 2),
+                NetProfit = decimal.Round(profit, 2),
+                AverageProfitPercent = avgProfitPercent.HasValue ? decimal.Round(avgProfitPercent.Value, 2) : null
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching inventory stats for user {UserId}", userId);
+            return StatusCode(500, "An error occurred while fetching inventory stats");
+        }
+    }
+
     // GET: api/inventory?userId={userId}
     [HttpGet]
     public async Task<ActionResult<IEnumerable<InventoryItemDto>>> GetInventory([FromQuery] int? userId)
@@ -65,7 +121,7 @@ public class InventoryController : ControllerBase
     }
 
     // GET: api/inventory/{id}
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     public async Task<ActionResult<InventoryItemDto>> GetInventoryItem(int id)
     {
         try
@@ -222,6 +278,8 @@ public class InventoryController : ControllerBase
             SkinName = item.Skin.Name,
             Rarity = item.Skin.Rarity,
             Type = item.Skin.Type,
+                Collection = item.Skin.Collection,
+                Weapon = item.Skin.Weapon,
             Float = item.Float,
             Exterior = item.Exterior,
             PaintSeed = item.PaintSeed,

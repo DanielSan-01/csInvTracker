@@ -176,14 +176,21 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
         >
           <div
             ref={imageContainerRef}
-            className={`relative w-full aspect-[16/9] bg-gradient-to-b ${rarityGradients[item.rarity]}`}
+            className={`relative w-full aspect-[3/2] bg-gradient-to-b ${rarityGradients[item.rarity]} flex items-center justify-center`}
             style={{ opacity: imageLoaded ? 1 : 0.3, filter: imageLoaded ? 'brightness(1)' : 'brightness(0.5)' }}
           >
             <div
               ref={imageRef}
-              className="w-full h-full bg-contain bg-center bg-no-repeat"
-              style={{ backgroundImage: item.imageUrl ? `url("${item.imageUrl}")` : 'none' }}
-            />
+              className="w-full h-full flex items-center justify-center px-6 pt-10 pb-6"
+            >
+              {item.imageUrl && (
+                <img
+                  src={item.imageUrl}
+                  alt={item.name}
+                  className="max-h-full max-w-full object-contain"
+                />
+              )}
+            </div>
             <div className="absolute inset-0 bg-gradient-to-t from-gray-950/60 via-gray-950/0 to-gray-950/40 pointer-events-none" />
           </div>
 
@@ -224,32 +231,25 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
         </div>
 
         {/* Item information */}
-        <div className="space-y-6 rounded-2xl border border-gray-800 bg-gray-900/70 p-6 shadow-inner shadow-black/40">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm uppercase tracking-wide text-gray-400">
-                <span>Inventory Item</span>
-                <span className="text-gray-600">•</span>
-                <span>{item.type}</span>
-              </div>
-              <h2 className="text-3xl font-semibold text-white">{item.name}</h2>
-            </div>
+        <div className="space-y-4 rounded-2xl border border-gray-800 bg-gray-900/70 p-5 shadow-inner shadow-black/40">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <h2 className="text-[22px] font-semibold text-white leading-tight">{item.name}</h2>
 
-            <div className="flex flex-col items-end gap-2">
-              <div className="text-xs uppercase tracking-wide text-gray-400">Market Value</div>
-              <div className="text-4xl font-bold text-emerald-400">{formatPrice(item.price)}</div>
+            <div className="flex flex-col items-end gap-1.5">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-gray-400">Market Value</div>
+              <div className="text-[26px] font-semibold text-emerald-400">{formatPrice(item.price)}</div>
               {item.cost !== undefined && (
                 <div className="text-xs text-gray-400">
                   Cost basis: <span className="text-gray-200">{formatPrice(item.cost)}</span>
                 </div>
               )}
-              <div className={`text-sm font-medium ${profitDisplay.className}`}>
+              <div className={`text-xs font-medium ${profitDisplay.className}`}>
                 {profitDisplay.label}: {profitDisplay.value}
               </div>
               {onEdit && (
                 <button
                   onClick={onEdit}
-                  className="mt-2 inline-flex items-center gap-2 rounded-full border border-blue-500/50 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-200 hover:bg-blue-500/20 transition-colors"
+                  className="mt-2 inline-flex items-center gap-2 rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1 text-[10px] font-medium text-blue-200 hover:bg-blue-500/20 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -260,7 +260,7 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
               {onDelete && (
                 <button
                   onClick={onDelete}
-                  className="inline-flex items-center gap-2 rounded-full border border-red-500/50 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-200 hover:bg-red-500/20 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-full border border-red-500/40 bg-red-500/10 px-3 py-1 text-[11px] font-medium text-red-200 hover:bg-red-500/20 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m11 0H6" />
@@ -272,9 +272,9 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm text-gray-400">
+            <div className="flex items-center justify-between text-xs text-gray-400 uppercase tracking-[0.2em]">
               <span>Float value</span>
-              <span className="font-mono text-base text-white">{formatFloat(item.float, 6)}</span>
+              <span className="font-mono text-sm text-white">{formatFloat(item.float, 6)}</span>
             </div>
             <div className="h-2 rounded-full bg-gray-800 overflow-hidden">
               <div
@@ -282,10 +282,16 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
                 style={{ width: `${Math.min(item.float, 1) * 100}%` }}
               />
             </div>
-            <p className="text-xs text-gray-400">{exteriorInfo.description}</p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              {item.collection
+                ? `Part of the ${item.collection}.`
+                : item.weapon
+                  ? `Weapon: ${item.weapon}.`
+                  : 'Source collection unknown.'}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-xs text-gray-300">
+          <div className="grid grid-cols-2 gap-3 text-[11px] text-gray-300">
             <div className={infoPillBase}>
               <svg className="w-4 h-4 text-indigo-300" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M10 2a1 1 0 01.894.553l2.382 4.764 5.258.764a1 1 0 01.554 1.706l-3.807 3.71.899 5.239a1 1 0 01-1.451 1.054L10 16.347l-4.729 2.487A1 1 0 013.82 18.5l.899-5.24-3.808-3.707A1 1 0 011.465 8.08l5.258-.765L9.106 2.553A1 1 0 0110 2z" />
@@ -399,12 +405,12 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
           {/* Profit and Wear */}
           {item.cost !== undefined && item.cost !== null && (() => {
             const cost = item.cost as number;
-            const profit = calculateProfit(item.price, cost);
+            const profitValue = item.price - cost;
             return (
               <div className="flex items-center justify-between gap-2">
-                <div className={`text-[10px] font-semibold ${profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                  Profit {profit >= 0 ? '+' : ''}
-                  {formatPrice(profit)}
+                <div className={`text-[10px] font-semibold ${profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  Profit {profitValue >= 0 ? '+' : ''}
+                  {formatPrice(profitValue)}
                 </div>
                 <span className={`text-[9px] font-bold px-1 py-0.5 rounded ${getFloatColor(item.float)} text-white`}>
                   {exteriorAbbr[item.exterior]}

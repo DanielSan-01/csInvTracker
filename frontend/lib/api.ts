@@ -22,6 +22,8 @@ export interface InventoryItemDto {
   skinName: string;
   rarity: string;
   type: string;
+  collection?: string | null;
+  weapon?: string | null;
   float: number;
   exterior: string;
   paintSeed?: number;
@@ -34,6 +36,14 @@ export interface InventoryItemDto {
   paintIndex?: number;
   dopplerPhase?: string;
   dopplerPhaseImageUrl?: string;
+}
+
+export interface InventoryStatsDto {
+  totalItems: number;
+  marketValue: number;
+  acquisitionCost: number;
+  netProfit: number;
+  averageProfitPercent?: number | null;
 }
 
 export interface CreateInventoryItemDto {
@@ -184,5 +194,18 @@ export const inventoryApi = {
     if (!response.ok) {
       throw new Error('Failed to delete inventory item');
     }
+  },
+
+  getStats: async (userId?: number): Promise<InventoryStatsDto> => {
+    const url = new URL(`${API_BASE_URL}/inventory/stats`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch inventory stats');
+    }
+    return response.json();
   },
 };

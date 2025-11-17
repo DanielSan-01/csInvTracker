@@ -1,23 +1,29 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { inventoryApi, InventoryItemDto, CreateInventoryItemDto, UpdateInventoryItemDto } from '@/lib/api';
+import { inventoryApi, InventoryItemDto, CreateInventoryItemDto, UpdateInventoryItemDto, InventoryStatsDto } from '@/lib/api';
 
 export function useInventory(userId?: number) {
   const [items, setItems] = useState<InventoryItemDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<InventoryStatsDto | null>(null);
 
   // Fetch inventory on mount or when userId changes
   const fetchInventory = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await inventoryApi.getInventoryItems(userId);
-      setItems(data);
+      const [itemsData, statsData] = await Promise.all([
+        inventoryApi.getInventoryItems(userId),
+        inventoryApi.getStats(userId),
+      ]);
+      setItems(itemsData);
+      setStats(statsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch inventory');
       console.error('Error fetching inventory:', err);
+      setStats(null);
     } finally {
       setLoading(false);
     }
@@ -74,6 +80,7 @@ export function useInventory(userId?: number) {
 
   return {
     items,
+    stats,
     loading,
     error,
     createItem,
