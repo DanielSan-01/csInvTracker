@@ -2,12 +2,6 @@
 
 A full-stack inventory tracking application built with Next.js, .NET EF Core, PostgreSQL, and GSAP.
 
-## Tech Stack
-
-- **Frontend**: Next.js 16 with TypeScript, Tailwind CSS, and GSAP for animations
-- **Backend**: .NET 9.0 Web API with Entity Framework Core
-- **Database**: PostgreSQL
-- **Animation**: GSAP (GreenSock Animation Platform)
 
 ## Project Structure
 
