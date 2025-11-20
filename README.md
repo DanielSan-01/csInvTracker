@@ -27,44 +27,6 @@ csInvTracker/
 - .NET 9.0 SDK
 - PostgreSQL 12+ (or Docker with PostgreSQL)
 
-## Setup Instructions
-
-### 1. Database Setup
-
-Install and start PostgreSQL:
-
-```bash
-# Using Homebrew on macOS
-brew install postgresql@14
-brew services start postgresql@14
-
-# Create matching superuser/password for local development
-/opt/homebrew/opt/postgresql@14/bin/createuser -s postgres
-/opt/homebrew/opt/postgresql@14/bin/psql -U postgres -d postgres -c "ALTER ROLE postgres WITH PASSWORD 'postgres';"
-
-# Create database
-createdb csinvtracker
-
-# Or using Docker
-docker run --name postgres-csinv -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=csInvTracker -p 5432:5432 -d postgres:14
-```
-
-### 2. Backend Setup
-
-```bash
-cd backend
-
-# Update connection string in appsettings.json if needed
-# Default: Host=localhost;Port=5432;Database=csInvTracker;Username=postgres;Password=postgres
-
-# Apply migration to database
-# (If `dotnet ef` is not on your PATH, run `dotnet tool install --global dotnet-ef` once
-# or invoke `~/.dotnet/tools/dotnet-ef`.)
-dotnet ef database update --project .
-
-# Run the backend
-dotnet run
-```
 
 The backend will be available at:
 - API: `https://localhost:5001` or `http://localhost:5000`
@@ -87,11 +49,8 @@ npm run dev
 
 The frontend will be available at `http://localhost:3000`
 
-## Development
 
-#  How to Start Your CS Inventory Tracker
-
-## Quick Start (2 Terminals)
+# Quick Start (2 Terminals)
 
 ### Terminal 1 - Backend (Port 5027)
 ```bash
@@ -107,11 +66,6 @@ cd frontend
 npm run dev
 ```
 
-**Wait for**: `Ready in X seconds`
-
-### Open Browser
-Go to: **http://localhost:3002**
-
 ### Adding New Database Models
 
 1. Create a model in `backend/Models/`
@@ -120,18 +74,4 @@ Go to: **http://localhost:3002**
 4. Apply migration: `dotnet ef database update --project backend`
 
 
-
-### Backend
-- `dotnet run` - Run the API
-- `dotnet watch run` - Run with hot reload
-- `dotnet ef migrations add <Name>` - Create a new migration
-- `dotnet ef database update` - Apply migrations
-- `dotnet ef migrations remove` - Remove last migration
-
-### Frontend
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint
-
-
+'
