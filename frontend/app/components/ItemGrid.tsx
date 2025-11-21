@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { CSItem, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
 import AddSkinForm, { NewSkinData } from './AddSkinForm';
@@ -352,6 +353,12 @@ export default function ItemGrid() {
               )}
             </div>
             <div className="flex items-center gap-3">
+              <Link
+                href="/goal"
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-purple-500/40 text-purple-200 hover:border-purple-400 hover:bg-purple-500/10 transition-colors"
+              >
+                Plan Goal
+              </Link>
               {steamId && user && (
                 <button
                   onClick={handleLoadFromSteam}

@@ -9,9 +9,17 @@ interface GlobalSearchBarProps {
   userInventory: CSItem[];
   onAddSkin: (skin: SkinDto) => void;
   isLoggedIn?: boolean;
+  actionLabel?: string;
+  allowDuplicateSelection?: boolean;
 }
 
-export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn = false }: GlobalSearchBarProps) {
+export default function GlobalSearchBar({
+  userInventory,
+  onAddSkin,
+  isLoggedIn = false,
+  actionLabel = '+ Add',
+  allowDuplicateSelection = false,
+}: GlobalSearchBarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showResults, setShowResults] = useState(false);
   const { skins, loading } = useSkinCatalog(searchTerm);
@@ -91,6 +99,7 @@ export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn =
             <div className="py-2">
               {skins.map((skin) => {
                 const inInventory = isInInventory(skin.id);
+                const actionDisabled = !isLoggedIn || (!allowDuplicateSelection && inInventory);
                 const phaseLabel = getDopplerPhaseLabel(skin);
                 const displayName = getSkinDisplayName(skin, phaseLabel);
                 
@@ -124,22 +133,29 @@ export default function GlobalSearchBar({ userInventory, onAddSkin, isLoggedIn =
                     </div>
 
                     {/* Action Button */}
-                    {!isLoggedIn ? (
-                      <span className="px-4 py-2 text-sm text-gray-500 font-medium">
-                        Login to add
-                      </span>
-                    ) : inInventory ? (
-                      <span className="px-4 py-2 text-sm text-green-400 font-medium">
-                        ✓ In Inventory
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleAddClick(skin)}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-                      >
-                        + Add
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {actionDisabled ? (
+                        !isLoggedIn ? (
+                          <span className="px-4 py-2 text-sm text-gray-500 font-medium">
+                            Login to add
+                          </span>
+                        ) : (
+                          <span className="px-4 py-2 text-sm text-green-400 font-medium">
+                            ✓ In Inventory
+                          </span>
+                        )
+                      ) : (
+                        <button
+                          onClick={() => handleAddClick(skin)}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          {actionLabel}
+                        </button>
+                      )}
+                      {allowDuplicateSelection && inInventory && (
+                        <span className="text-xs font-medium text-emerald-300">In Inventory</span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
