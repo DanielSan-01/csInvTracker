@@ -18,6 +18,11 @@ export interface GoalData {
   userId?: number;
   skinName: string;
   skinId?: number;
+  skinImageUrl?: string | null;
+  skinRarity?: string | null;
+  skinType?: string | null;
+  skinWeapon?: string | null;
+  skinAltImageUrl?: string | null;
   targetPrice: number;
   balance: number;
   selectedTotal: number;
