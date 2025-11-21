@@ -194,24 +194,10 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
             <div className="absolute inset-0 bg-gradient-to-t from-gray-950/60 via-gray-950/0 to-gray-950/40 pointer-events-none" />
           </div>
 
-          <div className="absolute top-4 left-4 flex flex-wrap items-center gap-2">
-            <span className={`px-3 py-1 rounded-full border text-xs font-semibold uppercase tracking-wide ${rarityBadgeClasses[item.rarity]}`}>
-              {item.rarity}
+          <div className="absolute top-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
+            <span className={`px-3 py-1 rounded-full border border-white/30 bg-black/40 text-xs font-semibold text-white`}>
+              {exteriorAbbr[item.exterior]}
             </span>
-            <span className={`px-2.5 py-1 rounded-full border border-white/30 bg-black/40 text-xs font-semibold text-white`}>
-              {exteriorAbbr[item.exterior]} · {exteriorInfo.label}
-            </span>
-            {item.type && (
-              <span className={infoPillBase}>
-                <svg className="w-3.5 h-3.5 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M5 4a2 2 0 00-2 2v7.5A1.5 1.5 0 004.5 15h11a.5.5 0 100-1h-11a.5.5 0 01-.5-.5V11h5a3 3 0 003-3V4H5zm7 0v4a2 2 0 01-2 2H4V6a2 2 0 012-2h6z" />
-                </svg>
-                {item.type}
-              </span>
-            )}
-          </div>
-
-          <div className="absolute top-4 right-4 flex items-center gap-2">
             {item.tradeProtected && item.tradableAfter ? (
               <span className="px-3 py-1.5 rounded-full border border-amber-400/60 bg-amber-500/15 text-xs font-medium text-amber-200 flex items-center gap-1.5">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
