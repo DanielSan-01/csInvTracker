@@ -366,16 +366,6 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent pointer-events-none" />
 
-        {/* Compact badges in corners */}
-        <div className="absolute bottom-3 left-3 flex flex-wrap items-center gap-1.5">
-          <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider ${rarityBadgeClasses[item.rarity]}`}>
-            {item.rarity.split(' ')[0]}
-          </span>
-          <span className="px-1.5 py-0.5 rounded border border-gray-500/40 bg-black/60 text-[9px] font-medium text-gray-300 uppercase">
-            {item.type}
-          </span>
-        </div>
-
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
           <span className="rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100 border border-white/20">
             {formatFloat(item.float, 3)}
@@ -392,8 +382,8 @@ export default function ItemCard({ item, onClick, onEdit, onDelete, variant = 'g
       </div>
 
       {/* Price info at bottom */}
-      <div className="absolute inset-x-0 bottom-0 p-3">
-        <div className="flex flex-col gap-1.5 rounded-lg border border-white/10 bg-black/70 px-2.5 py-2 backdrop-blur-sm">
+      <div className="absolute inset-x-0 bottom-0">
+        <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/80 px-4 py-3 backdrop-blur-sm">
           {/* Price and Cost */}
           <div className="flex items-center justify-between gap-2">
             <p className="text-base font-bold text-emerald-400">{formatPrice(item.price)}</p>

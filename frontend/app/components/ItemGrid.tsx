@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { CSItem, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
+import StatCard from './StatCard';
 import AddSkinForm, { NewSkinData } from './AddSkinForm';
 import GlobalSearchBar from './GlobalSearchBar';
 import { useInventory } from '@/hooks/useInventory';
@@ -341,13 +342,13 @@ export default function ItemGrid() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-3xl font-bold text-white">CS Inventory Tracker</h1>
+              <h1 className="type-heading-xl text-white">CS Inventory Tracker</h1>
               {user ? (
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="type-body-sm text-gray-400 mt-1">
                   Viewing <span className="text-purple-400 font-medium">{user.username}</span>'s inventory
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 mt-1">
+                <p className="type-body-sm text-gray-400 mt-1">
                   <span className="text-yellow-400">👆 Log in with Steam</span> to manage your inventory
                 </p>
               )}
@@ -422,36 +423,47 @@ export default function ItemGrid() {
           </div>
           
           {/* Filter Your Inventory */}
-          <div className="mb-4 flex items-center gap-3">
-            <label className="text-sm text-gray-400 font-medium">Filter your inventory:</label>
-            <input
-              type="text"
-              placeholder="Filter your items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 max-w-md px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-            />
+          <div className="mb-4 flex items-center">
+            <div className="relative w-full max-w-md">
+              <label htmlFor="inventory-filter" className="sr-only">Filter your inventory</label>
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.6-4.15a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z" />
+                </svg>
+              </span>
+              <input
+                id="inventory-filter"
+                type="text"
+                placeholder="Filter your items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-10 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
+              />
+            </div>
           </div>
 
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-400">
-            <DashboardStatCard
+            <StatCard
               label="Total Items"
               value={stats ? stats.totalItems.toLocaleString() : '–'}
+              valueClassName="type-heading-xl"
             />
-            <DashboardStatCard
+            <StatCard
               label="Market Value"
               value={stats ? formatCurrency(stats.marketValue) : '–'}
+              valueClassName="type-heading-xl"
             />
-            <DashboardStatCard
+            <StatCard
               label="Acquisition Cost"
               value={stats ? formatCurrency(stats.acquisitionCost) : '–'}
+              valueClassName="type-heading-xl"
             />
-            <DashboardStatCard
+            <StatCard
               label="Net Profit"
               value={stats ? formatCurrency(stats.netProfit) : '–'}
-              valueClass={stats ? (stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400') : undefined}
-              subValue={stats?.averageProfitPercent !== undefined && stats?.averageProfitPercent !== null
+              valueClassName={`type-heading-xl ${stats ? (stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400') : ''}`}
+              secondaryValue={stats?.averageProfitPercent !== undefined && stats?.averageProfitPercent !== null
                 ? `${stats.averageProfitPercent >= 0 ? '+' : ''}${stats.averageProfitPercent.toFixed(2)}%`
                 : '–'}
             />
@@ -520,25 +532,6 @@ export default function ItemGrid() {
           onUpdate={handleUpdateSkin}
           onClose={() => setEditingItem(null)}
         />
-      )}
-    </div>
-  );
-}
-
-type DashboardStatCardProps = {
-  label: string;
-  value: string;
-  valueClass?: string;
-  subValue?: string;
-};
-
-function DashboardStatCard({ label, value, valueClass, subValue }: DashboardStatCardProps) {
-  return (
-    <div className="bg-gray-900/60 border border-gray-800 rounded-xl px-4 py-5 shadow-lg">
-      <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">{label}</p>
-      <p className={`text-2xl font-semibold text-white ${valueClass ?? ''}`}>{value}</p>
-      {subValue !== undefined && (
-        <p className="text-xs text-gray-400 mt-1">{subValue}</p>
       )}
     </div>
   );

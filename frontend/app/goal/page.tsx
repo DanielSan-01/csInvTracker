@@ -8,6 +8,8 @@ import { useInventory } from '@/hooks/useInventory';
 import { formatCurrency } from '@/lib/utils';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import GlobalSearchBar from '@/app/components/GlobalSearchBar';
+import InventoryListCard from '@/app/components/InventoryListCard';
+import TargetSkinCard from '@/app/components/TargetSkinCard';
 import { saveGoal, GoalData } from '@/lib/goalStorage';
 import type { InventoryItemDto, SkinDto } from '@/lib/api';
 
@@ -110,6 +112,11 @@ export default function GoalPlannerPage() {
       userId: user?.id,
       skinName: targetSkinName.trim(),
       skinId: selectedSkin?.id,
+      skinImageUrl: selectedSkin?.dopplerPhaseImageUrl ?? selectedSkin?.imageUrl ?? null,
+      skinAltImageUrl: selectedSkin?.imageUrl ?? null,
+      skinRarity: selectedSkin?.rarity ?? null,
+      skinType: selectedSkin?.type ?? null,
+      skinWeapon: selectedSkin?.weapon ?? null,
       targetPrice: parsedTargetPrice,
       balance: parsedBalance,
       selectedTotal,
@@ -133,8 +140,8 @@ export default function GoalPlannerPage() {
 
   const renderStepHeading = (step: number, title: string, description?: string) => (
     <div className="flex flex-col gap-1">
-      <h2 className="text-lg font-semibold text-white">Step {step}: {title}</h2>
-      {description && <p className="text-sm text-gray-400">{description}</p>}
+      <h2 className="type-heading-lg text-white">Step {step}: {title}</h2>
+      {description && <p className="type-body-sm text-gray-400">{description}</p>}
     </div>
   );
 
@@ -144,8 +151,8 @@ export default function GoalPlannerPage() {
         <header className="flex flex-col gap-6 rounded-3xl border border-gray-800 bg-gray-900/70 p-6 shadow-2xl shadow-black/30 backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <p className="text-sm uppercase tracking-widest text-purple-300/80">Goal Planner</p>
-              <h1 className="text-3xl font-bold text-white">Set a Goal for Your Next Skin</h1>
+              <p className="type-label text-purple-300/80">Goal Planner</p>
+              <h1 className="type-heading-xl text-white">Set a Goal for Your Next Skin</h1>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Link
@@ -169,7 +176,7 @@ export default function GoalPlannerPage() {
             </div>
           </div>
 
-          <p className="text-sm text-gray-400 leading-relaxed">
+          <p className="type-body-sm text-gray-400 leading-relaxed">
             This planner helps you figure out how close you are to affording a new skin.
             Add your target skin, choose items you plan to sell, and include any balance you already have on trading sites.
             We’ll crunch the numbers and show what you still need (or how much surplus you have).
@@ -189,24 +196,35 @@ export default function GoalPlannerPage() {
             />
 
             {selectedSkin && (
-              <div className="flex flex-col gap-3 rounded-2xl border border-purple-500/40 bg-purple-500/10 px-4 py-4 text-sm text-purple-100 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-widest text-purple-200/80">Selected skin</p>
-                  <p className="mt-1 text-base font-semibold text-white">{selectedSkin.name}</p>
-                  {selectedSkin.defaultPrice && selectedSkin.defaultPrice > 0 && (
-                    <p className="text-xs text-purple-200/80">
-                      Catalog price: {formatCurrency(selectedSkin.defaultPrice)}
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClearSelectedSkin}
-                  className="inline-flex items-center justify-center rounded-lg border border-purple-400/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-purple-100 transition-colors hover:border-purple-300/70 hover:bg-purple-500/20"
-                >
-                  Clear
-                </button>
-              </div>
+              <TargetSkinCard
+                badge="Selected skin"
+                name={selectedSkin.name}
+                subtitle={selectedSkin.weapon ?? selectedSkin.type}
+                imageUrl={selectedSkin.dopplerPhaseImageUrl ?? selectedSkin.imageUrl}
+                rarity={selectedSkin.rarity}
+                type={selectedSkin.type}
+                tags={[
+                  selectedSkin.collection ? `${selectedSkin.collection}` : null,
+                  selectedSkin.dopplerPhase ?? (selectedSkin.paintIndex ? `Pattern ${selectedSkin.paintIndex}` : null),
+                ]}
+                priceLabel={
+                  selectedSkin.defaultPrice && selectedSkin.defaultPrice > 0 ? 'Catalog price' : undefined
+                }
+                priceValue={
+                  selectedSkin.defaultPrice && selectedSkin.defaultPrice > 0
+                    ? formatCurrency(selectedSkin.defaultPrice)
+                    : undefined
+                }
+                trailingContent={
+                  <button
+                    type="button"
+                    onClick={handleClearSelectedSkin}
+                    className="inline-flex items-center justify-center rounded-lg border border-purple-400/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-purple-100 transition-colors hover:border-purple-300/70 hover:bg-purple-500/20"
+                  >
+                    Clear
+                  </button>
+                }
+              />
             )}
 
             <div className="grid gap-4 md:grid-cols-[2fr,1fr]">
@@ -279,59 +297,17 @@ export default function GoalPlannerPage() {
                 {filteredInventory.map((item) => {
                   const isSelected = selectedItemIds.includes(item.id);
                   return (
-                    <button
+                    <InventoryListCard
                       key={item.id}
-                      type="button"
+                      title={item.skinName}
+                      subtitle={item.weapon ?? item.type}
+                      imageUrl={item.imageUrl}
+                      selectable
+                      isSelected={isSelected}
                       onClick={() => handleToggleItem(item)}
-                      className={`grid grid-cols-[auto,1fr,auto] grid-rows-[auto,auto] gap-x-4 gap-y-3 rounded-2xl border px-4 py-3 text-left transition-all ${
-                        isSelected
-                          ? 'border-emerald-400/60 bg-emerald-500/15 shadow-lg shadow-emerald-500/10'
-                          : 'border-gray-800 bg-gray-950/50 hover:border-gray-700 hover:bg-gray-900/60'
-                      }`}
-                    >
-                      <div className="row-span-2 flex shrink-0 items-center">
-                        <div
-                          className={`relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border bg-gray-900/60 p-1.5 ${
-                            isSelected ? 'border-emerald-400/70' : 'border-gray-800'
-                          }`}
-                        >
-                          {item.imageUrl ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={`${item.skinName} preview`}
-                              className="max-h-full max-w-full object-contain"
-                              loading="lazy"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[10px] uppercase tracking-widest text-gray-500">
-                              No image
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">{item.skinName}</p>
-                        <p className="truncate text-xs text-gray-400">{item.weapon ?? item.type}</p>
-                      </div>
-                      <div className="flex items-start justify-end gap-2 text-xs text-gray-300">
-                        {isSelected ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-1 text-emerald-200">
-                            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                            </svg>
-                            Selected
-                          </span>
-                        ) : (
-                          <span className="whitespace-nowrap rounded-full border border-gray-800 px-2 py-1">Tap to add</span>
-                        )}
-                      </div>
-                      <div className="col-start-2 col-span-2 flex items-center justify-between text-xs text-gray-400">
-                        <span>Tradable: {item.tradeProtected ? 'No' : 'Yes'}</span>
-                        <span className="font-semibold text-gray-200">
-                          {formatCurrency(item.price ?? 0)}
-                        </span>
-                      </div>
-                    </button>
+                      footerLeft={`Tradable: ${item.tradeProtected ? 'No' : 'Yes'}`}
+                      footerRight={formatCurrency(item.price ?? 0)}
+                    />
                   );
                 })}
               </div>
@@ -479,9 +455,9 @@ type SummaryCardProps = {
 function SummaryCard({ label, value, secondaryValue }: SummaryCardProps) {
   return (
     <div className="rounded-2xl border border-gray-800 bg-gray-950/70 px-5 py-4 shadow-lg shadow-black/30">
-      <p className="text-xs uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-white">{value}</p>
-      {secondaryValue && <p className="mt-1 text-xs text-gray-400">{secondaryValue}</p>}
+      <p className="type-label text-gray-500">{label}</p>
+      <p className="mt-2 type-heading-md text-white">{value}</p>
+      {secondaryValue && <p className="mt-1 type-body-sm text-gray-400">{secondaryValue}</p>}
     </div>
   );
 }
