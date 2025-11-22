@@ -46,6 +46,37 @@ export interface InventoryStatsDto {
   averageProfitPercent?: number | null;
 }
 
+export interface GoalSelectedItemDto {
+  inventoryItemId?: number | null;
+  skinName: string;
+  price: number;
+  tradeProtected: boolean;
+  imageUrl?: string | null;
+  weapon?: string | null;
+  type?: string | null;
+}
+
+export interface GoalDto {
+  id: string;
+  createdAt: string;
+  updatedAt?: string;
+  userId?: number | null;
+  skinName: string;
+  skinId?: number | null;
+  targetPrice: number;
+  balance: number;
+  selectedTotal: number;
+  coverageTotal: number;
+  remainingAmount: number;
+  surplusAmount: number;
+  skinImageUrl?: string | null;
+  skinAltImageUrl?: string | null;
+  skinRarity?: string | null;
+  skinType?: string | null;
+  skinWeapon?: string | null;
+  selectedItems: GoalSelectedItemDto[];
+}
+
 export interface CreateInventoryItemDto {
   userId: number;
   skinId: number;
@@ -207,5 +238,56 @@ export const inventoryApi = {
       throw new Error('Failed to fetch inventory stats');
     }
     return response.json();
+  },
+};
+
+// Goals API
+export const goalsApi = {
+  getGoals: async (userId?: number): Promise<GoalDto[]> => {
+    const url = new URL(`${API_BASE_URL}/goals`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch goals');
+    }
+    return response.json();
+  },
+
+  getGoalById: async (id: string): Promise<GoalDto> => {
+    const response = await fetch(`${API_BASE_URL}/goals/${id}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch goal');
+    }
+    return response.json();
+  },
+
+  upsertGoal: async (goal: GoalDto): Promise<GoalDto> => {
+    const response = await fetch(`${API_BASE_URL}/goals`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(goal),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error?.message || 'Failed to save goal');
+    }
+
+    return response.json();
+  },
+
+  deleteGoal: async (id: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/goals/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete goal');
+    }
   },
 };

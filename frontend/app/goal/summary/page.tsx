@@ -4,15 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
-import { GoalData, getGoalById, getGoals } from '@/lib/goalStorage';
+import { GoalData, fetchGoalById, fetchGoals } from '@/lib/goalStorage';
 import TargetSkinCard from '@/app/components/TargetSkinCard';
 import { skinsApi } from '@/lib/api';
 import InventoryListCard from '@/app/components/InventoryListCard';
 import StatCard from '@/app/components/StatCard';
+import { useUser } from '@/contexts/UserContext';
 
 export default function GoalSummaryPage() {
   const searchParams = useSearchParams();
   const requestedGoalId = searchParams.get('goalId');
+  const { user } = useUser();
 
   const [goal, setGoal] = useState<GoalData | null>(null);
   const [allGoals, setAllGoals] = useState<GoalData[]>([]);
@@ -30,20 +32,51 @@ export default function GoalSummaryPage() {
   });
 
   useEffect(() => {
-    const storedGoals = getGoals();
-    setAllGoals(storedGoals);
+    let cancelled = false;
 
-    const activeId = requestedGoalId ?? storedGoals[0]?.id ?? null;
-    if (!activeId) {
-      setGoal(null);
-      setLoading(false);
-      return;
-    }
+    const loadGoals = async () => {
+      setLoading(true);
+      try {
+        const storedGoals = await fetchGoals(user?.id);
+        if (cancelled) return;
 
-    const activeGoal = getGoalById(activeId);
-    setGoal(activeGoal);
-    setLoading(false);
-  }, [requestedGoalId]);
+        setAllGoals(storedGoals);
+
+        const fallbackId = storedGoals[0]?.id ?? null;
+        const activeId = requestedGoalId ?? fallbackId;
+
+        if (!activeId) {
+          setGoal(null);
+          setLoading(false);
+          return;
+        }
+
+        let activeGoal = storedGoals.find((entry) => entry.id === activeId) ?? null;
+
+        if (!activeGoal && user?.id) {
+          activeGoal = await fetchGoalById(activeId, user.id);
+        }
+
+        if (!cancelled) {
+          setGoal(activeGoal ?? null);
+          setLoading(false);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load goals', error);
+          setAllGoals([]);
+          setGoal(null);
+          setLoading(false);
+        }
+      }
+    };
+
+    loadGoals();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestedGoalId, user?.id]);
 
   useEffect(() => {
     if (!goal) {

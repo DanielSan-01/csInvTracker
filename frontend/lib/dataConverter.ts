@@ -11,6 +11,7 @@ import { CSItem, Rarity, Exterior, ItemType } from './mockData';
 export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
   return {
     id: dto.id.toString(),
+    skinId: dto.skinId,
     name: dto.skinName,
     rarity: dto.rarity as Rarity,
     float: dto.float,

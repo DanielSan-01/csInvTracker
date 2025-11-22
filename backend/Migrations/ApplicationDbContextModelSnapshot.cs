@@ -75,6 +75,108 @@ namespace backend.Migrations
                     b.ToTable("InventoryItems");
                 });
 
+            modelBuilder.Entity("backend.Models.Goal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Balance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("CoverageTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RemainingAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("SkinId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SkinImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinAltImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinRarity")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinWeapon")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("SelectedTotal")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SurplusAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TargetPrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Goals");
+                });
+
+            modelBuilder.Entity("backend.Models.GoalSelectedItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("GoalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SkinName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("SourceInventoryItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("TradeProtected")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Type")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Weapon")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GoalId");
+
+                    b.ToTable("GoalSelectedItems");
+                });
+
             modelBuilder.Entity("backend.Models.Skin", b =>
                 {
                     b.Property<int>("Id")
@@ -207,6 +309,27 @@ namespace backend.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("backend.Models.Goal", b =>
+                {
+                    b.HasOne("backend.Models.User", "User")
+                        .WithMany("Goals")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("backend.Models.GoalSelectedItem", b =>
+                {
+                    b.HasOne("backend.Models.Goal", "Goal")
+                        .WithMany("SelectedItems")
+                        .HasForeignKey("GoalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Goal");
+                });
+
             modelBuilder.Entity("backend.Models.InventoryItem", b =>
                 {
                     b.HasOne("backend.Models.Skin", "Skin")
@@ -226,6 +349,11 @@ namespace backend.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("backend.Models.Goal", b =>
+                {
+                    b.Navigation("SelectedItems");
+                });
+
             modelBuilder.Entity("backend.Models.Skin", b =>
                 {
                     b.Navigation("InventoryItems");
@@ -234,6 +362,8 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.User", b =>
                 {
                     b.Navigation("InventoryItems");
+
+                    b.Navigation("Goals");
                 });
 #pragma warning restore 612, 618
         }

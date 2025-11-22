@@ -24,6 +24,7 @@ export type ItemType =
 
 export interface CSItem {
   id: string;
+  skinId?: number;
   name: string;
   rarity: Rarity;
   float: number;

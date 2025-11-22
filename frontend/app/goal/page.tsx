@@ -10,7 +10,7 @@ import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import GlobalSearchBar from '@/app/components/GlobalSearchBar';
 import InventoryListCard from '@/app/components/InventoryListCard';
 import TargetSkinCard from '@/app/components/TargetSkinCard';
-import { saveGoal, GoalData } from '@/lib/goalStorage';
+import { saveGoal, GoalData, createInventorySelectedItemKey } from '@/lib/goalStorage';
 import type { InventoryItemDto, SkinDto } from '@/lib/api';
 
 export default function GoalPlannerPage() {
@@ -85,7 +85,7 @@ export default function GoalPlannerPage() {
     setSelectedSkin(null);
   };
 
-  const handleAddGoal = () => {
+  const handleAddGoal = async () => {
     if (isSavingGoal) return;
 
     if (!targetSkinName.trim()) {
@@ -106,9 +106,12 @@ export default function GoalPlannerPage() {
         ? crypto.randomUUID()
         : `goal-${Date.now()}`;
 
+    const timestamp = new Date().toISOString();
+
     const goalData: GoalData = {
       id,
-      createdAt: new Date().toISOString(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
       userId: user?.id,
       skinName: targetSkinName.trim(),
       skinId: selectedSkin?.id,
@@ -124,7 +127,8 @@ export default function GoalPlannerPage() {
       remainingAmount,
       surplusAmount,
       selectedItems: selectedItems.map((item) => ({
-        id: item.id,
+        id: createInventorySelectedItemKey(item.id),
+        inventoryItemId: item.id,
         skinName: item.skinName,
         price: item.price ?? 0,
         tradeProtected: item.tradeProtected,
@@ -134,8 +138,15 @@ export default function GoalPlannerPage() {
       })),
     };
 
-    saveGoal(goalData);
-    router.push(`/goal/summary?goalId=${id}`);
+    try {
+      await saveGoal(goalData);
+      router.push(`/goal/summary?goalId=${id}`);
+    } catch (error) {
+      console.error('Failed to save goal', error);
+      setFormError('Failed to save goal. Please try again.');
+    } finally {
+      setIsSavingGoal(false);
+    }
   };
 
   const renderStepHeading = (step: number, title: string, description?: string) => (

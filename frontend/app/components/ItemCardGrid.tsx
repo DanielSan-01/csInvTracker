@@ -1,0 +1,127 @@
+'use client';
+
+import type { CSItem } from '@/lib/mockData';
+import {
+  exteriorAbbr,
+  formatFloat,
+  formatPrice,
+  getFloatColor,
+  rarityGradients,
+} from '@/lib/mockData';
+import type { ItemCardAnimation } from './ItemCardShared';
+
+type ItemCardGridProps = {
+  item: CSItem;
+  animation: ItemCardAnimation;
+  onClick?: () => void;
+  isSelected?: boolean;
+};
+
+export default function ItemCardGrid({
+  item,
+  animation,
+  onClick,
+  isSelected = false,
+}: ItemCardGridProps) {
+  return (
+    <div
+      ref={animation.cardRef}
+      className={`group relative cursor-pointer overflow-hidden rounded-2xl border transition-all duration-200 ${
+        isSelected
+          ? 'border-blue-500 shadow-lg shadow-blue-500/20'
+          : 'border-gray-800 hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/10'
+      }`}
+      onClick={onClick}
+      onMouseEnter={animation.handleMouseEnter}
+      onMouseLeave={animation.handleMouseLeave}
+    >
+      <div className="absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-black/80 via-black/60 to-transparent p-3">
+        <h3 className="line-clamp-2 text-base font-bold leading-tight text-white drop-shadow-lg">
+          {item.name}
+        </h3>
+      </div>
+
+      <div
+        ref={animation.imageContainerRef}
+        className={`relative mb-20 aspect-[4/3] min-h-[240px] w-full overflow-hidden bg-gradient-to-b ${rarityGradients[item.rarity]}`}
+        style={{
+          opacity: animation.imageLoaded ? 1 : 0.3,
+          filter: animation.imageLoaded ? 'brightness(1)' : 'brightness(0.5)',
+        }}
+      >
+        <div
+          ref={animation.imageRef}
+          className="h-full w-full bg-contain bg-center bg-no-repeat"
+          style={{ backgroundImage: item.imageUrl ? `url("${item.imageUrl}")` : 'none' }}
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent" />
+
+        <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
+          <span className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100">
+            {formatFloat(item.float, 3)}
+          </span>
+          {item.tradeProtected && (
+            <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/40 bg-amber-500/30 px-1.5 py-0.5 text-[9px] text-amber-200">
+              <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 2a8 8 0 00-8 8v3a3 3 0 003 3h1v-3H5v-3a5 5 0 1110 0v3h-1v3h1a3 3 0 003-3v-3a8 8 0 00-8-8zm-1 11a1 1 0 112 0v1a1 1 0 11-2 0v-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Lock
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0">
+        <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/80 px-4 py-3 backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-base font-bold text-emerald-400">
+              {formatPrice(item.price)}
+            </p>
+            {item.cost !== undefined && (
+              <p className="text-[10px] text-gray-400">
+                Cost {formatPrice(item.cost)}
+              </p>
+            )}
+          </div>
+
+          {item.cost !== undefined && item.cost !== null && (() => {
+            const cost = item.cost as number;
+            const profitValue = item.price - cost;
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  className={`text-[10px] font-semibold ${
+                    profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                  }`}
+                >
+                  Profit {profitValue >= 0 ? '+' : ''}
+                  {formatPrice(profitValue)}
+                </div>
+                <span
+                  className={`rounded px-1 py-0.5 text-[9px] font-bold ${getFloatColor(item.float)} text-white`}
+                >
+                  {exteriorAbbr[item.exterior]}
+                </span>
+              </div>
+            );
+          })()}
+
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
+                style={{ left: `${Math.min(item.float * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+

@@ -3,12 +3,32 @@
 import { useMemo, useState } from "react";
 import { gsap } from 'gsap';
 import { useEffect, useRef } from 'react';
-import { Rarity, rarityColors, rarityBorderColors, ItemType } from '@/lib/mockData';
-import { CSItem } from '@/lib/mockData';
+import ItemCard from './ItemCard';
+import { CSItem, Rarity, ItemType, Exterior } from '@/lib/mockData';
 import { calculateTradeProtectionDate } from '@/lib/utils';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import { SkinDto } from '@/lib/api';
 import { getDopplerPhaseLabel, getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
+
+const deriveExteriorFromFloat = (floatValue?: number): Exterior => {
+  const float = typeof floatValue === 'number' ? Math.min(Math.max(floatValue, 0), 1) : 0;
+  if (float < 0.07) return 'Factory New';
+  if (float < 0.15) return 'Minimal Wear';
+  if (float < 0.38) return 'Field-Tested';
+  if (float < 0.45) return 'Well-Worn';
+  return 'Battle-Scarred';
+};
+
+const buildPreviewImageUrl = (name: string, provided?: string, fallback?: string): string => {
+  if (provided && provided.trim().length > 0) {
+    return provided.trim();
+  }
+  if (fallback && fallback.trim().length > 0) {
+    return fallback.trim();
+  }
+  const safeName = name?.trim().length ? name : 'Skin Preview';
+  return `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(safeName)}`;
+};
 
 interface AddSkinFormProps {
   onAdd: (skinData: NewSkinData) => Promise<boolean | void> | boolean | void;
@@ -45,7 +65,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
   const effectiveSkin = selectedSkin ?? initialSkin;
 
   const baseFormState = useMemo<NewSkinData>(() => ({
-    skinId: effectiveSkin?.id,
+    skinId: item?.skinId ?? effectiveSkin?.id,
     name: item?.name ?? effectiveSkin?.name ?? '',
     rarity: item?.rarity ?? (effectiveSkin?.rarity as Rarity) ?? 'Mil-Spec',
     type: item?.type ?? (effectiveSkin?.type as ItemType) ?? 'Rifle',
@@ -183,16 +203,42 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     }
   };
 
-  const rarities: Rarity[] = [
-    'Consumer Grade',
-    'Industrial Grade',
-    'Mil-Spec',
-    'Restricted',
-    'Classified',
-    'Covert',
-    'Extraordinary',
-    'Contraband',
+  const exteriorPresets = [
+    {
+      label: 'Factory New',
+      range: [0, 0.07] as [number, number],
+      floatValue: 0.01,
+    },
+    {
+      label: 'Minimal Wear',
+      range: [0.07, 0.15] as [number, number],
+      floatValue: 0.08,
+    },
+    {
+      label: 'Field-Tested',
+      range: [0.15, 0.38] as [number, number],
+      floatValue: 0.20,
+    },
+    {
+      label: 'Well-Worn',
+      range: [0.38, 0.45] as [number, number],
+      floatValue: 0.42,
+    },
+    {
+      label: 'Battle-Scarred',
+      range: [0.45, 1] as [number, number],
+      floatValue: 0.60,
+    },
   ];
+
+  const selectedExterior = exteriorPresets.find((preset) => {
+    if (formData.float === undefined) return false;
+    const [min, max] = preset.range;
+    if (preset.label === 'Battle-Scarred') {
+      return formData.float >= min && formData.float <= max;
+    }
+    return formData.float >= min && formData.float < max;
+  });
 
   const fillFromCatalog = (skin: SkinDto) => {
     setSelectedCatalogName(getSkinDopplerDisplayName(skin));
@@ -237,6 +283,60 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     }
   };
 
+  const previewItem = useMemo<CSItem>(() => {
+    const previewName =
+      (formData.name && formData.name.trim().length > 0)
+        ? formData.name
+        : effectiveSkin?.name ?? item?.name ?? 'Skin Preview';
+
+    const previewRarity =
+      formData.rarity ?? (effectiveSkin?.rarity as Rarity) ?? item?.rarity ?? 'Mil-Spec';
+
+    const previewFloat =
+      formData.float !== undefined
+        ? formData.float
+        : item?.float !== undefined
+          ? item.float
+          : 0.25;
+
+    const previewType =
+      formData.type ?? (effectiveSkin?.type as ItemType) ?? item?.type ?? 'Rifle';
+
+    const previewTradeProtected =
+      formData.tradeProtected ?? item?.tradeProtected ?? false;
+
+    const previewTradableAfter = previewTradeProtected
+      ? item?.tradableAfter ?? calculateTradeProtectionDate()
+      : undefined;
+
+    const previewImage = buildPreviewImageUrl(
+      previewName,
+      formData.imageUrl,
+      effectiveSkin?.imageUrl ?? item?.imageUrl,
+    );
+
+    return {
+      id: item?.id ?? 'preview-item',
+      skinId: formData.skinId ?? item?.skinId ?? effectiveSkin?.id,
+      name: previewName,
+      rarity: previewRarity,
+      float: previewFloat,
+      exterior: deriveExteriorFromFloat(previewFloat),
+      paintSeed: formData.paintSeed ?? item?.paintSeed,
+      paintIndex: effectiveSkin?.paintIndex ?? item?.paintIndex,
+      price: formData.price ?? item?.price ?? 0,
+      cost: formData.cost ?? item?.cost,
+      imageUrl: previewImage,
+      type: previewType,
+      collection: effectiveSkin?.collection ?? item?.collection,
+      weapon: effectiveSkin?.weapon ?? item?.weapon,
+      tradeProtected: previewTradeProtected,
+      tradableAfter: previewTradableAfter,
+      dopplerPhase: effectiveSkin?.dopplerPhase ?? item?.dopplerPhase,
+      dopplerPhaseImageUrl: effectiveSkin?.dopplerPhaseImageUrl ?? item?.dopplerPhaseImageUrl,
+    };
+  }, [effectiveSkin, formData, item]);
+
   return (
     <div
       ref={overlayRef}
@@ -245,7 +345,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     >
       <div
         ref={formRef}
-        className="bg-gray-900 border-2 border-purple-500 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-gray-900 border-2 border-purple-500 rounded-lg p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
@@ -263,6 +363,8 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
+            <div className="space-y-6">
           {/* Quick Fill */}
           <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 shadow-inner shadow-purple-900/20 space-y-3">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
@@ -374,80 +476,46 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
               )}
             </div>
 
-            {/* Rarity Selection */}
+            {/* Exterior Quick Select */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-3">
-                Rarity <span className="text-red-400">*</span>
+                Exterior quick select
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {rarities.map((rarity) => (
-                  <label
-                    key={rarity}
-                    className={`relative flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                      formData.rarity === rarity
-                        ? `${rarityBorderColors[rarity]} bg-gray-800`
-                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="rarity"
-                      value={rarity}
-                      checked={formData.rarity === rarity}
-                      onChange={(e) => setFormData({ ...formData, rarity: e.target.value as Rarity })}
-                      className="sr-only"
-                    />
-                    <span className={`text-xs font-semibold text-center ${
-                      formData.rarity === rarity ? 'text-white' : 'text-gray-400'
-                    }`}>
-                      {rarity.split(' ')[0]}
-                    </span>
-                    {formData.rarity === rarity && (
-                      <div className={`absolute top-1 right-1 w-3 h-3 ${rarityColors[rarity]} rounded-full`} />
-                    )}
-                  </label>
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {exteriorPresets.map((preset) => {
+                  const isSelected = selectedExterior?.label === preset.label;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, float: preset.floatValue })}
+                      className={`relative flex items-center justify-center rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all ${
+                        isSelected
+                          ? 'border-purple-400 bg-purple-500/10 text-white'
+                          : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
+                      }`}
+                    >
+                      {preset.label}
+                      {isSelected && <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-purple-400" />}
+                    </button>
+                  );
+                })}
               </div>
               <p className="mt-2 text-xs text-gray-500">
-                Selected: <span className="text-purple-400">{formData.rarity}</span>
+                Selected exterior:{' '}
+                <span className="text-purple-400">
+                  {selectedExterior ? selectedExterior.label : 'Custom'}
+                </span>{' '}
+                · Float{' '}
+                <span className="text-purple-400">
+                  {formData.float !== undefined ? formData.float.toFixed(3) : '—'}
+                </span>
               </p>
-            </div>
-
-            {/* Item Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Item Type <span className="text-red-400">*</span>
-              </label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value as ItemType })}
-                className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white focus:outline-none focus:border-purple-500"
-                required
-              >
-                <option value="Gloves">Gloves</option>
-                <option value="Knife">Knife</option>
-                <option value="Rifle">Rifle</option>
-                <option value="Pistol">Pistol</option>
-                <option value="SMG">SMG</option>
-                <option value="Sniper Rifle">Sniper Rifle</option>
-                <option value="Shotgun">Shotgun</option>
-                <option value="Machine Gun">Machine Gun</option>
-                <option value="Agent">Agent</option>
-                <option value="Equipment">Equipment</option>
-                <option value="Collectible">Collectible</option>
-                <option value="Sticker">Sticker</option>
-                <option value="Graffiti">Graffiti</option>
-                <option value="Patch">Patch</option>
-                <option value="Music Kit">Music Kit</option>
-                <option value="Case">Case</option>
-                <option value="Key">Key</option>
-                <option value="Keychain">Keychain</option>
-                <option value="Tool">Tool</option>
-                <option value="Other">Other</option>
-              </select>
-              <p className="mt-1 text-xs text-gray-500">
-                Select the category of this item
-              </p>
+              {formData.rarity && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Rarity: <span className="text-gray-300">{formData.rarity}</span> (auto-detected)
+                </p>
+              )}
             </div>
 
             {/* Price */}
@@ -637,6 +705,14 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
               </div>
             </div>
           )}
+            </div>
+            <aside className="space-y-3 lg:sticky lg:top-6">
+              <ItemCard item={previewItem} variant="detailed" />
+              <p className="text-xs text-gray-500">
+                Preview does not adjust for float-capped items.
+              </p>
+            </aside>
+          </div>
 
           {/* Submit Buttons */}
           <div className="flex gap-4 pt-4 border-t border-gray-700">

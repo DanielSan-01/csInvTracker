@@ -13,6 +13,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Skin> Skins { get; set; } = null!;
     public DbSet<InventoryItem> InventoryItems { get; set; } = null!;
+    public DbSet<Goal> Goals { get; set; } = null!;
+    public DbSet<GoalSelectedItem> GoalSelectedItems { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +30,18 @@ public class ApplicationDbContext : DbContext
             .HasMany(u => u.InventoryItems)
             .WithOne(i => i.User)
             .HasForeignKey(i => i.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<User>()
+            .HasMany(u => u.Goals)
+            .WithOne(g => g.User)
+            .HasForeignKey(g => g.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<Goal>()
+            .HasMany(g => g.SelectedItems)
+            .WithOne(si => si.Goal)
+            .HasForeignKey(si => si.GoalId)
             .OnDelete(DeleteBehavior.Cascade);
         
         // Configure InventoryItem -> Skin relationship
