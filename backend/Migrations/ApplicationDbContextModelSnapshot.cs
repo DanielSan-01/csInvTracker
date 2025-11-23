@@ -137,6 +137,86 @@ namespace backend.Migrations
                     b.ToTable("Goals");
                 });
 
+            modelBuilder.Entity("backend.Models.LoadoutFavorite", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("LoadoutFavorites");
+                });
+
+            modelBuilder.Entity("backend.Models.LoadoutFavoriteEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("InventoryItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("LoadoutFavoriteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("SkinId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SkinName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SlotKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Team")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<string>("Type")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Weapon")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryItemId");
+
+                    b.HasIndex("LoadoutFavoriteId");
+
+                    b.HasIndex("SkinId");
+
+                    b.ToTable("LoadoutFavoriteEntries");
+                });
+
             modelBuilder.Entity("backend.Models.GoalSelectedItem", b =>
                 {
                     b.Property<int>("Id")
@@ -349,9 +429,50 @@ namespace backend.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("backend.Models.LoadoutFavorite", b =>
+                {
+                    b.HasOne("backend.Models.User", "User")
+                        .WithMany("LoadoutFavorites")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("backend.Models.LoadoutFavoriteEntry", b =>
+                {
+                    b.HasOne("backend.Models.InventoryItem", "InventoryItem")
+                        .WithMany()
+                        .HasForeignKey("InventoryItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("backend.Models.LoadoutFavorite", "Loadout")
+                        .WithMany("Entries")
+                        .HasForeignKey("LoadoutFavoriteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.Skin", "Skin")
+                        .WithMany()
+                        .HasForeignKey("SkinId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("InventoryItem");
+
+                    b.Navigation("Loadout");
+
+                    b.Navigation("Skin");
+                });
+
             modelBuilder.Entity("backend.Models.Goal", b =>
                 {
                     b.Navigation("SelectedItems");
+                });
+
+            modelBuilder.Entity("backend.Models.LoadoutFavorite", b =>
+                {
+                    b.Navigation("Entries");
                 });
 
             modelBuilder.Entity("backend.Models.Skin", b =>
@@ -364,6 +485,8 @@ namespace backend.Migrations
                     b.Navigation("InventoryItems");
 
                     b.Navigation("Goals");
+
+                    b.Navigation("LoadoutFavorites");
                 });
 #pragma warning restore 612, 618
         }

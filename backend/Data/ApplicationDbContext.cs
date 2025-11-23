@@ -15,6 +15,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems { get; set; } = null!;
     public DbSet<Goal> Goals { get; set; } = null!;
     public DbSet<GoalSelectedItem> GoalSelectedItems { get; set; } = null!;
+    public DbSet<LoadoutFavorite> LoadoutFavorites { get; set; } = null!;
+    public DbSet<LoadoutFavoriteEntry> LoadoutFavoriteEntries { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,11 +40,35 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(g => g.UserId)
             .OnDelete(DeleteBehavior.Cascade);
         
+        modelBuilder.Entity<User>()
+            .HasMany(u => u.LoadoutFavorites)
+            .WithOne(l => l.User)
+            .HasForeignKey(l => l.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
         modelBuilder.Entity<Goal>()
             .HasMany(g => g.SelectedItems)
             .WithOne(si => si.Goal)
             .HasForeignKey(si => si.GoalId)
             .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<LoadoutFavorite>()
+            .HasMany(l => l.Entries)
+            .WithOne(e => e.Loadout)
+            .HasForeignKey(e => e.LoadoutFavoriteId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<LoadoutFavoriteEntry>()
+            .HasOne(e => e.InventoryItem)
+            .WithMany()
+            .HasForeignKey(e => e.InventoryItemId)
+            .OnDelete(DeleteBehavior.SetNull);
+        
+        modelBuilder.Entity<LoadoutFavoriteEntry>()
+            .HasOne(e => e.Skin)
+            .WithMany()
+            .HasForeignKey(e => e.SkinId)
+            .OnDelete(DeleteBehavior.SetNull);
         
         // Configure InventoryItem -> Skin relationship
         modelBuilder.Entity<InventoryItem>()

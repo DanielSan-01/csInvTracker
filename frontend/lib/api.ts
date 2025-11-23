@@ -291,3 +291,65 @@ export const goalsApi = {
     }
   },
 };
+
+export interface LoadoutEntryDto {
+  slotKey: string;
+  team: 'CT' | 'T';
+  inventoryItemId?: number | null;
+  skinId?: number | null;
+  skinName: string;
+  imageUrl?: string | null;
+  weapon?: string | null;
+  type?: string | null;
+}
+
+export interface LoadoutDto {
+  id?: string;
+  userId: number;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
+  entries: LoadoutEntryDto[];
+}
+
+export const loadoutsApi = {
+  getLoadouts: async (userId?: number): Promise<LoadoutDto[]> => {
+    const url = new URL(`${API_BASE_URL}/loadouts`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch loadouts');
+    }
+    return response.json();
+  },
+
+  upsertLoadout: async (loadout: LoadoutDto): Promise<LoadoutDto> => {
+    const response = await fetch(`${API_BASE_URL}/loadouts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(loadout),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error?.message || 'Failed to save loadout');
+    }
+
+    return response.json();
+  },
+
+  deleteLoadout: async (id: string): Promise<void> => {
+    const response = await fetch(`${API_BASE_URL}/loadouts/${id}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete loadout');
+    }
+  },
+};

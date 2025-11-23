@@ -20,5 +20,7 @@ public class User
     public ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
     
     public ICollection<Goal> Goals { get; set; } = new List<Goal>();
+
+    public ICollection<LoadoutFavorite> LoadoutFavorites { get; set; } = new List<LoadoutFavorite>();
 }
 

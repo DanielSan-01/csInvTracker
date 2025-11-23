@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import type { SkinDto } from '@/lib/api';
-import { skinsApi } from '@/lib/api';
-import { formatCurrency } from '@/lib/utils';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { skinsApi, loadoutsApi } from '@/lib/api';
+import type { SkinDto, LoadoutDto, LoadoutEntryDto } from '@/lib/api';
+import { useUser } from '@/contexts/UserContext';
+import { useInventory } from '@/hooks/useInventory';
+// import { formatCurrency } from '@/lib/utils';
 
 type Team = 'CT' | 'T' | 'Both';
 
@@ -20,7 +22,30 @@ type LoadoutSection = {
   slots: LoadoutSlot[];
 };
 
-type LoadoutSelections = Record<string, SkinDto | undefined>;
+type LoadoutSelectionEntry = {
+  skin: SkinDto;
+  inventoryId?: number;
+};
+
+type SlotTeamSelection = {
+  ct?: LoadoutSelectionEntry;
+  t?: LoadoutSelectionEntry;
+};
+
+type LoadoutSelections = Record<string, SlotTeamSelection>;
+
+type InventoryEntry = {
+  inventoryId: number;
+  skin: SkinDto;
+  team: Team;
+  maxUsage: number;
+};
+
+type PendingChoice = {
+  slot: LoadoutSlot;
+  team: 'CT' | 'T';
+  options: InventoryEntry[];
+};
 
 const TEAM_BY_WEAPON: Record<string, Team> = {
   'AK-47': 'T',
@@ -57,6 +82,11 @@ const TEAM_BY_WEAPON: Record<string, Team> = {
   'AWP': 'Both',
   'G3SG1': 'T',
   'SSG 08': 'Both',
+};
+
+const TEAM_ICONS: Record<'CT' | 'T', string> = {
+  CT: '/photos/ct.png',
+  T: '/photos/t.png',
 };
 
 const KNIFE_KEYWORDS = [
@@ -124,6 +154,131 @@ const matchesGloveType = (skin: SkinDto) => {
   );
 };
 
+const classifyAgentSide = (skin: SkinDto): Team | null => {
+  const normalized = (skin.name ?? '').toLowerCase();
+
+  const isCT = CT_AGENT_PATTERNS.some((pattern) => normalized.includes(pattern));
+  const isT = T_AGENT_PATTERNS.some((pattern) => normalized.includes(pattern));
+
+  if (isCT && !isT) {
+    return 'CT';
+  }
+
+  if (isT && !isCT) {
+    return 'T';
+  }
+
+  return null;
+};
+
+const matchesAgentType = (skin: SkinDto) =>
+  (skin.type ?? '').toLowerCase().includes('agent') && classifyAgentSide(skin) !== null;
+
+const TeamIcon = ({
+  team,
+  className = '',
+  size = 'h-4 w-4',
+}: {
+  team: Team | 'Both';
+  className?: string;
+  size?: string;
+}) => {
+  if (team === 'Both') {
+    return (
+      <span className={`flex items-center gap-1 ${className}`}>
+        <img
+          src={TEAM_ICONS.CT}
+          alt="CT emblem"
+          className={`${size} rounded-full border border-purple-500/40 bg-black/40 p-0.5`}
+        />
+        <img
+          src={TEAM_ICONS.T}
+          alt="T emblem"
+          className={`${size} rounded-full border border-purple-500/40 bg-black/40 p-0.5`}
+        />
+      </span>
+    );
+  }
+
+  const src = team === 'CT' ? TEAM_ICONS.CT : team === 'T' ? TEAM_ICONS.T : undefined;
+  if (!src) return null;
+
+  return (
+    <img
+      src={src}
+      alt={`${team} emblem`}
+      className={`${size} rounded-full border border-purple-500/40 bg-black/40 p-0.5 ${className}`}
+    />
+  );
+};
+
+const CT_AGENT_PATTERNS = [
+  "special agent ava",
+  "michael syfers",
+  "operator (swat)",
+  "markus delrow",
+  "chem-haz specialist",
+  "lieutenant 'tree hugger' farlow",
+  "bio-haz specialist",
+  "1st lieutenant farlow",
+  "sergeant bombson",
+  "john 'van healen'",
+  "d squadron officer",
+  "seal team 6 soldier",
+  "lt. commander ricksaw",
+  "cmdr. davida 'goggles' fernandez",
+  "cmdr. frank 'wet sox' baroud",
+  "lieutenant rex krikey",
+  "officer jacquess beltram",
+  "chem-haz capitaine",
+  "chef d'escadron rouchard",
+  "sous-lieutenant medic",
+  "two times' mccoy",
+  "3rd commando company",
+  "'blueberries' buckshot",
+  "tacp cavalry",
+  "usaf tacp",
+];
+
+const T_AGENT_PATTERNS = [
+  "number k",
+  "the doctor' romanov",
+  "sir bloody loudmouth darryl",
+  "sir bloody miami darryl",
+  "sir bloody silent darryl",
+  "sir bloody darryl royale",
+  "little kev",
+  "safecracker voltzmann",
+  "sir bloody skullhead darryl",
+  "bloody darryl the strapped",
+  "getaway sally",
+  "the elite mr. muhlik",
+  "prof. shahmat",
+  "rezan the ready",
+  "street soldier",
+  "ground rebel",
+  "elite trapper soliman",
+  "trapper aggressor",
+  "jungle rebel",
+  "dragomir",
+  "enforcer",
+  "col. mangos dabisi",
+  "trapper",
+  "crosswater the forgotten",
+  "osiris",
+  "slingshot",
+  "rezan the redshirt",
+  "maximus",
+  "vypa sista of the revolution",
+  "arno the overgrown",
+  "medium rare' crasswater",
+];
+
+const determineAgentTeam = (skin: SkinDto): Team => {
+  const side = classifyAgentSide(skin);
+  return side ?? 'Both';
+};
+
 const LOADOUT_SECTIONS: LoadoutSection[] = [
   {
     title: 'Body Equipment',
@@ -139,6 +294,12 @@ const LOADOUT_SECTIONS: LoadoutSection[] = [
         label: 'Gloves',
         description: 'Show off your style',
         filter: matchesGloveType,
+      },
+      {
+        key: 'agent',
+        label: 'Agent',
+        description: 'Choose your character model',
+        filter: matchesAgentType,
       },
     ],
   },
@@ -298,10 +459,19 @@ const matchWeapon = (skin: SkinDto, weaponName: string) =>
   (skin.weapon ?? '').toLowerCase() === weaponName.toLowerCase();
 
 const determineTeamForSkin = (skin: SkinDto, slot?: LoadoutSlot): Team => {
+  if (slot?.key === 'agent') {
+    return determineAgentTeam(skin);
+  }
+
   const weapon = skin.weapon ?? '';
   if (weapon && TEAM_BY_WEAPON[weapon]) {
     return TEAM_BY_WEAPON[weapon];
   }
+
+  if (matchesAgentType(skin)) {
+    return determineAgentTeam(skin);
+  }
+
   return slot?.teamHint ?? 'Both';
 };
 
@@ -314,6 +484,315 @@ export default function LoadoutCookerPage() {
   const [selections, setSelections] = useState<LoadoutSelections>({});
   const [activeTeam, setActiveTeam] = useState<Team>('CT');
   const [expandedWeapon, setExpandedWeapon] = useState<string | null>(null);
+  const { user } = useUser();
+  const {
+    items: inventoryItems,
+    loading: inventoryLoading,
+    error: inventoryError,
+  } = useInventory(user?.id);
+  const [inventoryUsages, setInventoryUsages] = useState<Record<number, number>>({});
+  const [pendingChoices, setPendingChoices] = useState<PendingChoice[]>([]);
+  const [equipFeedback, setEquipFeedback] = useState<string | null>(null);
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [loadoutName, setLoadoutName] = useState('');
+  const [isSavingLoadout, setIsSavingLoadout] = useState(false);
+  const [loadoutError, setLoadoutError] = useState<string | null>(null);
+
+  const skinById = useMemo(() => {
+    const map = new Map<number, SkinDto>();
+    skins.forEach((skin) => map.set(skin.id, skin));
+    return map;
+  }, [skins]);
+
+  const inventoryEntries = useMemo<InventoryEntry[]>(() => {
+    return inventoryItems
+      .map((item) => {
+        const existingSkin = skinById.get(item.skinId);
+        const fallbackSkin: SkinDto =
+          existingSkin ?? {
+            id: item.skinId,
+            name: item.skinName,
+            rarity: item.rarity,
+            type: item.type,
+            collection: item.collection ?? undefined,
+            weapon: item.weapon ?? undefined,
+            imageUrl: item.imageUrl ?? undefined,
+            defaultPrice: item.price,
+          };
+        const team = determineTeamForSkin(fallbackSkin);
+        const maxUsage = team === 'Both' ? 2 : 1;
+        return {
+          inventoryId: item.id,
+          skin: fallbackSkin,
+          team,
+          maxUsage,
+        };
+      })
+      .filter((entry) =>
+        LOADOUT_SECTIONS.some((section) =>
+          section.slots.some((slot) => slot.filter(entry.skin))
+        )
+      );
+  }, [inventoryItems, skinById]);
+
+  const currentChoice = pendingChoices[0] ?? null;
+
+  const buildLoadoutEntries = useCallback((): LoadoutEntryDto[] => {
+    const entries: LoadoutEntryDto[] = [];
+
+    Object.entries(selections).forEach(([slotKey, selection]) => {
+      if (selection.ct) {
+        entries.push({
+          slotKey,
+          team: 'CT',
+          inventoryItemId: selection.ct.inventoryId ?? null,
+          skinId: selection.ct.skin.id,
+          skinName: selection.ct.skin.name,
+          imageUrl: selection.ct.skin.imageUrl ?? null,
+          weapon: selection.ct.skin.weapon ?? null,
+          type: selection.ct.skin.type ?? null,
+        });
+      }
+      if (selection.t) {
+        entries.push({
+          slotKey,
+          team: 'T',
+          inventoryItemId: selection.t.inventoryId ?? null,
+          skinId: selection.t.skin.id,
+          skinName: selection.t.skin.name,
+          imageUrl: selection.t.skin.imageUrl ?? null,
+          weapon: selection.t.skin.weapon ?? null,
+          type: selection.t.skin.type ?? null,
+        });
+      }
+    });
+
+    return entries;
+  }, [selections]);
+
+  const handleOpenSaveModal = useCallback(() => {
+    if (!user?.id) {
+      setEquipFeedback('Sign in to save loadouts.');
+      return;
+    }
+
+    if (pendingChoices.length > 0) {
+      setEquipFeedback('Resolve pending inventory choices before saving.');
+      return;
+    }
+
+    const entries = buildLoadoutEntries();
+    if (entries.length === 0) {
+      setEquipFeedback('Select at least one skin before saving.');
+      return;
+    }
+
+    const defaultName =
+      loadoutName.trim().length > 0
+        ? loadoutName
+        : `Loadout ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+    setLoadoutName(defaultName);
+    setLoadoutError(null);
+    setIsSaveModalOpen(true);
+  }, [user?.id, pendingChoices.length, buildLoadoutEntries, loadoutName]);
+
+  const handleCloseSaveModal = useCallback(() => {
+    setIsSaveModalOpen(false);
+    setLoadoutError(null);
+  }, []);
+
+  const handleSaveLoadout = useCallback(async () => {
+    if (!user?.id) {
+      setLoadoutError('Sign in to save loadouts.');
+      return;
+    }
+
+    const entries = buildLoadoutEntries();
+    if (entries.length === 0) {
+      setLoadoutError('Select at least one skin before saving.');
+      return;
+    }
+
+    const trimmedName = loadoutName.trim();
+    const finalName =
+      trimmedName.length > 0
+        ? trimmedName
+        : `Loadout ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+
+    const payload: LoadoutDto = {
+      userId: user.id,
+      name: finalName,
+      entries,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setIsSavingLoadout(true);
+    setLoadoutError(null);
+    try {
+      await loadoutsApi.upsertLoadout(payload);
+      setEquipFeedback('Loadout saved to favorites.');
+      setIsSaveModalOpen(false);
+      setLoadoutName('');
+    } catch (err) {
+      setLoadoutError(err instanceof Error ? err.message : 'Failed to save loadout.');
+    } finally {
+      setIsSavingLoadout(false);
+    }
+  }, [user?.id, buildLoadoutEntries, loadoutName]);
+
+  const handleEquipInventory = useCallback(() => {
+    if (!user?.id) {
+      setEquipFeedback('Sign in to equip your inventory.');
+      return;
+    }
+
+    if (inventoryLoading) {
+      setEquipFeedback('Inventory is still loading...');
+      return;
+    }
+
+    if (inventoryEntries.length === 0) {
+      setEquipFeedback('No inventory items available to equip.');
+      setSelections({});
+      setInventoryUsages({});
+      setPendingChoices([]);
+      return;
+    }
+
+    setActiveSlot(null);
+    setSearchTerm('');
+    setExpandedWeapon(null);
+
+    const usage: Record<number, number> = {};
+    const nextSelections: LoadoutSelections = {};
+    const pending: PendingChoice[] = [];
+
+    const ensureSlot = (slotKey: string) => {
+      if (!nextSelections[slotKey]) {
+        nextSelections[slotKey] = {};
+      }
+    };
+
+    LOADOUT_SECTIONS.forEach((section) => {
+      section.slots.forEach((slot) => {
+        const slotEntries = inventoryEntries.filter((entry) => slot.filter(entry.skin));
+        if (slotEntries.length === 0) {
+          return;
+        }
+
+        ensureSlot(slot.key);
+
+        const teams: ('CT' | 'T')[] =
+          slot.teamHint === 'CT' ? ['CT'] : slot.teamHint === 'T' ? ['T'] : ['CT', 'T'];
+
+        teams.forEach((team) => {
+          const candidates = slotEntries.filter(
+            (entry) => entry.team === team || entry.team === 'Both'
+          );
+
+          const usable = candidates.filter(
+            (entry) => (usage[entry.inventoryId] ?? 0) < entry.maxUsage
+          );
+
+          if (usable.length === 0) {
+            return;
+          }
+
+          if (usable.length === 1) {
+            const chosen = usable[0];
+            const key = team === 'CT' ? 'ct' : 't';
+            nextSelections[slot.key] = {
+              ...(nextSelections[slot.key] ?? {}),
+              [key]: { skin: chosen.skin, inventoryId: chosen.inventoryId },
+            };
+            usage[chosen.inventoryId] = (usage[chosen.inventoryId] ?? 0) + 1;
+          } else {
+            pending.push({ slot, team, options: usable });
+          }
+        });
+      });
+    });
+
+    const assignedCount = Object.values(nextSelections).reduce((count, entry) => {
+      return count + (entry.ct ? 1 : 0) + (entry.t ? 1 : 0);
+    }, 0);
+
+    if (assignedCount === 0 && pending.length === 0) {
+      setEquipFeedback('No matching inventory items found for the loadout.');
+      setSelections({});
+      setInventoryUsages({});
+      setPendingChoices([]);
+      return;
+    }
+
+    setSelections(nextSelections);
+    setInventoryUsages(usage);
+    setPendingChoices(pending);
+
+    if (pending.length > 0) {
+      setEquipFeedback('Select which skins should go to each side.');
+    } else {
+      setEquipFeedback('Inventory equipped successfully.');
+    }
+  }, [user?.id, inventoryLoading, inventoryEntries]);
+
+  const handleChoiceSelection = useCallback(
+    (inventoryId: number) => {
+      const choice = pendingChoices[0];
+      if (!choice) return;
+
+      const option = choice.options.find((opt) => opt.inventoryId === inventoryId);
+      if (!option) return;
+
+      const teamKey = choice.team === 'CT' ? 'ct' : 't';
+      const prevEntry = selections[choice.slot.key]?.[teamKey];
+
+      const nextUsage = { ...inventoryUsages };
+      if (prevEntry?.inventoryId != null) {
+        nextUsage[prevEntry.inventoryId] = Math.max(
+          (nextUsage[prevEntry.inventoryId] ?? 1) - 1,
+          0
+        );
+      }
+      nextUsage[option.inventoryId] = (nextUsage[option.inventoryId] ?? 0) + 1;
+
+      setInventoryUsages(nextUsage);
+      setSelections((prev) => ({
+        ...prev,
+        [choice.slot.key]: {
+          ...(prev[choice.slot.key] ?? {}),
+          [teamKey]: { skin: option.skin, inventoryId: option.inventoryId },
+        },
+      }));
+
+      const remaining = pendingChoices
+        .slice(1)
+        .map((pendingChoice) => {
+          const filtered = pendingChoice.options.filter(
+            (opt) => (nextUsage[opt.inventoryId] ?? 0) < opt.maxUsage
+          );
+          return filtered.length === 0 ? null : { ...pendingChoice, options: filtered };
+        })
+        .filter((pendingChoice): pendingChoice is PendingChoice => pendingChoice !== null);
+
+      setPendingChoices(remaining);
+      if (remaining.length === 0) {
+        setEquipFeedback('Inventory equipped successfully.');
+      }
+    },
+    [pendingChoices, selections, inventoryUsages]
+  );
+
+  const handleSkipChoice = useCallback(() => {
+    setPendingChoices((prev) => {
+      const [, ...rest] = prev;
+      if (rest.length === 0) {
+        setEquipFeedback('Inventory equip process finished.');
+      }
+      return rest;
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -379,17 +858,58 @@ export default function LoadoutCookerPage() {
 
   const handleSelectSkin = (skin: SkinDto) => {
     if (!activeSlot) return;
+
+    const teamKey = activeTeam === 'CT' ? 'ct' : 't';
+    const prevEntry = selections[activeSlot.key]?.[teamKey];
+    const prevInventoryId = prevEntry?.inventoryId;
+
+    if (prevInventoryId != null) {
+      setInventoryUsages((prev) => {
+        const next = { ...prev };
+        next[prevInventoryId] = Math.max((next[prevInventoryId] ?? 1) - 1, 0);
+        return next;
+      });
+    }
+
     setSelections((prev) => ({
       ...prev,
-      [activeSlot.key]: skin,
+      [activeSlot.key]: {
+        ...(prev[activeSlot.key] ?? {}),
+        [teamKey]: { skin, inventoryId: undefined },
+      },
     }));
+
+    setPendingChoices((prev) =>
+      prev.filter(
+        (choice) =>
+          !(
+            choice.slot.key === activeSlot.key &&
+            choice.team === (activeTeam === 'CT' ? 'CT' : 'T')
+          )
+      )
+    );
+
     setActiveSlot(null);
     setSearchTerm('');
     setExpandedWeapon(null);
   };
 
   const renderSlotCard = (slot: LoadoutSlot) => {
-    const selectedSkin = selections[slot.key];
+    const slotSelection = selections[slot.key];
+    const teamKey = activeTeam === 'CT' ? 'ct' : 't';
+    const fallbackKey = teamKey === 'ct' ? 't' : 'ct';
+    const activeEntry = slotSelection?.[teamKey];
+    const fallbackEntry = slotSelection?.[fallbackKey];
+    const selectedEntry = activeEntry ?? fallbackEntry;
+    const selectedSkin = selectedEntry?.skin;
+    const selectedTeamLabel = activeEntry
+      ? activeTeam
+      : fallbackEntry
+      ? fallbackKey === 'ct'
+        ? 'CT'
+        : 'T'
+      : null;
+
     return (
       <button
         key={slot.key}
@@ -415,18 +935,35 @@ export default function LoadoutCookerPage() {
           </div>
 
           <div className="flex flex-1 items-center justify-center">
-            <div className="grid h-24 w-full place-content-center rounded-xl border border-dashed border-gray-700 bg-gray-900/80 text-gray-600">
-              <span className="text-sm">Select skin</span>
-            </div>
+            {selectedSkin ? (
+              <div className="relative flex h-32 w-full items-center justify-center rounded-xl border border-purple-500/40 bg-gradient-to-br from-purple-500/10 to-purple-900/10 p-3">
+                {selectedSkin.imageUrl ? (
+                  <img
+                    src={selectedSkin.imageUrl}
+                    alt={selectedSkin.name}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-purple-200">
+                    No Image
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid h-24 w-full place-content-center rounded-xl border border-dashed border-gray-700 bg-gray-900/80 text-gray-600">
+                <span className="text-sm">Select skin</span>
+              </div>
+            )}
           </div>
 
           {selectedSkin && (
             <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-3">
               <p className="text-xs font-semibold text-purple-200 line-clamp-2">{selectedSkin.name}</p>
               <p className="text-xs text-gray-400">
-                {selectedSkin.weapon ?? selectedSkin.type ?? 'Unknown'} •{' '}
-                {formatCurrency(Number(selectedSkin.defaultPrice ?? 0))}
+                {selectedSkin.weapon ?? selectedSkin.type ?? 'Unknown'}
+                {/* • {formatCurrency(Number(selectedSkin.defaultPrice ?? 0))} */}
               </p>
+              {/* Assignment details removed per design */}
             </div>
           )}
         </div>
@@ -510,16 +1047,11 @@ export default function LoadoutCookerPage() {
                 No Image
               </div>
             )}
-            <span className="absolute bottom-2 right-2 rounded-full border border-purple-500/40 bg-black/70 px-2 py-0.5 text-[10px] text-purple-100">
+            {/* <span className="absolute bottom-2 right-2 rounded-full border border-purple-500/40 bg-black/70 px-2 py-0.5 text-[10px] text-purple-100">
               {formatCurrency(Number(variant.defaultPrice ?? 0))}
-            </span>
+            </span> */}
           </div>
-          <div>
-            <p className="text-sm font-semibold text-white line-clamp-2">{variant.name}</p>
-            <p className="text-xs text-gray-400">
-              Team: <span className="text-purple-300">{team}</span>
-            </p>
-          </div>
+          <p className="text-sm font-semibold text-white line-clamp-2">{variant.name}</p>
         </button>
       );
     };
@@ -567,9 +1099,9 @@ export default function LoadoutCookerPage() {
                 </svg>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
-                <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-purple-200">
+                {/* <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-purple-200">
                   Team: {team}
-                </span>
+                </span> */}
                 <span>Tap to explore finishes</span>
               </div>
             </div>
@@ -610,12 +1142,12 @@ export default function LoadoutCookerPage() {
             <div className="flex flex-1 flex-col gap-1.5">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm font-semibold text-white">{skin.name}</p>
-                <span className="text-xs text-purple-200">{formatCurrency(Number(skin.defaultPrice ?? 0))}</span>
+                {/* <span className="text-xs text-purple-200">{formatCurrency(Number(skin.defaultPrice ?? 0))}</span> */}
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
-                <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-purple-200">
+                {/* <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-purple-200">
                   Team: {team}
-                </span>
+                </span> */}
                 {skin.collection && <span>Collection: {skin.collection}</span>}
               </div>
             </div>
@@ -668,7 +1200,16 @@ export default function LoadoutCookerPage() {
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-purple-200">{teamLabel}</h4>
+              <div className="flex items-center gap-2">
+                {groupedSlot ? (
+                  (activeSlot.key === 'gloves' || activeSlot.key === 'knife') && (
+                    <TeamIcon team="Both" />
+                  )
+                ) : (
+                  <TeamIcon team={activeTeam} />
+                )}
+                <h4 className="text-sm font-semibold text-purple-200">{teamLabel}</h4>
+              </div>
               <span className="text-xs text-gray-400">
                 {totalItems} {totalItems === 1 ? 'item' : 'items'}
               </span>
@@ -698,7 +1239,10 @@ export default function LoadoutCookerPage() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm text-purple-300/80">Loadout Lab</p>
-            <h1 className="text-3xl font-bold text-white">Loadout Cooker</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-white">Loadout Cooker</h1>
+              <TeamIcon team={activeTeam} size="h-7 w-7" />
+            </div>
             <p className="text-sm text-gray-400">
               Build your dream CT & T loadouts by mixing and matching skins from the entire catalog.
             </p>
@@ -715,18 +1259,39 @@ export default function LoadoutCookerPage() {
                       : 'rounded-full text-purple-200 hover:bg-purple-500/20'
                   }`}
                 >
-                  {team} Loadout
+                  <span className="flex items-center gap-2">
+                    <TeamIcon team={team} />
+                    {team} Loadout
+                  </span>
                 </button>
               ))}
             </div>
-            <button className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-200 transition hover:bg-purple-500/20">
-              Generate Suggestions
+            <button
+              onClick={handleOpenSaveModal}
+              className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-200 transition hover:bg-purple-500/20"
+            >
+              Save Loadout
             </button>
-            <button className="rounded-xl border border-gray-700 bg-gray-900 px-4 py-2 text-sm font-medium text-gray-200 transition hover:border-purple-400/40 hover:text-purple-200">
-              Equip In-Game
+            <button
+              onClick={handleEquipInventory}
+              disabled={inventoryLoading || !user?.id}
+              className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                inventoryLoading || !user?.id
+                  ? 'cursor-not-allowed border border-gray-800 bg-gray-900 text-gray-500'
+                  : 'border border-gray-700 bg-gray-900 text-gray-200 hover:border-purple-400/40 hover:text-purple-200'
+              }`}
+            >
+              {inventoryLoading ? 'Loading Inventory...' : 'Equip Your Inventory'}
             </button>
           </div>
         </header>
+
+        {(inventoryError || equipFeedback) && (
+          <div className="text-right text-xs">
+            {inventoryError && <p className="text-red-400">{inventoryError}</p>}
+            {equipFeedback && <p className="text-gray-400">{equipFeedback}</p>}
+          </div>
+        )}
 
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-20 text-gray-400">
@@ -765,6 +1330,98 @@ export default function LoadoutCookerPage() {
         )}
       </div>
       {isModalOpen && renderModal()}
+      {currentChoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40">
+            <h3 className="text-lg font-semibold text-white">
+              <span className="flex items-center gap-2">
+                <TeamIcon team={currentChoice.team} />
+                Select {currentChoice.slot.label} for {currentChoice.team} side
+              </span>
+            </h3>
+            <p className="mt-2 text-sm text-gray-400">
+              Choose which inventory item should be equipped on the {currentChoice.team} side.
+            </p>
+            <div className="mt-4 max-h-80 space-y-3 overflow-y-auto">
+              {currentChoice.options.map((option) => (
+                <button
+                  key={`${currentChoice.slot.key}-${currentChoice.team}-${option.inventoryId}`}
+                  onClick={() => handleChoiceSelection(option.inventoryId)}
+                  className="flex w-full items-center gap-3 rounded-xl border border-purple-500/30 bg-gray-900/60 p-3 text-left transition hover:border-purple-400 hover:bg-gray-900"
+                >
+                  {option.skin.imageUrl ? (
+                    <img
+                      src={option.skin.imageUrl}
+                      alt={option.skin.name}
+                      className="h-12 w-12 rounded-lg object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg border border-purple-500/30 bg-gray-900 text-xs text-purple-200">
+                      No Image
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-white line-clamp-2">
+                      {option.skin.name}
+                    </span>
+                    {option.skin.collection && (
+                      <span className="text-xs text-gray-400">{option.skin.collection}</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleSkipChoice}
+              className="mt-4 w-full rounded-xl border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition hover:border-purple-400/40 hover:text-purple-200"
+            >
+              Skip this slot for now
+            </button>
+          </div>
+        </div>
+      )}
+      {isSaveModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40">
+            <h3 className="text-lg font-semibold text-white">Save Loadout</h3>
+            <p className="mt-2 text-sm text-gray-400">
+              Give this loadout a friendly name so you can favorite it for later.
+            </p>
+            <div className="mt-4 space-y-3">
+              <label className="block text-xs uppercase tracking-wide text-purple-200">
+                Loadout Name
+              </label>
+              <input
+                value={loadoutName}
+                onChange={(event) => setLoadoutName(event.target.value)}
+                placeholder="e.g. CT Mirage Default"
+                className="w-full rounded-xl border border-purple-500/40 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-400 focus:outline-none"
+              />
+              {loadoutError && <p className="text-sm text-red-400">{loadoutError}</p>}
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                onClick={handleCloseSaveModal}
+                className="rounded-xl border border-gray-700 bg-gray-900 px-4 py-2 text-sm text-gray-300 transition hover:border-purple-400/40 hover:text-purple-200"
+                disabled={isSavingLoadout}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveLoadout}
+                disabled={isSavingLoadout}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  isSavingLoadout
+                    ? 'cursor-not-allowed border border-purple-900 bg-purple-900 text-gray-400'
+                    : 'border border-purple-500/60 bg-purple-500/20 text-purple-100 hover:border-purple-400/80 hover:bg-purple-500/30'
+                }`}
+              >
+                {isSavingLoadout ? 'Saving...' : 'Save Loadout'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
