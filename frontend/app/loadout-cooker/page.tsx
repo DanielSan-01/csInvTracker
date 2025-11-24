@@ -6,6 +6,8 @@ import type { SkinDto, LoadoutDto, LoadoutEntryDto } from '@/lib/api';
 import { useUser } from '@/contexts/UserContext';
 import { useInventory } from '@/hooks/useInventory';
 // import { formatCurrency } from '@/lib/utils';
+import LoadoutSlotCard from '@/app/components/LoadoutSlotCard';
+import AnimatedBanner from '@/app/components/AnimatedBanner';
 
 type Team = 'CT' | 'T' | 'Both';
 
@@ -483,6 +485,7 @@ export default function LoadoutCookerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selections, setSelections] = useState<LoadoutSelections>({});
   const [activeTeam, setActiveTeam] = useState<Team>('CT');
+  const [viewMode, setViewMode] = useState<'card' | 'grid'>('card');
   const [expandedWeapon, setExpandedWeapon] = useState<string | null>(null);
   const { user } = useUser();
   const {
@@ -493,6 +496,7 @@ export default function LoadoutCookerPage() {
   const [inventoryUsages, setInventoryUsages] = useState<Record<number, number>>({});
   const [pendingChoices, setPendingChoices] = useState<PendingChoice[]>([]);
   const [equipFeedback, setEquipFeedback] = useState<string | null>(null);
+  const [inventoryErrorBanner, setInventoryErrorBanner] = useState<string | null>(null);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [loadoutName, setLoadoutName] = useState('');
   const [isSavingLoadout, setIsSavingLoadout] = useState(false);
@@ -503,6 +507,14 @@ export default function LoadoutCookerPage() {
     skins.forEach((skin) => map.set(skin.id, skin));
     return map;
   }, [skins]);
+
+  useEffect(() => {
+    if (inventoryError) {
+      setInventoryErrorBanner(inventoryError);
+    } else {
+      setInventoryErrorBanner(null);
+    }
+  }, [inventoryError]);
 
   const inventoryEntries = useMemo<InventoryEntry[]>(() => {
     return inventoryItems
@@ -901,73 +913,79 @@ export default function LoadoutCookerPage() {
     const activeEntry = slotSelection?.[teamKey];
     const fallbackEntry = slotSelection?.[fallbackKey];
     const selectedEntry = activeEntry ?? fallbackEntry;
-    const selectedSkin = selectedEntry?.skin;
-    const selectedTeamLabel = activeEntry
-      ? activeTeam
-      : fallbackEntry
-      ? fallbackKey === 'ct'
-        ? 'CT'
-        : 'T'
-      : null;
+    const selectedSkin = selectedEntry?.skin ?? null;
 
     return (
-      <button
+      <LoadoutSlotCard
         key={slot.key}
+        label={slot.label}
+        description={slot.description}
+        selectedSkin={selectedSkin}
         onClick={() => setActiveSlot(slot)}
-        className="group flex h-full flex-col rounded-2xl border border-gray-800 bg-gray-900/50 p-4 text-left transition hover:border-purple-400/80 hover:bg-gray-900"
-      >
-        <div className="flex grow flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">{slot.label}</p>
-              {slot.description && (
-                <p className="text-xs text-gray-400">{slot.description}</p>
-              )}
-            </div>
-            <svg
-              className="h-5 w-5 text-purple-400 transition group-hover:translate-x-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
+      />
+    );
+  };
 
-          <div className="flex flex-1 items-center justify-center">
-            {selectedSkin ? (
-              <div className="relative flex h-32 w-full items-center justify-center rounded-xl border border-purple-500/40 bg-gradient-to-br from-purple-500/10 to-purple-900/10 p-3">
-                {selectedSkin.imageUrl ? (
-                  <img
-                    src={selectedSkin.imageUrl}
-                    alt={selectedSkin.name}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-xs text-purple-200">
-                    No Image
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="grid h-24 w-full place-content-center rounded-xl border border-dashed border-gray-700 bg-gray-900/80 text-gray-600">
-                <span className="text-sm">Select skin</span>
-              </div>
-            )}
-          </div>
+  const renderGridView = () => {
+    const teamFilteredSections = LOADOUT_SECTIONS.map((section) => ({
+      ...section,
+      slots: section.slots.filter((slot) => {
+        if (!slot.teamHint || slot.teamHint === 'Both') return true;
+        return slot.teamHint === activeTeam;
+      }),
+    })).filter((section) => section.slots.length > 0);
 
-          {selectedSkin && (
-            <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-3">
-              <p className="text-xs font-semibold text-purple-200 line-clamp-2">{selectedSkin.name}</p>
-              <p className="text-xs text-gray-400">
-                {selectedSkin.weapon ?? selectedSkin.type ?? 'Unknown'}
-                {/* • {formatCurrency(Number(selectedSkin.defaultPrice ?? 0))} */}
-              </p>
-              {/* Assignment details removed per design */}
+    const teamKey = activeTeam === 'CT' ? 'ct' : 't';
+    const fallbackKey = teamKey === 'ct' ? 't' : 'ct';
+
+    return (
+      <div className="overflow-x-auto">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {teamFilteredSections.map((section) => (
+            <div key={section.title} className="flex flex-col gap-4">
+              <div className="rounded-full border border-gray-800 bg-gray-900/80 px-4 py-2 text-center text-sm font-semibold uppercase tracking-wide text-purple-200 shadow-inner shadow-purple-900/20">
+                {section.title}
+              </div>
+              <div className="grid gap-3">
+                {section.slots.map((slot) => {
+                  const slotSelection = selections[slot.key];
+                  const activeEntry = slotSelection?.[teamKey];
+                  const fallbackEntry = slotSelection?.[fallbackKey];
+                  const selectedSkin = activeEntry?.skin ?? fallbackEntry?.skin ?? null;
+
+                  return (
+                    <button
+                      key={slot.key}
+                      onClick={() => setActiveSlot(slot)}
+                      className="group relative flex h-32 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-800 bg-gray-950/70 p-4 text-gray-500 transition hover:border-purple-400/60 hover:text-purple-100"
+                    >
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_top,_rgba(147,51,234,0.15),_transparent_65%)] opacity-80" />
+                      <span className="pointer-events-none absolute left-4 top-3 text-xs font-semibold uppercase tracking-wide text-purple-200/80">
+                        {slot.label}
+                      </span>
+                      {selectedSkin ? (
+                        selectedSkin.imageUrl ? (
+                          <img
+                            src={selectedSkin.imageUrl}
+                            alt={selectedSkin.name}
+                            className="relative z-[1] h-full w-full object-contain"
+                          />
+                        ) : (
+                          <span className="relative z-[1] text-xs text-purple-200">No Image</span>
+                        )
+                      ) : (
+                        <span className="relative z-[1] text-xs font-medium uppercase tracking-wide text-gray-700">
+                          Select skin
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          ))}
         </div>
-      </button>
+      </div>
     );
   };
 
@@ -1233,6 +1251,8 @@ export default function LoadoutCookerPage() {
     );
   };
 
+  const isGridView = viewMode === 'grid';
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
@@ -1248,6 +1268,35 @@ export default function LoadoutCookerPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => setViewMode(isGridView ? 'card' : 'grid')}
+              aria-label={isGridView ? 'Switch to card view' : 'Switch to grid view'}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                isGridView
+                  ? 'border-purple-500/60 bg-purple-500/20 text-purple-100 hover:border-purple-400/80 hover:bg-purple-500/30'
+                  : 'border-gray-700 bg-gray-900 text-gray-300 hover:border-purple-400/40 hover:text-purple-100'
+              }`}
+            >
+              {isGridView ? (
+                <>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <rect x="2" y="4" width="16" height="4" rx="1" />
+                    <rect x="2" y="12" width="16" height="4" rx="1" />
+                  </svg>
+                  <span className="text-xs uppercase tracking-wide">Card View</span>
+                </>
+              ) : (
+                <>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <rect x="2" y="2" width="6" height="6" rx="1" />
+                    <rect x="12" y="2" width="6" height="6" rx="1" />
+                    <rect x="2" y="12" width="6" height="6" rx="1" />
+                    <rect x="12" y="12" width="6" height="6" rx="1" />
+                  </svg>
+                  <span className="text-xs uppercase tracking-wide">Grid View</span>
+                </>
+              )}
+            </button>
             <div className="flex rounded-full border border-purple-500/40 bg-purple-500/10 p-1">
               {(['CT', 'T'] as Team[]).map((team) => (
                 <button
@@ -1286,12 +1335,31 @@ export default function LoadoutCookerPage() {
           </div>
         </header>
 
-        {(inventoryError || equipFeedback) && (
-          <div className="text-right text-xs">
-            {inventoryError && <p className="text-red-400">{inventoryError}</p>}
-            {equipFeedback && <p className="text-gray-400">{equipFeedback}</p>}
-          </div>
-        )}
+        <div className="pointer-events-none fixed right-6 top-6 z-50 flex flex-col gap-3">
+          {inventoryErrorBanner && (
+            <div className="pointer-events-auto">
+              <AnimatedBanner
+                key={`inventory-error-${inventoryErrorBanner}`}
+                message={inventoryErrorBanner}
+                intent="error"
+                autoClose={false}
+                onDismiss={() => setInventoryErrorBanner(null)}
+              />
+            </div>
+          )}
+          {equipFeedback && (
+            <div className="pointer-events-auto">
+              <AnimatedBanner
+                key={`equip-feedback-${equipFeedback}`}
+                message={equipFeedback}
+                intent="success"
+                onDismiss={() => setEquipFeedback(null)}
+                autoClose
+                closeDelay={3}
+              />
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <div className="flex flex-1 items-center justify-center py-20 text-gray-400">
@@ -1301,6 +1369,8 @@ export default function LoadoutCookerPage() {
           <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">
             {error}
           </div>
+        ) : isGridView ? (
+          renderGridView()
         ) : (
           <div className="space-y-6">
             {LOADOUT_SECTIONS.map((section) => (
