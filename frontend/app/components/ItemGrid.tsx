@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import Link from 'next/link';
 import { CSItem, Exterior } from '@/lib/mockData';
 import ItemCard from './ItemCard';
 import StatCard from './StatCard';
@@ -10,10 +9,12 @@ import GlobalSearchBar from './GlobalSearchBar';
 import { useInventory } from '@/hooks/useInventory';
 import { useUser } from '@/contexts/UserContext';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
-import { CreateInventoryItemDto, UpdateInventoryItemDto, adminApi, SkinDto } from '@/lib/api';
-import { fetchSteamInventory, convertSteamItemToCSItem } from '@/lib/steamApi';
+import { CreateInventoryItemDto, UpdateInventoryItemDto, SkinDto /* , adminApi */ } from '@/lib/api';
+import { fetchSteamInventory } from '@/lib/steamApi';
 import { getStoredSteamId } from '@/lib/steamAuth';
 import { formatCurrency } from '@/lib/utils';
+import Navbar from './Navbar';
+import SteamLoginButton from './SteamLoginButton';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
@@ -46,7 +47,8 @@ export default function ItemGrid() {
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
-  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  // CSV import temporarily disabled; keep state commented for future use.
+  // const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<CSItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -185,6 +187,8 @@ export default function ItemGrid() {
     setDeleteCandidate(null);
   };
 
+  /*
+  // CSV import temporarily disabled.
   const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) {
@@ -195,10 +199,10 @@ export default function ItemGrid() {
 
     try {
       const result = await adminApi.importInventoryFromCsv(user.id, file);
-      
+
       // Refresh inventory
       await refresh();
-      
+
       if (result.successCount > 0) {
         showToast(
           `Imported ${result.successCount} item${result.successCount !== 1 ? 's' : ''}.${result.failedCount > 0 ? ` ${result.failedCount} failed.` : ''}`,
@@ -215,6 +219,7 @@ export default function ItemGrid() {
       event.target.value = '';
     }
   };
+  */
 
   const handleLoadFromSteam = async () => {
     if (!steamId) {
@@ -249,7 +254,14 @@ export default function ItemGrid() {
   );
 
   return (
-    <div className="relative min-h-screen bg-gray-950 p-8 pb-16">
+    <div className="relative min-h-screen bg-gray-950 pb-16">
+      <Navbar
+        isAuthenticated={!!user}
+        onLoadFromSteam={steamId && user ? handleLoadFromSteam : undefined}
+        isLoadingSteam={isLoadingSteam}
+        authControl={<SteamLoginButton />}
+      />
+
       {toast && (
         <div className="fixed top-6 left-1/2 z-[60] w-full max-w-lg -translate-x-1/2 px-4">
           <div
@@ -337,137 +349,78 @@ export default function ItemGrid() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="type-heading-xl text-white">CS Inventory Tracker</h1>
-              {user ? (
-                <p className="type-body-sm text-gray-400 mt-1">
-                  Viewing <span className="text-purple-400 font-medium">{user.username}</span>'s inventory
-                </p>
-              ) : (
-                <p className="type-body-sm text-gray-400 mt-1">
-                  <span className="text-yellow-400">👆 Log in with Steam</span> to manage your inventory
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <Link
-                href="/goal"
-                className="px-4 py-2 text-sm font-semibold rounded-lg border border-purple-500/40 text-purple-200 hover:border-purple-400 hover:bg-purple-500/10 transition-colors"
-              >
-                Plan Goal
-              </Link>
-              {steamId && user && (
-                <button
-                  onClick={handleLoadFromSteam}
-                  disabled={isLoadingSteam}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                >
-                  {isLoadingSteam ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Loading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                      </svg>
-                      <span>Load from Steam</span>
-                    </>
-                  )}
-                </button>
-              )}
-              {user && (
-                <>
-                  <label className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    {isImportingCsv ? 'Importing...' : 'Import CSV'}
-                    <input
-                      type="file"
-                      accept=".csv,.txt"
-                      onChange={handleCsvImport}
-                      disabled={isImportingCsv}
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add Skin
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-          
-          {/* Global Search Bar - Search ALL Skins */}
-          <div className="mb-6 flex items-center justify-center">
-            <GlobalSearchBar 
+      <div className="mx-auto mt-8 w-full max-w-7xl px-4 md:px-6">
+        {/* Global Search Bar - Search ALL Skins */}
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="md:flex-1">
+            <GlobalSearchBar
               userInventory={sortedItems}
               onAddSkin={handleQuickAddSkin}
               isLoggedIn={!!user}
             />
           </div>
-          
-          {/* Filter Your Inventory */}
-          <div className="mb-4 flex items-center">
-            <div className="relative w-full max-w-md">
-              <label htmlFor="inventory-filter" className="sr-only">Filter your inventory</label>
-              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.6-4.15a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z" />
-                </svg>
-              </span>
-              <input
-                id="inventory-filter"
-                type="text"
-                placeholder="Filter your items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-10 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
-              />
-            </div>
-          </div>
+          {user && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Skin
+            </button>
+          )}
+        </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-400">
-            <StatCard
-              label="Total Items"
-              value={stats ? stats.totalItems.toLocaleString() : '–'}
-              valueClassName="type-heading-xl"
-            />
-            <StatCard
-              label="Market Value"
-              value={stats ? formatCurrency(stats.marketValue) : '–'}
-              valueClassName="type-heading-xl"
-            />
-            <StatCard
-              label="Acquisition Cost"
-              value={stats ? formatCurrency(stats.acquisitionCost) : '–'}
-              valueClassName="type-heading-xl"
-            />
-            <StatCard
-              label="Net Profit"
-              value={stats ? formatCurrency(stats.netProfit) : '–'}
-              valueClassName={`type-heading-xl ${stats ? (stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400') : ''}`}
-              secondaryValue={stats?.averageProfitPercent !== undefined && stats?.averageProfitPercent !== null
-                ? `${stats.averageProfitPercent >= 0 ? '+' : ''}${stats.averageProfitPercent.toFixed(2)}%`
-                : '–'}
+        {/* Filter Your Inventory */}
+        <div className="mb-6 flex items-center">
+          <div className="relative w-full max-w-md">
+            <label htmlFor="inventory-filter" className="sr-only">
+              Filter your inventory
+            </label>
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-500">
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.6-4.15a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z" />
+              </svg>
+            </span>
+            <input
+              id="inventory-filter"
+              type="text"
+              placeholder="Filter your items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border border-gray-700 bg-gray-800 px-10 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500"
             />
           </div>
+        </div>
+
+        {/* Stats */}
+        <div className="mb-8 grid grid-cols-1 gap-4 text-sm text-gray-400 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total Items"
+            value={stats ? stats.totalItems.toLocaleString() : '–'}
+            valueClassName="type-heading-xl"
+          />
+          <StatCard
+            label="Market Value"
+            value={stats ? formatCurrency(stats.marketValue) : '–'}
+            valueClassName="type-heading-xl"
+          />
+          <StatCard
+            label="Acquisition Cost"
+            value={stats ? formatCurrency(stats.acquisitionCost) : '–'}
+            valueClassName="type-heading-xl"
+          />
+          <StatCard
+            label="Net Profit"
+            value={stats ? formatCurrency(stats.netProfit) : '–'}
+            valueClassName={`type-heading-xl ${stats ? (stats.netProfit >= 0 ? 'text-green-400' : 'text-red-400') : ''}`}
+            secondaryValue={
+              stats?.averageProfitPercent !== undefined && stats?.averageProfitPercent !== null
+                ? `${stats.averageProfitPercent >= 0 ? '+' : ''}${stats.averageProfitPercent.toFixed(2)}%`
+                : '–'
+            }
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

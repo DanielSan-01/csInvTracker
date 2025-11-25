@@ -1,0 +1,144 @@
+'use client';
+
+import { useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+type NavbarProps = {
+  isAuthenticated?: boolean;
+  onLoadFromSteam?: () => void;
+  isLoadingSteam?: boolean;
+  authControl?: ReactNode;
+};
+
+const baseButtonClasses =
+  'inline-flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm font-medium text-slate-100 transition hover:border-purple-400 hover:text-white hover:bg-purple-500/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400';
+
+const Navbar = ({
+  isAuthenticated = false,
+  onLoadFromSteam,
+  isLoadingSteam = false,
+  authControl,
+}: NavbarProps) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  const subtitle = isAuthenticated ? "You're viewing your inventory" : 'Log in with Steam to manage your inventory';
+
+  const isRouteActive = (href: string) => {
+    if (href === '/') {
+      return pathname === '/';
+    }
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const renderPlanGoalLink = (variant: 'desktop' | 'mobile') => (
+    <Link
+      href="/goal"
+      onClick={() => setMenuOpen(false)}
+      className={`${baseButtonClasses} ${
+        variant === 'mobile' ? 'w-full justify-between' : ''
+      } ${isRouteActive('/goal') ? 'border-purple-400 bg-purple-500/20 text-purple-100' : ''}`}
+    >
+      Plan Goal
+    </Link>
+  );
+
+  const renderLoadoutLink = (variant: 'desktop' | 'mobile') => (
+    <Link
+      href="/loadout-cooker"
+      onClick={() => setMenuOpen(false)}
+      className={`${baseButtonClasses} ${
+        variant === 'mobile' ? 'w-full justify-between' : ''
+      } ${isRouteActive('/loadout-cooker') ? 'border-purple-400 bg-purple-500/20 text-purple-100' : ''}`}
+    >
+      Loadout Cooker
+    </Link>
+  );
+
+  const renderLoadFromSteam = (variant: 'desktop' | 'mobile') =>
+    onLoadFromSteam && (
+      <button
+        type="button"
+        onClick={() => {
+          onLoadFromSteam();
+          setMenuOpen(false);
+        }}
+        disabled={isLoadingSteam}
+        className={`${baseButtonClasses} ${
+          variant === 'mobile' ? 'w-full justify-between' : ''
+        } bg-blue-600 text-white hover:bg-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-70`}
+      >
+        {isLoadingSteam ? (
+          <>
+            <svg
+              className="h-4 w-4 animate-spin"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
+            </svg>
+            Loading…
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2A10 10 0 1022 12 10.011 10.011 0 0012 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8z" />
+            </svg>
+            Load from Steam
+          </>
+        )}
+      </button>
+    );
+
+  return (
+    <header className="border-b border-gray-800 bg-gray-950/95 text-white">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-6">
+        <div>
+          <Link href="/" onClick={() => setMenuOpen(false)} className="text-xl font-semibold md:text-2xl">
+            CS Inventory Tracker
+          </Link>
+          <p className="text-xs text-gray-400 md:text-sm">{subtitle}</p>
+        </div>
+
+        <div className="flex items-center gap-3 md:hidden">
+          <button
+            type="button"
+            aria-label="Toggle navigation"
+            onClick={() => setMenuOpen((prev) => !prev)}
+            className="rounded-lg border border-gray-700 p-2 text-gray-300 transition hover:border-purple-400 hover:text-white"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+
+        <nav className="hidden items-center gap-3 md:flex">
+          {renderPlanGoalLink('desktop')}
+          {renderLoadoutLink('desktop')}
+          {renderLoadFromSteam('desktop')}
+          {authControl && <div className="flex items-center">{authControl}</div>}
+        </nav>
+      </div>
+
+      <div className={`${menuOpen ? 'flex' : 'hidden'} flex-col gap-3 border-t border-gray-800 px-4 pb-4 md:hidden`}>
+        {renderPlanGoalLink('mobile')}
+        {renderLoadoutLink('mobile')}
+        {renderLoadFromSteam('mobile')}
+        {authControl && <div className="w-full">{authControl}</div>}
+      </div>
+    </header>
+  );
+};
+
+export default Navbar;
+
+
