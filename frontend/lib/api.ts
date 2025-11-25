@@ -1,5 +1,5 @@
-// API configuration
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://192.168.10.105:5027/api';
 
 // Types matching backend DTOs
 export interface SkinDto {

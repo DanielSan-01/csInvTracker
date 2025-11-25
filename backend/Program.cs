@@ -9,6 +9,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();
 
@@ -21,7 +22,14 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowNextJs", policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:3002")
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:3002",
+                "http://127.0.0.1:3000",
+                "http://192.168.10.105:3000",
+                "http://192.168.10.105:3002",
+                "https://192.168.10.105:3000",
+                "https://192.168.10.105:3002")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();

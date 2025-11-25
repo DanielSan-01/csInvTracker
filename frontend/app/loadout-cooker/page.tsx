@@ -8,6 +8,7 @@ import { useInventory } from '@/hooks/useInventory';
 // import { formatCurrency } from '@/lib/utils';
 import LoadoutSlotCard from '@/app/components/LoadoutSlotCard';
 import AnimatedBanner from '@/app/components/AnimatedBanner';
+import { getDefaultSlotSkin } from './defaultSkins';
 
 type Team = 'CT' | 'T' | 'Both';
 
@@ -477,6 +478,59 @@ const determineTeamForSkin = (skin: SkinDto, slot?: LoadoutSlot): Team => {
   return slot?.teamHint ?? 'Both';
 };
 
+type SkinImageSource = {
+  imageUrl?: string | null;
+  weapon?: string | null;
+  type?: string | null;
+};
+
+const getFallbackImageForSkin = (skin: SkinImageSource) => {
+  const basePath = '/photos/weapons';
+  const weaponFileMap: Record<string, string> = {
+    'AK-47': 'CS2_AK-47_Inventory.png',
+    AUG: 'CS2_AUG_Inventory.webp',
+    AWP: 'CS2_AWP_Inventory.png',
+    'CZ75-Auto': 'CS2_CZ75-Auto_Inventory.webp',
+    'Desert Eagle': 'CS2_Desert_Eagle_Inventory.webp',
+    'Dual Berettas': 'CS2_Dual_Berettas_Inventory.webp',
+    FAMAS: 'CS2_FAMAS_Inventory.webp',
+    'Five-SeveN': 'CS2_Five-SeveN_Inventory.webp',
+    G3SG1: 'CS2_G3SG1_Inventory.webp',
+    'Galil AR': 'CS2_Galil_AR_Inventory.webp',
+    'Glock-18': 'CS2_Glock-18_Inventory.webp',
+    'M4A1-S': 'CS2_M4A1-S_Inventory.png',
+    M4A4: 'CS2_M4A4_Inventory.webp',
+    M249: 'CS2_M249_Inventory.webp',
+    'MAC-10': 'CS2_MAC-10_Inventory.webp',
+    'MAG-7': 'CS2_MAG-7_Inventory.png',
+    'MP5-SD': 'CS2_MP5-SD_Inventory.webp',
+    MP7: 'CS2_MP7_Inventory.webp',
+    MP9: 'CS2_MP9_Inventory.webp',
+    Negev: 'CS2_Negev_Inventory.webp',
+    Nova: 'CS2_Nova_Inventory.png',
+    P90: 'CS2_P90_Inventory.png',
+    P2000: 'CS2_P2000_Inventory.webp',
+    P250: 'CS2_P250_Inventory.webp',
+    'PP-Bizon': 'CS2_PP-Bizon_Inventory.webp',
+    'R8 Revolver': 'CS2_R8_Revolver_Inventory.webp',
+    'Sawed-Off': 'CS2_Sawed-Off_Inventory.webp',
+    'SCAR-20': 'CS2_SCAR-20_Inventory.png',
+    'SG 553': 'CS2_SG_553_Inventory.webp',
+    'SSG 08': 'CS2_SSG_08_Inventory.webp',
+    'Tec-9': 'CS2_Tec-9_Inventory.webp',
+    'UMP-45': 'CS2_UMP-45_Inventory.webp',
+    XM1014: 'CS2_XM1014_Inventory.png',
+  };
+
+  const weapon = skin.weapon ?? skin.type ?? '';
+  const filename = weaponFileMap[weapon];
+  if (filename) {
+    return `${basePath}/${filename}`;
+  }
+
+  return skin.imageUrl ?? null;
+};
+
 export default function LoadoutCookerPage() {
   const [skins, setSkins] = useState<SkinDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -909,18 +963,41 @@ export default function LoadoutCookerPage() {
   const renderSlotCard = (slot: LoadoutSlot) => {
     const slotSelection = selections[slot.key];
     const teamKey = activeTeam === 'CT' ? 'ct' : 't';
+    const activeTeamKey = activeTeam === 'CT' ? 'CT' : 'T';
     const fallbackKey = teamKey === 'ct' ? 't' : 'ct';
     const activeEntry = slotSelection?.[teamKey];
     const fallbackEntry = slotSelection?.[fallbackKey];
     const selectedEntry = activeEntry ?? fallbackEntry;
     const selectedSkin = selectedEntry?.skin ?? null;
+    const defaultSkin =
+      getDefaultSlotSkin(slot.key, activeTeamKey) ??
+      getDefaultSlotSkin(slot.key, activeTeamKey === 'CT' ? 'T' : 'CT');
+    const displaySkin = selectedSkin ?? defaultSkin ?? null;
+    const displayImageUrl = displaySkin ? getFallbackImageForSkin(displaySkin) : null;
 
     return (
       <LoadoutSlotCard
         key={slot.key}
         label={slot.label}
         description={slot.description}
-        selectedSkin={selectedSkin}
+        selectedSkin={
+          selectedSkin
+            ? {
+                ...selectedSkin,
+                imageUrl: getFallbackImageForSkin(selectedSkin) ?? selectedSkin.imageUrl ?? undefined,
+              }
+            : null
+        }
+        fallbackSkin={
+          selectedSkin
+            ? null
+            : defaultSkin
+            ? {
+                ...defaultSkin,
+                imageUrl: displayImageUrl ?? undefined,
+              }
+            : null
+        }
         onClick={() => setActiveSlot(slot)}
       />
     );
@@ -952,26 +1029,48 @@ export default function LoadoutCookerPage() {
                   const activeEntry = slotSelection?.[teamKey];
                   const fallbackEntry = slotSelection?.[fallbackKey];
                   const selectedSkin = activeEntry?.skin ?? fallbackEntry?.skin ?? null;
+                  const teamStrict = activeTeam === 'CT' ? 'CT' : 'T';
+                  const defaultSkin =
+                    selectedSkin != null
+                      ? null
+                      : getDefaultSlotSkin(slot.key, teamStrict) ??
+                        getDefaultSlotSkin(slot.key, teamStrict === 'CT' ? 'T' : 'CT');
+                  const displaySkin = selectedSkin ?? defaultSkin ?? null;
+                  const displayImageUrl = displaySkin ? getFallbackImageForSkin(displaySkin) : null;
+                  const isDefault = !selectedSkin && !!defaultSkin;
 
                   return (
                     <button
                       key={slot.key}
                       onClick={() => setActiveSlot(slot)}
-                      className="group relative flex h-32 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-800 bg-gray-950/70 p-4 text-gray-500 transition hover:border-purple-400/60 hover:text-purple-100"
+                      className={`group relative flex h-32 items-center justify-center overflow-hidden rounded-2xl border ${
+                        isDefault
+                          ? 'border-dashed border-purple-500/30'
+                          : selectedSkin
+                          ? 'border-purple-500/40'
+                          : 'border-dashed border-gray-800'
+                      } bg-gray-950/70 p-4 text-gray-500 transition hover:border-purple-400/60 hover:text-purple-100`}
                     >
                       <div className="pointer-events-none absolute inset-0 rounded-2xl bg-[radial-gradient(circle_at_top,_rgba(147,51,234,0.15),_transparent_65%)] opacity-80" />
                       <span className="pointer-events-none absolute left-4 top-3 text-xs font-semibold uppercase tracking-wide text-purple-200/80">
                         {slot.label}
                       </span>
-                      {selectedSkin ? (
-                        selectedSkin.imageUrl ? (
+                      {isDefault && (
+                        <span className="pointer-events-none absolute right-4 top-3 rounded-full border border-purple-500/40 bg-purple-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-200/90">
+                          Default
+                        </span>
+                      )}
+                      {displaySkin ? (
+                        displayImageUrl ? (
                           <img
-                            src={selectedSkin.imageUrl}
-                            alt={selectedSkin.name}
+                            src={displayImageUrl}
+                            alt={displaySkin.name}
                             className="relative z-[1] h-full w-full object-contain"
                           />
                         ) : (
-                          <span className="relative z-[1] text-xs text-purple-200">No Image</span>
+                          <span className="relative z-[1] text-xs text-purple-200">
+                            {displaySkin.name}
+                          </span>
                         )
                       ) : (
                         <span className="relative z-[1] text-xs font-medium uppercase tracking-wide text-gray-700">
@@ -1047,6 +1146,7 @@ export default function LoadoutCookerPage() {
 
     const renderVariantButton = (variant: SkinDto) => {
       const team = determineTeamForSkin(variant, activeSlot);
+      const variantImage = getFallbackImageForSkin(variant) ?? variant.imageUrl ?? null;
       return (
         <button
           key={variant.id}
@@ -1054,9 +1154,9 @@ export default function LoadoutCookerPage() {
           className="flex flex-col gap-2 rounded-2xl border border-gray-800 bg-gray-950/70 p-3 text-left transition hover:border-purple-400/60 hover:bg-gray-900"
         >
           <div className="relative h-32 w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-purple-900/10">
-            {variant.imageUrl ? (
+            {variantImage ? (
               <img
-                src={variant.imageUrl}
+                src={variantImage}
                 alt={variant.name}
                 className="h-full w-full object-contain"
               />
@@ -1078,6 +1178,8 @@ export default function LoadoutCookerPage() {
       const representative = entry.representative;
       const team = determineTeamForSkin(representative, activeSlot);
       const isExpanded = expandedWeapon === entry.key;
+      const representativeImage =
+        getFallbackImageForSkin(representative) ?? representative.imageUrl ?? null;
 
       return (
         <div
@@ -1089,9 +1191,9 @@ export default function LoadoutCookerPage() {
             className="flex w-full items-center gap-4 text-left"
           >
             <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-purple-500/40 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
-              {representative.imageUrl ? (
+              {representativeImage ? (
                 <img
-                  src={representative.imageUrl}
+                  src={representativeImage}
                   alt={entry.label}
                   className="h-full w-full object-contain"
                 />
@@ -1137,6 +1239,7 @@ export default function LoadoutCookerPage() {
     const renderStandardEntry = (entry: DisplayEntry) => {
       const skin = entry.representative;
       const team = determineTeamForSkin(skin, activeSlot);
+      const skinImage = getFallbackImageForSkin(skin) ?? skin.imageUrl ?? null;
       return (
         <button
           key={entry.key}
@@ -1145,9 +1248,9 @@ export default function LoadoutCookerPage() {
         >
           <div className="flex items-center gap-4">
             <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
-              {skin.imageUrl ? (
+              {skinImage ? (
                 <img
-                  src={skin.imageUrl}
+                  src={skinImage}
                   alt={skin.name}
                   className="h-full w-full object-contain"
                 />
@@ -1184,8 +1287,18 @@ export default function LoadoutCookerPage() {
     const totalItems = displayEntries.length;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-        <div className="w-full max-w-4xl rounded-3xl border border-purple-500 bg-gray-950/95 p-6 shadow-2xl shadow-purple-900/40">
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+        onClick={() => {
+          setActiveSlot(null);
+          setSearchTerm('');
+          setExpandedWeapon(null);
+        }}
+      >
+        <div
+          className="w-full max-w-4xl rounded-3xl border border-purple-500 bg-gray-950/95 p-6 shadow-2xl shadow-purple-900/40"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-xl font-semibold text-white">Select skin for {activeSlot.label}</h3>
@@ -1401,8 +1514,14 @@ export default function LoadoutCookerPage() {
       </div>
       {isModalOpen && renderModal()}
       {currentChoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4"
+          onClick={() => handleSkipChoice()}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40"
+            onClick={(event) => event.stopPropagation()}
+          >
             <h3 className="text-lg font-semibold text-white">
               <span className="flex items-center gap-2">
                 <TeamIcon team={currentChoice.team} />
@@ -1451,8 +1570,14 @@ export default function LoadoutCookerPage() {
         </div>
       )}
       {isSaveModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40">
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4"
+          onClick={handleCloseSaveModal}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40"
+            onClick={(event) => event.stopPropagation()}
+          >
             <h3 className="text-lg font-semibold text-white">Save Loadout</h3>
             <p className="mt-2 text-sm text-gray-400">
               Give this loadout a friendly name so you can favorite it for later.

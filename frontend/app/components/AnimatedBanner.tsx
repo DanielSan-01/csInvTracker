@@ -120,3 +120,5 @@ const AnimatedBanner = ({
 
 export default AnimatedBanner;
 
+
+

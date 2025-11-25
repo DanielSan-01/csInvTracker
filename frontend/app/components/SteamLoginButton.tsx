@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { initiateSteamLogin, getSteamIdFromUrl, storeSteamId, getStoredSteamId, clearSteamId } from '@/lib/steamAuth';
+import { getSteamIdFromUrl, storeSteamId, getStoredSteamId, clearSteamId } from '@/lib/steamAuth';
 
 export default function SteamLoginButton() {
   const [steamId, setSteamId] = useState<string | null>(null);
@@ -27,16 +27,7 @@ export default function SteamLoginButton() {
   }, []);
 
   const handleLogin = () => {
-    // Check if we're on localhost
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    
-    if (isLocalhost) {
-      // Show manual input option for localhost
-      setShowManualInput(true);
-    } else {
-      setIsLoading(true);
-      initiateSteamLogin();
-    }
+    setShowManualInput(true);
   };
 
   const handleManualSubmit = () => {

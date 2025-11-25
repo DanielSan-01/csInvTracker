@@ -1,17 +1,19 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useInventory } from '@/hooks/useInventory';
 import { formatCurrency } from '@/lib/utils';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
-import GlobalSearchBar from '@/app/components/GlobalSearchBar';
-import InventoryListCard from '@/app/components/InventoryListCard';
-import TargetSkinCard from '@/app/components/TargetSkinCard';
 import { saveGoal, GoalData, createInventorySelectedItemKey } from '@/lib/goalStorage';
 import type { InventoryItemDto, SkinDto } from '@/lib/api';
+import GoalTargetSkinSection from './components/GoalTargetSkinSection';
+import GoalInventorySection from './components/GoalInventorySection';
+import GoalBalanceSection from './components/GoalBalanceSection';
+import GoalSummarySection from './components/GoalSummarySection';
+import GoalActionSection from './components/GoalActionSection';
 
 export default function GoalPlannerPage() {
   const router = useRouter();
@@ -63,27 +65,31 @@ export default function GoalPlannerPage() {
   const surplusAmount = Math.max(coverageTotal - parsedTargetPrice, 0);
   const inventoryAsCsItems = useMemo(() => inventoryItemsToCSItems(items), [items]);
 
-  const handleToggleItem = (item: InventoryItemDto) => {
+  const handleToggleItem = useCallback((item: InventoryItemDto) => {
     setSelectedItemIds((prev) => {
       if (prev.includes(item.id)) {
         return prev.filter((id) => id !== item.id);
       }
       return [...prev, item.id];
     });
-  };
+  }, []);
 
-  const handleSkinSelection = (skin: SkinDto) => {
+  const handleClearSelection = useCallback(() => {
+    setSelectedItemIds([]);
+  }, []);
+
+  const handleSkinSelection = useCallback((skin: SkinDto) => {
     setSelectedSkin(skin);
     setTargetSkinName(skin.name);
 
     if (skin.defaultPrice && skin.defaultPrice > 0) {
       setTargetSkinPrice(skin.defaultPrice.toFixed(2));
     }
-  };
+  }, []);
 
-  const handleClearSelectedSkin = () => {
+  const handleClearSelectedSkin = useCallback(() => {
     setSelectedSkin(null);
-  };
+  }, []);
 
   const handleAddGoal = async () => {
     if (isSavingGoal) return;
@@ -149,13 +155,6 @@ export default function GoalPlannerPage() {
     }
   };
 
-  const renderStepHeading = (step: number, title: string, description?: string) => (
-    <div className="flex flex-col gap-1">
-      <h2 className="type-heading-lg text-white">Step {step}: {title}</h2>
-      {description && <p className="type-body-sm text-gray-400">{description}</p>}
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 pb-20 pt-16 lg:px-10">
@@ -194,281 +193,61 @@ export default function GoalPlannerPage() {
           </p>
         </header>
 
-        <section className="space-y-6 rounded-3xl border border-gray-800/60 bg-gray-900/70 p-6 shadow-2xl shadow-black/40 backdrop-blur">
-          {renderStepHeading(1, 'Pick the skin you’re aiming for', 'Search the full catalog and we’ll fill in the details for you.')}
+        <GoalTargetSkinSection
+          step={1}
+          selectedSkin={selectedSkin}
+          inventoryItems={inventoryAsCsItems}
+          onSkinSelect={handleSkinSelection}
+          onClearSkin={handleClearSelectedSkin}
+          targetSkinName={targetSkinName}
+          onTargetSkinNameChange={setTargetSkinName}
+          targetSkinPrice={targetSkinPrice}
+          onTargetSkinPriceChange={setTargetSkinPrice}
+          formatCurrency={formatCurrency}
+        />
 
-          <div className="space-y-4">
-            <GlobalSearchBar
-              userInventory={inventoryAsCsItems}
-              onAddSkin={handleSkinSelection}
-              isLoggedIn
-              actionLabel="Select"
-              allowDuplicateSelection
-            />
+        <GoalInventorySection
+          step={2}
+          user={user}
+          items={items}
+          filteredItems={filteredInventory}
+          selectedItemIds={selectedItemIds}
+          onToggleItem={handleToggleItem}
+          onClearSelection={handleClearSelection}
+          inventoryLoading={inventoryLoading}
+          inventorySearch={inventorySearch}
+          onInventorySearchChange={setInventorySearch}
+          selectedTotal={selectedTotal}
+          error={error}
+          formatCurrency={formatCurrency}
+        />
 
-            {selectedSkin && (
-              <TargetSkinCard
-                badge="Selected skin"
-                name={selectedSkin.name}
-                subtitle={selectedSkin.weapon ?? selectedSkin.type}
-                imageUrl={selectedSkin.dopplerPhaseImageUrl ?? selectedSkin.imageUrl}
-                rarity={selectedSkin.rarity}
-                type={selectedSkin.type}
-                tags={[
-                  selectedSkin.collection ? `${selectedSkin.collection}` : null,
-                  selectedSkin.dopplerPhase ?? (selectedSkin.paintIndex ? `Pattern ${selectedSkin.paintIndex}` : null),
-                ]}
-                priceLabel={
-                  selectedSkin.defaultPrice && selectedSkin.defaultPrice > 0 ? 'Catalog price' : undefined
-                }
-                priceValue={
-                  selectedSkin.defaultPrice && selectedSkin.defaultPrice > 0
-                    ? formatCurrency(selectedSkin.defaultPrice)
-                    : undefined
-                }
-                trailingContent={
-                  <button
-                    type="button"
-                    onClick={handleClearSelectedSkin}
-                    className="inline-flex items-center justify-center rounded-lg border border-purple-400/50 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-purple-100 transition-colors hover:border-purple-300/70 hover:bg-purple-500/20"
-                  >
-                    Clear
-                  </button>
-                }
-              />
-            )}
+        <GoalBalanceSection
+          step={3}
+          existingBalance={existingBalance}
+          onBalanceChange={setExistingBalance}
+        />
 
-            <div className="grid gap-4 md:grid-cols-[2fr,1fr]">
-              <label className="flex flex-col gap-2">
-                <span className="text-sm text-gray-300">Skin name</span>
-                <input
-                  type="text"
-                  value={targetSkinName}
-                  onChange={(event) => setTargetSkinName(event.target.value)}
-                  placeholder="e.g. M9 Bayonet | Doppler Phase 2"
-                  className="rounded-xl border border-gray-800 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
-                />
-              </label>
-              <label className="flex flex-col gap-2">
-                <span className="text-sm text-gray-300">Target price (USD)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={targetSkinPrice}
-                  onChange={(event) => setTargetSkinPrice(event.target.value)}
-                  placeholder="0.00"
-                  className="rounded-xl border border-gray-800 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
-                />
-              </label>
-            </div>
+        <GoalSummarySection
+          step={4}
+          targetSkinName={targetSkinName}
+          parsedTargetPrice={parsedTargetPrice}
+          selectedTotal={selectedTotal}
+          selectedItemCount={selectedItemIds.length}
+          parsedBalance={parsedBalance}
+          coverageTotal={coverageTotal}
+          remainingAmount={remainingAmount}
+          surplusAmount={surplusAmount}
+          formatCurrency={formatCurrency}
+        />
 
-            <p className="text-xs text-gray-500">
-              You can fine-tune the name or price manually even after selecting a skin from search.
-            </p>
-          </div>
-        </section>
-
-        <section className="space-y-6 rounded-3xl border border-gray-800/60 bg-gray-900/70 p-6 shadow-2xl shadow-black/40 backdrop-blur">
-          {renderStepHeading(2, 'Optionally pick inventory you plan to sell', 'Select items you’re willing to sell to help fund the purchase.')}
-
-          {user && (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-widest text-gray-500">Your inventory</span>
-                  <span className="text-xs rounded-full border border-gray-800 bg-gray-950/80 px-2 py-0.5 text-gray-300">
-                    {inventoryLoading ? 'Loading…' : `${items.length} item${items.length === 1 ? '' : 's'}`}
-                  </span>
-                </div>
-                <input
-                  type="search"
-                  value={inventorySearch}
-                  onChange={(event) => setInventorySearch(event.target.value)}
-                  placeholder="Filter inventory…"
-                  className="w-full max-w-xs rounded-lg border border-gray-800 bg-gray-950/60 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
-                />
-              </div>
-
-              {error && (
-                <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                  Failed to load inventory: {error}
-                </div>
-              )}
-
-              {!inventoryLoading && filteredInventory.length === 0 && (
-                <div className="rounded-xl border border-dashed border-gray-800 bg-gray-950/50 px-6 py-12 text-center text-sm text-gray-400">
-                  {items.length === 0
-                    ? 'We could not find any items in your inventory yet. Add some skins on the dashboard to plan with them here.'
-                    : 'No inventory items match that search. Try another name or clear the filter.'}
-                </div>
-              )}
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {filteredInventory.map((item) => {
-                  const isSelected = selectedItemIds.includes(item.id);
-                  return (
-                    <InventoryListCard
-                      key={item.id}
-                      title={item.skinName}
-                      subtitle={item.weapon ?? item.type}
-                      imageUrl={item.imageUrl}
-                      selectable
-                      isSelected={isSelected}
-                      onClick={() => handleToggleItem(item)}
-                      footerLeft={`Tradable: ${item.tradeProtected ? 'No' : 'Yes'}`}
-                      footerRight={formatCurrency(item.price ?? 0)}
-                    />
-                  );
-                })}
-              </div>
-
-              {selectedItemIds.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                  <div>
-                    <p className="font-medium">Selected {selectedItemIds.length} item{selectedItemIds.length === 1 ? '' : 's'}</p>
-                    <p className="text-xs text-emerald-200/80">Estimated sale value: {formatCurrency(selectedTotal)}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedItemIds([])}
-                    className="rounded-lg border border-emerald-400/50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-emerald-100 hover:bg-emerald-500/20"
-                  >
-                    Clear selection
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!user && (
-            <div className="rounded-xl border border-dashed border-purple-500/40 bg-purple-500/10 px-6 py-8 text-center text-sm text-purple-100">
-              <p className="font-semibold text-purple-200">Log in with Steam to pick items from your inventory.</p>
-              <p className="mt-2 text-xs text-purple-100/80">You can still plan manually by filling out the other steps.</p>
-            </div>
-          )}
-        </section>
-
-        <section className="space-y-6 rounded-3xl border border-gray-800/60 bg-gray-900/70 p-6 shadow-2xl shadow-black/40 backdrop-blur">
-          {renderStepHeading(3, 'Add any balance you already have', 'Include wallet balances or cash you can use right away.')}
-          <div className="max-w-sm">
-            <label className="flex flex-col gap-2">
-              <span className="text-sm text-gray-300">Existing balance (USD)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={existingBalance}
-                onChange={(event) => setExistingBalance(event.target.value)}
-                placeholder="0.00"
-                className="rounded-xl border border-gray-800 bg-gray-950/60 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="space-y-6 rounded-3xl border border-purple-500/30 bg-purple-950/30 p-6 shadow-2xl shadow-purple-950/30 backdrop-blur">
-          {renderStepHeading(4, 'Your affordability dashboard', 'See how close you are and what’s still missing.')}
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <SummaryCard
-              label="Target skin"
-              value={targetSkinName ? targetSkinName : 'Not set yet'}
-              secondaryValue={parsedTargetPrice > 0 ? formatCurrency(parsedTargetPrice) : '–'}
-            />
-            <SummaryCard
-              label="From planned sales"
-              value={formatCurrency(selectedTotal)}
-              secondaryValue={`${selectedItemIds.length} item${selectedItemIds.length === 1 ? '' : 's'} selected`}
-            />
-            <SummaryCard
-              label="Existing balance"
-              value={formatCurrency(parsedBalance)}
-              secondaryValue="Cash or site balance you already have"
-            />
-            <SummaryCard
-              label="Total coverage"
-              value={formatCurrency(coverageTotal)}
-              secondaryValue="Planned sales + balance"
-            />
-          </div>
-
-          <div className="rounded-2xl border border-gray-800 bg-gray-950/60 p-6">
-            {parsedTargetPrice <= 0 ? (
-              <p className="text-sm text-gray-400">Enter a target price above to see how close you are.</p>
-            ) : remainingAmount > 0 ? (
-              <div className="flex flex-col gap-2">
-                <p className="text-lg font-semibold text-amber-300">You still need {formatCurrency(remainingAmount)}.</p>
-                <p className="text-sm text-gray-300">
-                  Based on your planned sales and balance, you have covered {formatCurrency(coverageTotal)} out of {formatCurrency(parsedTargetPrice)}.
-                  Consider adding more items to sell or saving the remaining amount.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <p className="text-lg font-semibold text-emerald-300">You can afford it!</p>
-                <p className="text-sm text-emerald-100">
-                  Your plan covers {formatCurrency(coverageTotal)}, which is enough for the target skin.{' '}
-                  {surplusAmount > 0 && (
-                    <span>You’ll have {formatCurrency(surplusAmount)} left after the purchase.</span>
-                  )}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {formError && (
-            <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-              {formError}
-            </div>
-          )}
-
-          <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
-            <div className="text-xs text-gray-500">
-              We’ll store your goal locally on this device so you can revisit it later.
-            </div>
-            <button
-              type="button"
-              onClick={handleAddGoal}
-              disabled={isSavingGoal || !targetSkinName.trim() || parsedTargetPrice <= 0}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-purple-500/60"
-            >
-              {isSavingGoal ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V2.5A9.5 9.5 0 003.5 12H4zm2 5.291A7.962 7.962 0 014 12H2.5c0 3.31 1.344 6.31 3.52 8.477L6 17.291z" />
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add Goal
-                </>
-              )}
-            </button>
-          </div>
-        </section>
+        <GoalActionSection
+          formError={formError}
+          onSubmit={handleAddGoal}
+          isSaving={isSavingGoal}
+          canSubmit={Boolean(targetSkinName.trim()) && parsedTargetPrice > 0}
+        />
       </div>
-    </div>
-  );
-}
-
-type SummaryCardProps = {
-  label: string;
-  value: string;
-  secondaryValue?: string;
-};
-
-function SummaryCard({ label, value, secondaryValue }: SummaryCardProps) {
-  return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-950/70 px-5 py-4 shadow-lg shadow-black/30">
-      <p className="type-label text-gray-500">{label}</p>
-      <p className="mt-2 type-heading-md text-white">{value}</p>
-      {secondaryValue && <p className="mt-1 type-body-sm text-gray-400">{secondaryValue}</p>}
     </div>
   );
 }
