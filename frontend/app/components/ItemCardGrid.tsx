@@ -43,7 +43,7 @@ export default function ItemCardGrid({
 
       <div
         ref={animation.imageContainerRef}
-        className={`relative mb-20 aspect-[4/3] min-h-[240px] w-full overflow-hidden bg-gradient-to-b ${rarityGradients[item.rarity]}`}
+        className={`relative aspect-[4/3] min-h-[240px] w-full overflow-hidden bg-gradient-to-b ${rarityGradients[item.rarity]}`}
         style={{
           opacity: animation.imageLoaded ? 1 : 0.3,
           filter: animation.imageLoaded ? 'brightness(1)' : 'brightness(0.5)',
@@ -75,16 +75,21 @@ export default function ItemCardGrid({
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0">
-        <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/80 px-4 py-3 backdrop-blur-sm">
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-base font-bold text-emerald-400">
-              {formatPrice(item.price)}
-            </p>
+      <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/80 px-4 py-2.5 backdrop-blur-sm">
+          <div className="flex flex-col gap-1 text-[8px] uppercase tracking-wide text-gray-500">
+            <div>
+              <span className="mb-0.5 block">Market Value</span>
+              <span className="block text-xs font-semibold text-emerald-400 leading-tight">
+                {formatPrice(item.price)}
+              </span>
+            </div>
             {item.cost !== undefined && (
-              <p className="text-[10px] text-gray-400">
-                Cost {formatPrice(item.cost)}
-              </p>
+              <div>
+                <span className="mb-0.5 block">Cost</span>
+                <span className="block text-[10px] font-medium text-gray-200 leading-tight">
+                  {formatPrice(item.cost)}
+                </span>
+              </div>
             )}
           </div>
 
@@ -92,9 +97,9 @@ export default function ItemCardGrid({
             const cost = item.cost as number;
             const profitValue = item.price - cost;
             return (
-              <div className="flex items-center justify-between gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
                 <div
-                  className={`text-[10px] font-semibold ${
+                  className={`min-w-0 text-[10px] font-semibold leading-tight ${
                     profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
                   }`}
                 >
@@ -102,7 +107,7 @@ export default function ItemCardGrid({
                   {formatPrice(profitValue)}
                 </div>
                 <span
-                  className={`rounded px-1 py-0.5 text-[9px] font-bold ${getFloatColor(item.float)} text-white`}
+                  className={`rounded px-1 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
                 >
                   {exteriorAbbr[item.exterior]}
                 </span>
@@ -110,7 +115,7 @@ export default function ItemCardGrid({
             );
           })()}
 
-          <div className="flex items-center gap-1.5 pt-0.5">
+          <div className="flex items-center gap-1">
             <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
               <div
                 className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
@@ -118,7 +123,6 @@ export default function ItemCardGrid({
               />
             </div>
           </div>
-        </div>
       </div>
     </div>
   );

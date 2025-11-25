@@ -165,3 +165,34 @@ export function formatProfitDisplay(profit?: number, profitPercent?: number) {
   return { label: 'Profit', value: `${value}${percent}`, className };
 }
 
+export function resolveDisplayType(item: CSItem): string {
+  const normalize = (value?: string | null) => (value ?? '').toLowerCase();
+  const name = normalize(item.name);
+  const weapon = normalize(item.weapon);
+  const type = normalize(item.type);
+
+  const heuristics: Array<{ match: RegExp; label: string }> = [
+    { match: /gloves?/, label: 'Gloves' },
+    { match: /(knife|bayonet)/, label: 'Knife' },
+    { match: /(agent|commander|operator)/, label: 'Agent' },
+    { match: /sticker/, label: 'Sticker' },
+    { match: /patch/, label: 'Patch' },
+    { match: /music kit/, label: 'Music Kit' },
+    { match: /keychain/, label: 'Keychain' },
+    { match: /graffiti/, label: 'Graffiti' },
+    { match: /case/, label: 'Case' },
+    { match: /key/, label: 'Key' },
+    { match: /collectible/, label: 'Collectible' },
+  ];
+
+  for (const { match, label } of heuristics) {
+    if (match.test(name) || match.test(weapon) || match.test(type)) {
+      return label;
+    }
+  }
+
+  if (item.type) return item.type;
+  if (item.weapon) return item.weapon;
+  return 'Unknown';
+}
+
