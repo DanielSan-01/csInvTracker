@@ -37,12 +37,6 @@ The backend will be available at:
 ```bash
 cd frontend
 
-# Install dependencies (already done)
-npm install
-
-# Create .env.local file for API URL
-echo "NEXT_PUBLIC_API_URL=http://localhost:5000" > .env.local
-
 # Run the development server
 npm run dev
 ```
