@@ -1,56 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
-import { useEffect, useRef } from 'react';
-import ItemCard from './ItemCard';
-import { CSItem, Rarity, ItemType, Exterior } from '@/lib/mockData';
 import { calculateTradeProtectionDate } from '@/lib/utils';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
-import { SkinDto } from '@/lib/api';
-import { getDopplerPhaseLabel, getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
-
-const deriveExteriorFromFloat = (floatValue?: number): Exterior => {
-  const float = typeof floatValue === 'number' ? Math.min(Math.max(floatValue, 0), 1) : 0;
-  if (float < 0.07) return 'Factory New';
-  if (float < 0.15) return 'Minimal Wear';
-  if (float < 0.38) return 'Field-Tested';
-  if (float < 0.45) return 'Well-Worn';
-  return 'Battle-Scarred';
-};
-
-const buildPreviewImageUrl = (name: string, provided?: string, fallback?: string): string => {
-  if (provided && provided.trim().length > 0) {
-    return provided.trim();
-  }
-  if (fallback && fallback.trim().length > 0) {
-    return fallback.trim();
-  }
-  const safeName = name?.trim().length ? name : 'Skin Preview';
-  return `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(safeName)}`;
-};
-
-interface AddSkinFormProps {
-  onAdd: (skinData: NewSkinData) => Promise<boolean | void> | boolean | void;
-  onUpdate?: (id: string, skinData: NewSkinData) => Promise<boolean | void> | boolean | void;
-  onClose: () => void;
-  item?: CSItem; // If provided, form is in edit mode
-  initialSkin?: SkinDto; // When provided, pre-fill with catalog skin (quick add)
-}
-
-export interface NewSkinData {
-  skinId?: number; // Backend skin catalog ID
-  name: string;
-  rarity: Rarity;
-  type: ItemType;
-  float?: number;
-  paintSeed?: number;
-  patternName?: string;
-  price: number;
-  cost?: number;
-  imageUrl?: string;
-  tradeProtected?: boolean;
-}
+import type { SkinDto } from '@/lib/api';
+import type { CSItem, Rarity, ItemType } from '@/lib/mockData';
+import { getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
+import SkinCatalogSearch from './add-skin/SkinCatalogSearch';
+import RequiredFieldsSection from './add-skin/RequiredFieldsSection';
+import AdvancedFieldsSection from './add-skin/AdvancedFieldsSection';
+import PreviewPanel from './add-skin/PreviewPanel';
+import {
+  EXTERIOR_PRESETS,
+  buildPreviewImageUrl,
+  deriveExteriorFromFloat,
+} from './add-skin/helpers';
+import type { AddSkinFormProps, NewSkinData } from './add-skin/types';
 
 export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSkin }: AddSkinFormProps) {
   const isEditMode = !!item;
@@ -79,6 +45,9 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
   }), [item, effectiveSkin]);
 
   const [formData, setFormData] = useState<NewSkinData>(baseFormState);
+  const updateFormData = (updates: Partial<NewSkinData>) => {
+    setFormData((prev) => ({ ...prev, ...updates }));
+  };
   const [selectedCatalogName, setSelectedCatalogName] = useState<string>('');
 
   useEffect(() => {
@@ -203,35 +172,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     }
   };
 
-  const exteriorPresets = [
-    {
-      label: 'Factory New',
-      range: [0, 0.07] as [number, number],
-      floatValue: 0.01,
-    },
-    {
-      label: 'Minimal Wear',
-      range: [0.07, 0.15] as [number, number],
-      floatValue: 0.08,
-    },
-    {
-      label: 'Field-Tested',
-      range: [0.15, 0.38] as [number, number],
-      floatValue: 0.20,
-    },
-    {
-      label: 'Well-Worn',
-      range: [0.38, 0.45] as [number, number],
-      floatValue: 0.42,
-    },
-    {
-      label: 'Battle-Scarred',
-      range: [0.45, 1] as [number, number],
-      floatValue: 0.60,
-    },
-  ];
-
-  const selectedExterior = exteriorPresets.find((preset) => {
+  const selectedExterior = EXTERIOR_PRESETS.find((preset) => {
     if (formData.float === undefined) return false;
     const [min, max] = preset.range;
     if (preset.label === 'Battle-Scarred') {
@@ -272,14 +213,6 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     const advancedNeeded = skin.defaultPrice !== undefined || skin.imageUrl;
     if (advancedNeeded) {
       setShowAdvanced(true);
-    }
-  };
-
-  const resetCatalogSelection = () => {
-    setSelectedCatalogName('');
-    if (!isEditMode) {
-      setFormData(baseFormState);
-      setShowAdvanced(false);
     }
   };
 
@@ -365,353 +298,51 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
             <div className="space-y-6">
-          {/* Quick Fill */}
-          <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 shadow-inner shadow-purple-900/20 space-y-3">
-            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-purple-200">Search Skin Catalog (1,071 skins)</p>
-                <p className="text-xs text-purple-300/70">
-                  Search by name (e.g., "AK-47", "Dragon Lore"). Selected skin will pre-fill fields.
-                </p>
-              </div>
-              {selectedCatalogName && (
-                <div className="text-xs text-purple-300 bg-purple-900/40 px-2 py-1 rounded">
-                  Selected: {selectedCatalogName}
-                </div>
-              )}
-            </div>
-
-            <div className="relative">
-              <input
-                type="text"
-                value={skinSearchTerm}
-                onChange={(e) => setSkinSearchTerm(e.target.value)}
-                placeholder="Type to search (e.g., AWP, AK-47, Fade)..."
-                className="flex-1 w-full rounded-lg border border-purple-400/50 bg-gray-900/60 px-4 py-2 text-sm text-purple-100 placeholder-purple-200/40 focus:border-purple-300 focus:outline-none"
+              <SkinCatalogSearch
+                searchTerm={skinSearchTerm}
+                onSearchTermChange={setSkinSearchTerm}
+                catalogSkins={catalogSkins}
+                loading={catalogLoading}
+                onSelectSkin={handleSearchSelect}
+                selectedCatalogName={selectedCatalogName}
               />
-              
-              {/* Search Results Dropdown */}
-              {skinSearchTerm.length >= 2 && (
-                <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-gray-900 border border-purple-500/50 rounded-lg shadow-xl">
-                  {catalogLoading ? (
-                    <div className="p-4 text-center text-purple-300 text-sm">
-                      Searching...
-                    </div>
-                  ) : catalogSkins.length > 0 ? (
-                    <div className="py-1">
-                      {catalogSkins.slice(0, 50).map((skin) => {
-                        const phaseLabel = getDopplerPhaseLabel(skin);
-                        const displayName = getSkinDopplerDisplayName(skin);
-                        return (
-                          <button
-                            key={skin.id}
-                            type="button"
-                            onClick={() => handleSearchSelect(skin)}
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-purple-500/20 transition-colors flex items-center gap-3 group"
-                          >
-                            {skin.imageUrl ? (
-                              <img
-                                src={skin.imageUrl}
-                                alt={skin.name}
-                                className="w-12 h-10 object-contain rounded border border-purple-500/40 bg-gray-950/60"
-                              />
-                            ) : (
-                              <div className="w-12 h-10 rounded border border-purple-500/40 bg-purple-900/40 flex items-center justify-center text-xs text-purple-200">
-                                No Img
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-purple-100 group-hover:text-white truncate">{displayName}</p>
-                              <div className="flex items-center gap-2 mt-1 text-xs">
-                                <span className="text-gray-400">{skin.rarity}</span>
-                                {phaseLabel && (
-                                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 font-semibold">
-                                    {phaseLabel}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
-                      {catalogSkins.length > 50 && (
-                        <div className="px-4 py-2 text-xs text-gray-400 border-t border-purple-500/30">
-                          Showing first 50 of {catalogSkins.length} results. Type more to narrow down.
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-4 text-center text-gray-400 text-sm">
-                      No skins found. Try a different search.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Required Fields */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-purple-400 border-b border-purple-500 pb-2">
-              Required Information
-            </h3>
-
-            {/* Skin Name */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Skin Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                  errors.name ? 'border-red-500' : 'border-gray-700'
-                }`}
-                placeholder="e.g., AK-47 | Fire Serpent"
-                required
+              <RequiredFieldsSection
+                formData={formData}
+                errors={errors}
+                exteriorPresets={EXTERIOR_PRESETS}
+                selectedExterior={selectedExterior}
+                onChange={updateFormData}
               />
-              {errors.name && (
-                <p className="mt-1 text-sm text-red-400">{errors.name}</p>
-              )}
-            </div>
 
-            {/* Exterior Quick Select */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-3">
-                Exterior quick select
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {exteriorPresets.map((preset) => {
-                  const isSelected = selectedExterior?.label === preset.label;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, float: preset.floatValue })}
-                      className={`relative flex items-center justify-center rounded-lg border-2 px-3 py-3 text-sm font-medium transition-all ${
-                        isSelected
-                          ? 'border-purple-400 bg-purple-500/10 text-white'
-                          : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
-                      }`}
-                    >
-                      {preset.label}
-                      {isSelected && <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-purple-400" />}
-                    </button>
-                  );
-                })}
+              <div className="border-t border-gray-700 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((prev) => !prev)}
+                  className="flex items-center gap-2 text-purple-400 transition-colors hover:text-purple-300"
+                >
+                  <svg
+                    className={`h-5 w-5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  <span className="font-medium">Show Advanced Options (Optional)</span>
+                </button>
               </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Selected exterior:{' '}
-                <span className="text-purple-400">
-                  {selectedExterior ? selectedExterior.label : 'Custom'}
-                </span>{' '}
-                · Float{' '}
-                <span className="text-purple-400">
-                  {formData.float !== undefined ? formData.float.toFixed(3) : '—'}
-                </span>
-              </p>
-              {formData.rarity && (
-                <p className="mt-1 text-xs text-gray-500">
-                  Rarity: <span className="text-gray-300">{formData.rarity}</span> (auto-detected)
-                </p>
+
+              {showAdvanced && (
+                <AdvancedFieldsSection
+                  formData={formData}
+                  errors={errors}
+                  onChange={updateFormData}
+                />
               )}
             </div>
 
-            {/* Price */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Price (USD) <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.price || ''}
-                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                  errors.price ? 'border-red-500' : 'border-gray-700'
-                }`}
-                placeholder="0.00"
-                required
-              />
-              {errors.price && (
-                <p className="mt-1 text-sm text-red-400">{errors.price}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Advanced Options Toggle */}
-          <div className="pt-4 border-t border-gray-700">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
-            >
-              <svg
-                className={`w-5 h-5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-              <span className="font-medium">Show Advanced Options (Optional)</span>
-            </button>
-          </div>
-
-          {/* Advanced Options */}
-          {showAdvanced && (
-            <div className="space-y-4 pt-4 border-t border-gray-700 animate-fadeIn">
-              <h3 className="text-lg font-semibold text-gray-400 border-b border-gray-700 pb-2">
-                Optional Information
-              </h3>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {/* Float Value */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Float Value (0.0 - 1.0)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.0000001"
-                    min="0"
-                    max="1"
-                    value={formData.float ?? ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      float: e.target.value ? parseFloat(e.target.value) : undefined,
-                    })}
-                    className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                      errors.float ? 'border-red-500' : 'border-gray-700'
-                    }`}
-                    placeholder="e.g., 0.564978"
-                  />
-                  {errors.float && (
-                    <p className="mt-1 text-sm text-red-400">{errors.float}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Leave empty if unknown. Float determines wear condition.
-                  </p>
-                </div>
-
-                {/* Paint Seed */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Paint Seed
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={formData.paintSeed ?? ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      paintSeed: e.target.value ? parseInt(e.target.value) : undefined,
-                    })}
-                    className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                      errors.paintSeed ? 'border-red-500' : 'border-gray-700'
-                    }`}
-                    placeholder="e.g., 396"
-                  />
-                  {errors.paintSeed && (
-                    <p className="mt-1 text-sm text-red-400">{errors.paintSeed}</p>
-                  )}
-                </div>
-
-                {/* Pattern Name/ID */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Pattern Name / Pattern ID
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.patternName ?? ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      patternName: e.target.value || undefined,
-                    })}
-                    className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    placeholder="e.g., Phase 4, Tiger Tooth, Urban Masked"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Pattern name or ID (e.g., "Doppler Phase 4" or pattern number)
-                  </p>
-                </div>
-
-                {/* Cost */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Cost (USD)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.cost ?? ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      cost: e.target.value ? parseFloat(e.target.value) : undefined,
-                    })}
-                    className={`w-full px-4 py-2 bg-gray-800 border-2 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                      errors.cost ? 'border-red-500' : 'border-gray-700'
-                    }`}
-                    placeholder="0.00"
-                  />
-                  {errors.cost && (
-                    <p className="mt-1 text-sm text-red-400">{errors.cost}</p>
-                  )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    The amount you paid for this item (used for profit calculation)
-                  </p>
-                </div>
-
-                {/* Image URL */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Image URL
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.imageUrl ?? ''}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      imageUrl: e.target.value || undefined,
-                    })}
-                    className="w-full px-4 py-2 bg-gray-800 border-2 border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-                    placeholder="https://example.com/image.jpg"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">
-                    Leave empty to auto-generate placeholder
-                  </p>
-                </div>
-
-                {/* Trade Protected */}
-                <div className="md:col-span-2 flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-800/60 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    id="tradeProtected"
-                    checked={formData.tradeProtected || false}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      tradeProtected: e.target.checked || undefined,
-                    })}
-                    className="w-5 h-5 rounded border-gray-700 bg-gray-800 text-purple-500 focus:ring-purple-500"
-                  />
-                  <label htmlFor="tradeProtected" className="text-sm font-medium text-gray-300">
-                    Item is trade protected (set trade lock reminder)
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-            </div>
-            <aside className="space-y-3 lg:sticky lg:top-6">
-              <ItemCard item={previewItem} variant="detailed" />
-              <p className="text-xs text-gray-500">
-                Preview does not adjust for float-capped items.
-              </p>
-            </aside>
+            <PreviewPanel previewItem={previewItem} />
           </div>
 
           {/* Submit Buttons */}

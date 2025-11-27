@@ -1,15 +1,15 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import AddSkinForm, { NewSkinData } from '@/app/components/AddSkinForm';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import AddSkinForm from '@/app/components/AddSkinForm';
+import type { NewSkinData } from '@/app/components/add-skin/types';
 import { CSItem } from '@/lib/mockData';
 
+const mockFromTo = jest.fn();
+const mockTo = jest.fn();
+
 jest.mock('gsap', () => ({
-  fromTo: jest.fn(),
-  to: jest.fn((_target, vars) => {
-    if (vars?.onComplete) {
-      vars.onComplete();
-    }
-  }),
+  fromTo: (...args: unknown[]) => mockFromTo(...args),
+  to: (...args: unknown[]) => mockTo(...args),
 }));
 
 const mockUseSkinCatalog = jest.fn();
@@ -48,6 +48,17 @@ beforeEach(() => {
     loading: false,
     selectedSkin: baseSelectedSkin,
   });
+  // Mock GSAP to immediately call onComplete if provided
+  mockFromTo.mockImplementation((_target, _from, to) => {
+    if (to?.onComplete && typeof to.onComplete === 'function') {
+      setTimeout(() => to.onComplete(), 0);
+    }
+  });
+  mockTo.mockImplementation((_target, vars) => {
+    if (vars?.onComplete && typeof vars.onComplete === 'function') {
+      setTimeout(() => vars.onComplete(), 0);
+    }
+  });
 });
 
 describe('AddSkinForm submission behaviour', () => {
@@ -56,14 +67,16 @@ describe('AddSkinForm submission behaviour', () => {
     const handleUpdate = jest.fn<Promise<boolean>, [string, NewSkinData]>().mockResolvedValue(true);
     const handleClose = jest.fn();
 
-    render(
-      <AddSkinForm
-        item={baseItem}
-        onAdd={handleAdd}
-        onUpdate={handleUpdate}
-        onClose={handleClose}
-      />,
-    );
+    await act(async () => {
+      render(
+        <AddSkinForm
+          item={baseItem}
+          onAdd={handleAdd}
+          onUpdate={handleUpdate}
+          onClose={handleClose}
+        />,
+      );
+    });
 
     const submitButton = screen.getByRole('button', { name: /update skin/i });
     fireEvent.click(submitButton);
@@ -88,14 +101,16 @@ describe('AddSkinForm submission behaviour', () => {
     const handleUpdate = jest.fn<Promise<boolean>, [string, NewSkinData]>().mockResolvedValue(false);
     const handleClose = jest.fn();
 
-    render(
-      <AddSkinForm
-        item={baseItem}
-        onAdd={jest.fn()}
-        onUpdate={handleUpdate}
-        onClose={handleClose}
-      />,
-    );
+    await act(async () => {
+      render(
+        <AddSkinForm
+          item={baseItem}
+          onAdd={jest.fn()}
+          onUpdate={handleUpdate}
+          onClose={handleClose}
+        />,
+      );
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /update skin/i }));
 
@@ -107,12 +122,14 @@ describe('AddSkinForm submission behaviour', () => {
     const handleAdd = jest.fn<Promise<boolean>, [NewSkinData]>().mockResolvedValue(true);
     const handleClose = jest.fn();
 
-    render(
-      <AddSkinForm
-        onAdd={handleAdd}
-        onClose={handleClose}
-      />,
-    );
+    await act(async () => {
+      render(
+        <AddSkinForm
+          onAdd={handleAdd}
+          onClose={handleClose}
+        />,
+      );
+    });
 
     fireEvent.click(screen.getByRole('button', { name: /^add skin$/i }));
 

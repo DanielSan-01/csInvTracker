@@ -15,6 +15,7 @@ export interface SelectedGoalItem {
 export interface GoalData {
   id: string;
   createdAt: string;
+  updatedAt?: string;
   userId?: number;
   skinName: string;
   skinId?: number;

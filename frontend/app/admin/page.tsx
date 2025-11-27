@@ -5,7 +5,13 @@ import { useState, useEffect, useCallback } from 'react';
 import StatsTab from './components/StatsTab';
 import UsersTab from './components/UsersTab';
 import AddSkinTab from './components/AddSkinTab';
+import AdminAuthGate from './components/AdminAuthGate';
+import AdminHeader from './components/AdminHeader';
+import AdminTabsNav from './components/AdminTabsNav';
+import AdminErrorBanner from './components/AdminErrorBanner';
+import AdminLoadingState from './components/AdminLoadingState';
 import type { AdminStats, AdminUser, TabType, NewSkinFormState } from './types';
+import { formatCurrency, formatDate } from './utils';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
 
@@ -101,37 +107,12 @@ export default function AdminPage() {
 
   if (!authorized) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-gray-900/80 backdrop-blur-xl border border-gray-700 rounded-2xl p-8 shadow-2xl">
-          <h1 className="text-3xl font-bold mb-2 text-center text-white">Admin Access</h1>
-          <p className="text-gray-400 text-center mb-6">
-            Enter the admin password to manage users and skins.
-          </p>
-          <form onSubmit={handleAuthorize} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
-              <input
-                type="password"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                placeholder="Enter admin password"
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
-              />
-            </div>
-            {authError && (
-              <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2">
-                {authError}
-              </div>
-            )}
-            <button
-              type="submit"
-              className="w-full py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition-all"
-            >
-              Unlock Admin Panel
-            </button>
-          </form>
-        </div>
-      </div>
+      <AdminAuthGate
+        password={authPassword}
+        onPasswordChange={setAuthPassword}
+        onSubmit={handleAuthorize}
+        error={authError}
+      />
     );
   }
 
@@ -173,83 +154,13 @@ export default function AdminPage() {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
-  };
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            Admin Panel
-          </h1>
-          <p className="text-gray-400">Manage users, skins, and system settings</p>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-4 mb-8 border-b border-gray-700">
-          <button
-            onClick={() => setActiveTab('stats')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'stats'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            📊 Statistics
-          </button>
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'users'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            👥 Users
-          </button>
-          <button
-            onClick={() => setActiveTab('skins')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'skins'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            🎨 Add Skin
-          </button>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-lg text-red-400">
-            {error}
-          </div>
-        )}
-
-        {/* Success Display */}
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
-          </div>
-        )}
+        <AdminHeader />
+        <AdminTabsNav activeTab={activeTab} onChange={setActiveTab} />
+        <AdminErrorBanner message={error} />
+        {loading && <AdminLoadingState />}
 
         {/* Stats Tab */}
         {!loading && activeTab === 'stats' && stats && (

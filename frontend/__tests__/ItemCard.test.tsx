@@ -38,8 +38,8 @@ describe('ItemCard Component', () => {
     expect(screen.getByText('FT')).toBeInTheDocument();
   });
 
-  it('shows rarity badge', () => {
-    render(<ItemCard item={mockItem} onClick={() => {}} />);
+  it('shows rarity badge in detailed view', () => {
+    render(<ItemCard item={mockItem} variant="detailed" onClick={() => {}} />);
     expect(screen.getByText('Classified')).toBeInTheDocument();
   });
 
@@ -57,27 +57,29 @@ describe('ItemCard Component', () => {
     const handleDelete = jest.fn();
     render(<ItemCard item={mockItem} variant="detailed" onDelete={handleDelete} />);
 
-    const deleteButton = screen.getByText('Delete Item');
+    const deleteButton = screen.getByLabelText('Delete item');
     fireEvent.click(deleteButton);
 
     expect(handleDelete).toHaveBeenCalled();
   });
 
-  it('displays item type', () => {
-    render(<ItemCard item={mockItem} onClick={() => {}} />);
-    expect(screen.getByText('Rifle')).toBeInTheDocument();
+  it('displays item type in detailed view', () => {
+    render(<ItemCard item={mockItem} variant="detailed" onClick={() => {}} />);
+    expect(screen.getByText(/Type:.*Rifle/)).toBeInTheDocument();
   });
 
   it('shows trade protection status when applicable', () => {
-    const tradeProtectedItem = { ...mockItem, tradeProtected: true, tradableAfter: '2025-11-18T00:00:00Z' };
-    render(<ItemCard item={tradeProtectedItem} onClick={() => {}} />);
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 7); // 7 days from now
+    const tradeProtectedItem = { ...mockItem, tradeProtected: true, tradableAfter: futureDate };
+    render(<ItemCard item={tradeProtectedItem} variant="detailed" onClick={() => {}} />);
     
-    expect(screen.getByText(/Trade Locked/i)).toBeInTheDocument();
+    expect(screen.getByText(/Trade lock expires/i)).toBeInTheDocument();
   });
 });
 
 describe('ItemCard Float Display', () => {
-  it('displays float value with correct precision', () => {
+  it('displays float value with correct precision in grid view', () => {
     const item: CSItem = {
       id: '1',
       name: 'AWP | Dragon Lore',
@@ -91,7 +93,26 @@ describe('ItemCard Float Display', () => {
     };
     
     render(<ItemCard item={item} onClick={() => {}} />);
-    expect(screen.getByText(/0\.00678/)).toBeInTheDocument();
+    // formatFloat with precision 3 rounds 0.006789 to 0.007
+    expect(screen.getByText(/0\.007/)).toBeInTheDocument();
+  });
+
+  it('displays float value with higher precision in detailed view', () => {
+    const item: CSItem = {
+      id: '1',
+      name: 'AWP | Dragon Lore',
+      rarity: 'Covert',
+      type: 'Sniper Rifle',
+      float: 0.006789,
+      exterior: 'Factory New',
+      price: 5000,
+      imageUrl: 'https://test.com/dlore.png',
+      tradeProtected: false,
+    };
+    
+    render(<ItemCard item={item} variant="detailed" onClick={() => {}} />);
+    // Detailed view uses precision 6, so should show 0.006789
+    expect(screen.getByText(/0\.006789/)).toBeInTheDocument();
   });
 });
 

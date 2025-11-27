@@ -27,7 +27,7 @@ export default function SteamLoginButton() {
   }, []);
 
   const handleLogin = () => {
-    setShowManualInput(true);
+      setShowManualInput(true);
   };
 
   const handleManualSubmit = () => {
