@@ -44,9 +44,9 @@ npm run dev
 The frontend will be available at `http://localhost:3000`
 
 
-# Quick Start (2 Terminals)
+# Quick Start (You need 2 Terminals running)
 
-### Terminal 1 - Backend (Port 5027)
+### Terminal 1 - Backend 
 ```bash
 cd backend
 dotnet run
@@ -54,7 +54,7 @@ dotnet run
 
 **Wait for**: `Now listening on: http://localhost:5027`
 
-### Terminal 2 - Frontend (Port 3002)
+### Terminal 2 - Frontend 
 ```bash
 cd frontend
 npm run dev
