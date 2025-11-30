@@ -1,5 +1,20 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://192.168.10.105:5027/api';
+// Dynamically determine API URL based on current host
+const getApiBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // In browser, use current host
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    return `http://${host}:5027/api`;
+  }
+  
+  // Fallback for SSR
+  return 'http://localhost:5027/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Types matching backend DTOs
 export interface SkinDto {

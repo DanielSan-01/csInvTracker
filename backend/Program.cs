@@ -29,7 +29,9 @@ builder.Services.AddCors(options =>
                 "http://192.168.10.105:3000",
                 "http://192.168.10.105:3002",
                 "https://192.168.10.105:3000",
-                "https://192.168.10.105:3002")
+                "https://192.168.10.105:3002",
+                "http://172.20.10.12:3000",
+                "https://172.20.10.12:3000")
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
