@@ -53,15 +53,6 @@ export default function AdminPage() {
     setCreateSuccess(false);
   }, []);
 
-  useEffect(() => {
-    if (!authorized) return;
-    if (activeTab === 'users') {
-      fetchUsers();
-    } else if (activeTab === 'stats') {
-      fetchStats();
-    }
-  }, [activeTab, authorized, fetchUsers, fetchStats]);
-
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -91,6 +82,15 @@ export default function AdminPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!authorized) return;
+    if (activeTab === 'users') {
+      fetchUsers();
+    } else if (activeTab === 'stats') {
+      fetchStats();
+    }
+  }, [activeTab, authorized, fetchUsers, fetchStats]);
 
   const handleAuthorize = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
