@@ -32,16 +32,18 @@ export default function LoadoutSectionsList({
               })
               .map((slot) => {
                 const slotSelection = selections[slot.key];
-                const teamKey = activeTeam === 'CT' ? 'ct' : 't';
+                const teamKey = activeTeam === 'CT' ? 'ct' : activeTeam === 'T' ? 't' : 'ct';
                 const fallbackKey = teamKey === 'ct' ? 't' : 'ct';
                 const activeEntry = slotSelection?.[teamKey];
                 const fallbackEntry = slotSelection?.[fallbackKey];
                 const selectedSkin = activeEntry?.skin ?? fallbackEntry?.skin ?? null;
+                // Convert activeTeam to 'CT' | 'T' for getDefaultSlotSkin (defaults to 'CT' if 'Both')
+                const teamForDefault = activeTeam === 'Both' ? 'CT' : activeTeam;
                 const defaultSkin =
                   selectedSkin != null
                     ? null
-                    : getDefaultSlotSkin(slot.key, activeTeam) ??
-                      getDefaultSlotSkin(slot.key, activeTeam === 'CT' ? 'T' : 'CT');
+                    : getDefaultSlotSkin(slot.key, teamForDefault) ??
+                      getDefaultSlotSkin(slot.key, teamForDefault === 'CT' ? 'T' : 'CT');
                 const displaySkin = selectedSkin ?? defaultSkin ?? null;
                 const displayImageUrl = displaySkin ? getFallbackImageForSkin(displaySkin) : null;
 
