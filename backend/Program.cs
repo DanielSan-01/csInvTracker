@@ -2,6 +2,7 @@ using backend.Data;
 using backend.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -125,14 +126,44 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     try
     {
+        Console.WriteLine("Checking for pending migrations...");
+        
+        // Get pending migrations
+        var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
+        if (pendingMigrations.Any())
+        {
+            Console.WriteLine($"Found {pendingMigrations.Count} pending migration(s):");
+            foreach (var migration in pendingMigrations)
+            {
+                Console.WriteLine($"  - {migration}");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No pending migrations found.");
+        }
+        
+        // Get applied migrations
+        var appliedMigrations = dbContext.Database.GetAppliedMigrations().ToList();
+        Console.WriteLine($"Applied migrations ({appliedMigrations.Count}):");
+        foreach (var migration in appliedMigrations)
+        {
+            Console.WriteLine($"  - {migration}");
+        }
+        
+        Console.WriteLine("Applying pending migrations...");
         dbContext.Database.Migrate();
+        Console.WriteLine("Database migrations completed successfully.");
     }
     catch (Exception ex)
     {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred while migrating the database.");
+        Console.WriteLine($"FATAL ERROR: Database migration failed: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        // Don't exit - let the app start and show the error in logs
     }
 }
 
