@@ -14,8 +14,17 @@ builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();
 
 // Add Entity Framework Core with PostgreSQL
+// Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+if (string.IsNullOrEmpty(connectionString))
+{
+    // Fall back to configuration (appsettings.json or ConnectionStrings__DefaultConnection env var)
+    connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+}
+
+// If DATABASE_URL is provided, it's in PostgreSQL URI format which Npgsql supports directly
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 // Add CORS for Next.js frontend
 builder.Services.AddCors(options =>
