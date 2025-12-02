@@ -26,9 +26,8 @@ export const rarityStyles: Record<string, string> = {
 export const getRarityColor = (rarity: string) => rarityStyles[rarity] ?? rarityStyles['Consumer Grade'];
 
 export const getDopplerPhaseLabel = (skin: SkinDto) => {
-  if (!skin.dopplerPhase && !skin.paintIndex) return undefined;
-  const paintIndex = skin.paintIndex ?? skin.dopplerPhase;
-  return paintIndex ? dopplerPhaseLabels[paintIndex] : undefined;
+  if (!skin.paintIndex) return undefined;
+  return dopplerPhaseLabels[skin.paintIndex] ?? undefined;
 };
 
 export const getSkinDisplayName = (skin: SkinDto, phaseLabel?: string) => {
