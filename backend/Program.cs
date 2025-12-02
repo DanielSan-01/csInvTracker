@@ -15,12 +15,28 @@ builder.Services.AddSingleton<DopplerPhaseService>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+var connectionStringFromConfig = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Log what we found (for debugging)
+Console.WriteLine($"[DB Config] DATABASE_URL is {(string.IsNullOrEmpty(databaseUrl) ? "NOT SET" : "SET")}");
+Console.WriteLine($"[DB Config] ConnectionStrings__DefaultConnection is {(string.IsNullOrEmpty(connectionStringFromConfig) ? "NOT SET" : "SET")}");
+
+// Prefer DATABASE_URL, fall back to ConnectionStrings__DefaultConnection
+var connectionString = !string.IsNullOrEmpty(databaseUrl) ? databaseUrl : connectionStringFromConfig;
+
 if (string.IsNullOrEmpty(connectionString))
 {
-    // Fall back to configuration (appsettings.json or ConnectionStrings__DefaultConnection env var)
-    connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    Console.WriteLine("[DB Config] ERROR: No database connection string found!");
+    throw new InvalidOperationException(
+        "Database connection string is required. Set DATABASE_URL environment variable or ConnectionStrings__DefaultConnection.");
 }
+
+// Log first part of connection string for debugging (don't log full password)
+var connectionStringPreview = connectionString.Length > 50 
+    ? connectionString.Substring(0, 50) + "..." 
+    : connectionString;
+Console.WriteLine($"[DB Config] Using connection string: {connectionStringPreview}");
 
 // If DATABASE_URL is provided, it's in PostgreSQL URI format which Npgsql supports directly
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -41,7 +57,11 @@ builder.Services.AddCors(options =>
             "https://192.168.10.105:3000",
             "https://192.168.10.105:3002",
             "http://172.20.10.12:3000",
-            "https://172.20.10.12:3000"
+            "https://172.20.10.12:3000",
+            // Vercel production domains
+            "https://www.csinvtracker.com",
+            "https://csinvtracker.com",
+            "https://cs-inv-tracker.vercel.app"
         };
 
         // Add Vercel frontend URL from environment variable
@@ -49,6 +69,11 @@ builder.Services.AddCors(options =>
         if (!string.IsNullOrEmpty(frontendUrl))
         {
             allowedOrigins.Add(frontendUrl);
+            // Also add without www if it has www
+            if (frontendUrl.Contains("www."))
+            {
+                allowedOrigins.Add(frontendUrl.Replace("www.", ""));
+            }
         }
 
         // Allow all origins in development, specific origins in production
@@ -125,10 +150,13 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Use PORT environment variable if available (for Railway, Render, etc.)
+// Railway automatically sets PORT, so we use it if present
 var port = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrEmpty(port))
+if (!string.IsNullOrEmpty(port) && int.TryParse(port, out int portNumber))
 {
-    app.Urls.Add($"http://0.0.0.0:{port}");
+    app.Urls.Clear(); // Clear default URLs
+    app.Urls.Add($"http://0.0.0.0:{portNumber}");
 }
+// If PORT is not set, use default behavior (app.Run() will use default ports)
 
 app.Run();

@@ -31,9 +31,11 @@
 
 In Railway, go to your backend service → Variables tab, and add:
 
-- `ConnectionStrings__DefaultConnection` = (the PostgreSQL connection string from step 2)
+- `DATABASE_URL` = (Railway automatically sets this when you add PostgreSQL - you can use this OR `ConnectionStrings__DefaultConnection`)
 - `FRONTEND_URL` = `https://your-vercel-app.vercel.app` (your Vercel frontend URL)
 - `ASPNETCORE_ENVIRONMENT` = `Production`
+
+**Important:** Do NOT set `PORT` manually - Railway automatically sets this for you! If you see a PORT variable, delete it.
 
 ### Step 4: Get Your Backend URL
 

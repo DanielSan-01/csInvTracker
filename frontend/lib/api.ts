@@ -1,16 +1,19 @@
 // Dynamically determine API URL based on current host
 const getApiBaseUrl = () => {
+  // Always use environment variable if set (for production)
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   
-  // In browser, use current host
+  // In browser, use current host (for local development)
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    return `http://${host}:5027/api`;
+    // Use HTTPS in production, HTTP for localhost
+    const protocol = host === 'localhost' || host === '127.0.0.1' ? 'http' : 'https';
+    return `${protocol}://${host}:5027/api`;
   }
   
-  // Fallback for SSR
+  // Fallback for SSR (local development)
   return 'http://localhost:5027/api';
 };
 
