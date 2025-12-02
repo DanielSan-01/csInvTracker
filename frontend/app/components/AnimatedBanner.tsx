@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, ReactElement } from 'react';
 import { gsap } from 'gsap';
 
 type BannerIntent = 'success' | 'error' | 'info';
@@ -20,7 +20,7 @@ const intentStyles: Record<BannerIntent, string> = {
   info: 'border-purple-400/40 bg-purple-500/15 text-purple-100 shadow-purple-500/20',
 };
 
-const intentIcons: Record<BannerIntent, JSX.Element> = {
+const intentIcons: Record<BannerIntent, ReactElement> = {
   success: (
     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
       <path
