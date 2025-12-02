@@ -7,8 +7,19 @@
 1. Go to [railway.app](https://railway.app) and sign up/login
 2. Click "New Project" → "Deploy from GitHub repo"
 3. Select your `csInvTracker` repository
-4. Railway will detect the Dockerfile in the `backend/` folder
-5. **Important**: Set the **Root Directory** to `backend` in Railway settings
+4. **Configure the Service Settings:**
+   - Click on your service (csInvTracker) in Railway
+   - Go to the **Settings** tab
+   - Scroll down to **Build & Deploy** section
+   - Set **Root Directory** to: `backend` (or leave empty if using root-level railway.json)
+   - Set **Build Command** to: (leave empty - Docker will handle it)
+   - Set **Start Command** to: `dotnet backend.dll`
+   - Under **Docker**, make sure **Use Dockerfile** is enabled
+   - Set **Dockerfile Path** to: `backend/Dockerfile` (or just `Dockerfile` if root directory is set to `backend`)
+5. **Alternative**: If Railway still can't detect, manually set:
+   - Go to **Settings** → **Build & Deploy**
+   - Change **Build Command** to: `docker build -f backend/Dockerfile -t backend . && docker run backend`
+   - Or use the root-level `railway.json` we created (it should auto-detect Docker)
 
 ### Step 2: Add PostgreSQL Database
 
@@ -90,6 +101,26 @@ If you prefer Render over Railway:
 - Make sure migrations run on startup (they should automatically)
 
 ### Build Failures
+
+#### "Railpack could not determine how to build the app"
+This means Railway is trying to auto-detect from the root directory. Fix it by:
+
+1. **Option A - Use Railway UI Settings:**
+   - Go to your service → **Settings** → **Build & Deploy**
+   - Enable **Use Dockerfile**
+   - Set **Dockerfile Path** to: `backend/Dockerfile`
+   - Set **Root Directory** to: (leave empty, or set to root `/`)
+
+2. **Option B - Use Root Directory:**
+   - Go to **Settings** → **Build & Deploy**
+   - Set **Root Directory** to: `backend`
+   - Railway should then find the `Dockerfile` and `railway.json` in the backend folder
+
+3. **Verify the railway.json is committed:**
+   - Make sure the root-level `railway.json` is committed to your repo
+   - Railway should detect it and use Docker automatically
+
 - Check Railway/Render logs for specific errors
 - Ensure all NuGet packages are restored correctly
+- Make sure the Dockerfile path is correct relative to your root directory
 

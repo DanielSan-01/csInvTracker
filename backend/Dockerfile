@@ -5,10 +5,14 @@ EXPOSE 8081
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
-COPY ["backend.csproj", "./"]
-RUN dotnet restore "backend.csproj"
-COPY . .
-WORKDIR "/src"
+# Copy the backend project file
+COPY ["backend/backend.csproj", "backend/"]
+# Restore dependencies
+RUN dotnet restore "backend/backend.csproj"
+# Copy the rest of the backend code
+COPY backend/ backend/
+WORKDIR "/src/backend"
+# Build the project
 RUN dotnet build "backend.csproj" -c Release -o /app/build
 
 FROM build AS publish
