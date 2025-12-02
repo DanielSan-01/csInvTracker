@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
@@ -11,7 +11,7 @@ import InventoryListCard from '@/app/components/InventoryListCard';
 import StatCard from '@/app/components/StatCard';
 import { useUser } from '@/contexts/UserContext';
 
-export default function GoalSummaryPage() {
+function GoalSummaryContent() {
   const searchParams = useSearchParams();
   const requestedGoalId = searchParams.get('goalId');
   const { user } = useUser();
@@ -278,5 +278,25 @@ export default function GoalSummaryPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function GoalSummaryPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-gray-300">
+            <svg className="h-8 w-8 animate-spin text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V2.5A9.5 9.5 0 003.5 12H4zm2 5.291A7.962 7.962 0 014 12H2.5c0 3.31 1.344 6.31 3.52 8.477L6 17.291z" />
+            </svg>
+            <p className="text-sm">Loading your goal…</p>
+          </div>
+        </div>
+      }
+    >
+      <GoalSummaryContent />
+    </Suspense>
   );
 }
