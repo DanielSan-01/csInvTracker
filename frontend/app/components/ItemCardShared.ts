@@ -7,9 +7,9 @@ import { formatPrice } from '@/lib/mockData';
 import { formatTimeRemaining } from '@/lib/utils';
 
 export type ItemCardAnimation = {
-  cardRef: React.RefObject<HTMLDivElement>;
-  imageRef: React.RefObject<HTMLDivElement>;
-  imageContainerRef: React.RefObject<HTMLDivElement>;
+  cardRef: React.RefObject<HTMLDivElement | null>;
+  imageRef: React.RefObject<HTMLDivElement | null>;
+  imageContainerRef: React.RefObject<HTMLDivElement | null>;
   handleMouseEnter: () => void;
   handleMouseLeave: () => void;
   imageLoaded: boolean;
