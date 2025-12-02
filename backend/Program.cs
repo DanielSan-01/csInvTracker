@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.Services;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,9 +39,34 @@ var connectionStringPreview = connectionString.Length > 50
     : connectionString;
 Console.WriteLine($"[DB Config] Using connection string: {connectionStringPreview}");
 
-// If DATABASE_URL is provided, it's in PostgreSQL URI format which Npgsql supports directly
+// Convert PostgreSQL URI format to standard connection string if needed
+string finalConnectionString = connectionString;
+if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase) || 
+    connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase))
+{
+    try
+    {
+        var uri = new Uri(connectionString);
+        var builder = new Npgsql.NpgsqlConnectionStringBuilder
+        {
+            Host = uri.Host,
+            Port = uri.Port != -1 ? uri.Port : 5432,
+            Database = uri.AbsolutePath.TrimStart('/'),
+            Username = uri.UserInfo.Split(':')[0],
+            Password = uri.UserInfo.Split(':').Length > 1 ? uri.UserInfo.Split(':')[1] : string.Empty
+        };
+        finalConnectionString = builder.ConnectionString;
+        Console.WriteLine("[DB Config] Converted PostgreSQL URI to standard connection string format");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[DB Config] Warning: Failed to parse PostgreSQL URI, using as-is: {ex.Message}");
+        // Use original connection string if parsing fails
+    }
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(finalConnectionString));
 
 // Add CORS for Next.js frontend
 builder.Services.AddCors(options =>
