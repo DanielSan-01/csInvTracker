@@ -21,6 +21,7 @@ public class InventoryItemDto
     public int? PaintIndex { get; set; }
     public string? DopplerPhase { get; set; }
     public string? DopplerPhaseImageUrl { get; set; }
+    public List<StickerDto> Stickers { get; set; } = new();
 }
 
 public class CreateInventoryItemDto
@@ -33,6 +34,7 @@ public class CreateInventoryItemDto
     public decimal? Cost { get; set; }
     public string? ImageUrl { get; set; }
     public bool TradeProtected { get; set; }
+    public List<CreateStickerDto> Stickers { get; set; } = new();
 }
 
 public class UpdateInventoryItemDto
@@ -43,5 +45,6 @@ public class UpdateInventoryItemDto
     public decimal? Cost { get; set; }
     public string? ImageUrl { get; set; }
     public bool TradeProtected { get; set; }
+    public List<CreateStickerDto> Stickers { get; set; } = new();
 }
 

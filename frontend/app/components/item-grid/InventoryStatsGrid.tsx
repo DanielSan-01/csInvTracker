@@ -7,6 +7,7 @@ type InventoryStatsGridProps = {
   netProfit: string;
   netProfitPositive: boolean | null;
   avgProfitPercent: string;
+  isLoading?: boolean;
 };
 
 export default function InventoryStatsGrid({
@@ -16,12 +17,28 @@ export default function InventoryStatsGrid({
   netProfit,
   netProfitPositive,
   avgProfitPercent,
+  isLoading = false,
 }: InventoryStatsGridProps) {
   return (
     <div className="mb-8 grid grid-cols-1 gap-4 text-sm text-gray-400 sm:grid-cols-2 lg:grid-cols-4">
-      <StatCard label="Total Items" value={totalItems} valueClassName="type-heading-xl" />
-      <StatCard label="Market Value" value={marketValue} valueClassName="type-heading-xl" />
-      <StatCard label="Acquisition Cost" value={acquisitionCost} valueClassName="type-heading-xl" />
+      <StatCard 
+        label="Total Items" 
+        value={totalItems} 
+        valueClassName="type-heading-xl" 
+        isLoading={isLoading}
+      />
+      <StatCard 
+        label="Market Value" 
+        value={marketValue} 
+        valueClassName="type-heading-xl" 
+        isLoading={isLoading}
+      />
+      <StatCard 
+        label="Acquisition Cost" 
+        value={acquisitionCost} 
+        valueClassName="type-heading-xl" 
+        isLoading={isLoading}
+      />
       <StatCard
         label="Net Profit"
         value={netProfit}
@@ -29,6 +46,7 @@ export default function InventoryStatsGrid({
           netProfitPositive == null ? '' : netProfitPositive ? 'text-green-400' : 'text-red-400'
         }`}
         secondaryValue={avgProfitPercent}
+        isLoading={isLoading}
       />
     </div>
   );

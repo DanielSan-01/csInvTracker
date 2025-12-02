@@ -3,12 +3,18 @@
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { CSItem } from '@/lib/mockData';
+import type { SkinDto } from '@/lib/api';
+import NavbarSearch from './NavbarSearch';
 
 type NavbarProps = {
   isAuthenticated?: boolean;
   onLoadFromSteam?: () => void;
   isLoadingSteam?: boolean;
   authControl?: ReactNode;
+  userInventory?: CSItem[];
+  onQuickAddSkin?: (skin: SkinDto) => void;
+  canAdd?: boolean;
 };
 
 const baseButtonClasses =
@@ -19,6 +25,9 @@ const Navbar = ({
   onLoadFromSteam,
   isLoadingSteam = false,
   authControl,
+  userInventory = [],
+  onQuickAddSkin,
+  canAdd = false,
 }: NavbarProps) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
@@ -100,13 +109,24 @@ const Navbar = ({
 
   return (
     <header className="border-b border-gray-800 bg-gray-950/95 text-white">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 md:px-6">
-        <div>
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-6">
+        <div className="flex-shrink-0">
           <Link href="/" onClick={() => setMenuOpen(false)} className="text-xl font-semibold md:text-2xl">
             CS Inventory Tracker
           </Link>
           <p className="text-xs text-gray-400 md:text-sm">{subtitle}</p>
         </div>
+
+        {/* Search Bar - Desktop */}
+        {onQuickAddSkin && (
+          <div className="hidden flex-1 max-w-md md:block">
+            <NavbarSearch
+              userInventory={userInventory}
+              onAddSkin={onQuickAddSkin}
+              isLoggedIn={canAdd}
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-3 md:hidden">
           <button
@@ -130,6 +150,16 @@ const Navbar = ({
       </div>
 
       <div className={`${menuOpen ? 'flex' : 'hidden'} flex-col gap-3 border-t border-gray-800 px-4 pb-4 md:hidden`}>
+        {/* Search Bar - Mobile */}
+        {onQuickAddSkin && (
+          <div className="w-full">
+            <NavbarSearch
+              userInventory={userInventory}
+              onAddSkin={onQuickAddSkin}
+              isLoggedIn={canAdd}
+            />
+          </div>
+        )}
         {renderPlanGoalLink('mobile')}
         {renderLoadoutLink('mobile')}
         {renderLoadFromSteam('mobile')}

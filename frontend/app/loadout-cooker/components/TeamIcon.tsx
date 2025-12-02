@@ -37,3 +37,4 @@ export default function TeamIcon({ team, className = '', size = 'h-4 w-4' }: Tea
   );
 }
 
+

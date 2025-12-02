@@ -1,6 +1,10 @@
-import type { CSItem } from '@/lib/mockData';
-import { exteriorAbbr, rarityGradients } from '@/lib/mockData';
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import type { CSItem, CSSticker } from '@/lib/mockData';
+import { exteriorAbbr, rarityGradients, formatPrice } from '@/lib/mockData';
 import type { ItemCardAnimation } from '../ItemCardShared';
+import StickerTooltip from './StickerTooltip';
 
 type DetailImageProps = {
   item: CSItem;
@@ -8,23 +12,129 @@ type DetailImageProps = {
 };
 
 export default function DetailImage({ item, animation }: DetailImageProps) {
+  const stickers = item.stickers || [];
+  const [activeTooltip, setActiveTooltip] = useState<{
+    sticker: CSSticker;
+    position: { x: number; y: number };
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setActiveTooltip(null);
+      }
+    };
+
+    if (activeTooltip) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [activeTooltip]);
+
+  const handleStickerClick = (sticker: CSSticker, event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const position = {
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    };
+
+    if (activeTooltip?.sticker.id === sticker.id) {
+      setActiveTooltip(null);
+    } else {
+      setActiveTooltip({ sticker, position });
+    }
+  };
+
   return (
     <div
       ref={animation.imageContainerRef}
-      className={`flex w-full items-center justify-center bg-gradient-to-b ${rarityGradients[item.rarity]}`}
+      className={`relative flex flex-col bg-gradient-to-b ${rarityGradients[item.rarity]}`}
       style={{
         opacity: animation.imageLoaded ? 1 : 0.3,
         filter: animation.imageLoaded ? 'brightness(1)' : 'brightness(0.5)',
       }}
     >
-      <div
-        ref={animation.imageRef}
-        className="flex h-full w-full items-center justify-center px-6 pt-10 pb-6"
-      >
-        {item.imageUrl && (
-          <img src={item.imageUrl} alt={item.name} className="max-h-full max-w-full object-contain" />
-        )}
+      <div className="flex flex-1 items-center justify-center px-6 pt-10">
+        <div
+          ref={animation.imageRef}
+          className="flex h-full w-full items-center justify-center"
+        >
+          {item.imageUrl && (
+            <img src={item.imageUrl} alt={item.name} className="max-h-full max-w-full object-contain" />
+          )}
+        </div>
       </div>
+
+      {/* Stickers display below weapon image */}
+      {stickers.length > 0 && (
+        <div ref={containerRef} className="relative flex items-center justify-center gap-2 px-6 pb-4">
+          {stickers.slice(0, 5).map((sticker, idx) => (
+            <button
+              key={sticker.id ?? idx}
+              onClick={(e) => handleStickerClick(sticker, e)}
+              onMouseEnter={(e) => {
+                if (!activeTooltip) {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setActiveTooltip({
+                    sticker,
+                    position: {
+                      x: rect.left + rect.width / 2,
+                      y: rect.top,
+                    },
+                  });
+                }
+              }}
+              className="group relative h-12 w-12 rounded border border-gray-700/50 bg-gray-800/40 p-1.5 transition-all hover:border-gray-600 hover:bg-gray-800/80 hover:shadow-lg"
+              aria-label={`Sticker: ${sticker.name}`}
+            >
+              {sticker.imageUrl ? (
+                <img
+                  src={sticker.imageUrl}
+                  alt={sticker.name}
+                  className="h-full w-full object-contain"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent && !parent.querySelector('svg')) {
+                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                      svg.setAttribute('class', 'h-full w-full text-gray-400');
+                      svg.setAttribute('fill', 'currentColor');
+                      svg.setAttribute('viewBox', '0 0 20 20');
+                      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                      path.setAttribute(
+                        'd',
+                        'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z'
+                      );
+                      svg.appendChild(path);
+                      parent.appendChild(svg);
+                    }
+                  }}
+                />
+              ) : (
+                <svg className="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              )}
+              <div className="absolute inset-0 rounded opacity-0 transition-opacity group-hover:opacity-100 group-hover:shadow-[0_0_8px_rgba(147,51,234,0.5)]" />
+            </button>
+          ))}
+
+          {activeTooltip && (
+            <StickerTooltip
+              sticker={activeTooltip.sticker}
+              position={activeTooltip.position}
+              onClose={() => setActiveTooltip(null)}
+            />
+          )}
+        </div>
+      )}
+
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-gray-950/70 via-gray-950/0 to-gray-950/40" />
 
       <div className="absolute top-4 left-4 right-4 flex flex-wrap items-center justify-between gap-2">

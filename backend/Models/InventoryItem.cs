@@ -45,4 +45,6 @@ public class InventoryItem
     
     [ForeignKey("SkinId")]
     public Skin Skin { get; set; } = null!;
+    
+    public ICollection<Sticker> Stickers { get; set; } = new List<Sticker>();
 }

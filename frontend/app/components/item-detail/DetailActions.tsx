@@ -46,3 +46,4 @@ export default function DetailActions({ onEdit, onDelete }: DetailActionsProps) 
   );
 }
 
+

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { CSItem } from '@/lib/mockData';
-import AddSkinForm, { NewSkinData } from './AddSkinForm';
+import { CSItem, CSSticker } from '@/lib/mockData';
+import AddSkinForm from './AddSkinForm';
+import type { NewSkinData } from './add-skin/types';
 import { useInventory } from '@/hooks/useInventory';
 import { useUser } from '@/contexts/UserContext';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
@@ -20,7 +21,6 @@ import InventoryToast from './item-grid/InventoryToast';
 import DeleteConfirmationModal from './item-grid/DeleteConfirmationModal';
 import InventoryLoadingOverlay from './item-grid/InventoryLoadingOverlay';
 import SteamLoadingOverlay from './item-grid/SteamLoadingOverlay';
-import InventorySearchSection from './item-grid/InventorySearchSection';
 import InventoryFilterInput from './item-grid/InventoryFilterInput';
 import InventoryStatsGrid from './item-grid/InventoryStatsGrid';
 import InventoryGridList from './item-grid/InventoryGridList';
@@ -29,7 +29,7 @@ import { useToast } from './item-grid/useToast';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
-  const { items: backendItems, stats, loading, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
+  const { items: backendItems, stats, loading, refreshing, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
   const items = inventoryItemsToCSItems(backendItems);
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
@@ -46,6 +46,7 @@ export default function ItemGrid() {
   // const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<CSItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const { toast, showToast } = useToast();
 
   // Load Steam ID on mount and listen for changes
@@ -103,6 +104,17 @@ export default function ItemGrid() {
     }
     
     // Convert NewSkinData to CreateInventoryItemDto
+    const validStickers = newSkinData.stickers
+      ?.filter((s: CSSticker) => s.name && s.name.trim().length > 0) // Only include stickers with names
+      .map((s: CSSticker) => ({
+        name: s.name,
+        price: s.price,
+        slot: s.slot,
+        imageUrl: s.imageUrl,
+      })) || [];
+    
+    console.log('[ItemGrid] Creating item with stickers:', validStickers);
+    
     const createDto: CreateInventoryItemDto = {
       userId: user.id,
       skinId: newSkinData.skinId!, // Will be provided by updated AddSkinForm
@@ -112,12 +124,17 @@ export default function ItemGrid() {
       cost: newSkinData.cost,
       imageUrl: newSkinData.imageUrl,
       tradeProtected: newSkinData.tradeProtected ?? false,
+      stickers: validStickers.length > 0 ? validStickers : undefined,
     };
 
     const newItem = await createItem(createDto);
     if (newItem) {
+      console.log('[ItemGrid] Created item response:', newItem);
+      console.log('[ItemGrid] Stickers in created item:', newItem.stickers);
       // Select the newly added item
       const csItem = inventoryItemsToCSItems([newItem])[0];
+      console.log('[ItemGrid] Converted CSItem:', csItem);
+      console.log('[ItemGrid] Stickers in CSItem:', csItem?.stickers);
       if (csItem) {
         setSelectedItemId(csItem.id);
       }
@@ -130,6 +147,17 @@ export default function ItemGrid() {
   };
 
   const handleUpdateSkin = async (id: string, updatedData: NewSkinData): Promise<boolean> => {
+    const validStickers = updatedData.stickers
+      ?.filter((s: CSSticker) => s.name && s.name.trim().length > 0) // Only include stickers with names
+      .map((s: CSSticker) => ({
+        name: s.name,
+        price: s.price,
+        slot: s.slot,
+        imageUrl: s.imageUrl,
+      })) || [];
+    
+    console.log('[ItemGrid] Updating item with stickers:', validStickers);
+    
     const updateDto: UpdateInventoryItemDto = {
       float: updatedData.float ?? 0.5,
       paintSeed: updatedData.paintSeed,
@@ -137,10 +165,16 @@ export default function ItemGrid() {
       cost: updatedData.cost,
       imageUrl: updatedData.imageUrl,
       tradeProtected: updatedData.tradeProtected ?? false,
+      stickers: validStickers.length > 0 ? validStickers : undefined,
     };
 
+    setIsUpdating(true);
     const success = await updateItem(parseInt(id), updateDto);
+    setIsUpdating(false);
+    
     if (success) {
+      // Force a refresh to ensure we have the latest data
+      await refresh();
       setSelectedItemId(id);
       showToast('Skin updated successfully.', 'success');
       return true;
@@ -151,6 +185,7 @@ export default function ItemGrid() {
   };
 
   const handleEditClick = (item: CSItem) => {
+    console.log('[ItemGrid] Editing item:', item.id, 'stickers:', item.stickers);
     setEditingItem(item);
   };
 
@@ -281,6 +316,9 @@ export default function ItemGrid() {
         onLoadFromSteam={steamId && user ? handleLoadFromSteam : undefined}
         isLoadingSteam={isLoadingSteam}
         authControl={<SteamLoginButton />}
+        userInventory={sortedItems}
+        onQuickAddSkin={handleQuickAddSkin}
+        canAdd={!!user}
       />
 
       <InventoryToast toast={toast} />
@@ -295,7 +333,7 @@ export default function ItemGrid() {
       )}
 
       {/* Backend Loading State */}
-      {loading && user && <InventoryLoadingOverlay username={user.username} />}
+      {loading && user && user.username && <InventoryLoadingOverlay username={user.username} />}
 
       {/* Backend Error State */}
       {error && (
@@ -311,14 +349,22 @@ export default function ItemGrid() {
       {isLoadingSteam && <SteamLoadingOverlay />}
 
       <div className="mx-auto mt-8 w-full max-w-7xl px-4 md:px-6">
-        <InventorySearchSection
-          items={sortedItems}
-          onQuickAdd={handleQuickAddSkin}
-          onOpenAddForm={() => setShowAddForm(true)}
-          canAdd={!!user}
-        />
-
-        <InventoryFilterInput value={searchTerm} onChange={setSearchTerm} />
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="flex-1 max-w-md">
+            <InventoryFilterInput value={searchTerm} onChange={setSearchTerm} />
+          </div>
+          {user && (
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400 flex-shrink-0"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Skin
+            </button>
+          )}
+        </div>
 
         <InventoryStatsGrid
           totalItems={statsSummary.totalItems}
@@ -327,6 +373,7 @@ export default function ItemGrid() {
           netProfit={statsSummary.netProfit}
           netProfitPositive={statsSummary.netProfitPositive}
           avgProfitPercent={statsSummary.avgProfitPercent}
+          isLoading={refreshing}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

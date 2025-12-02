@@ -30,3 +30,4 @@ export default function InventoryGridList({ items, selectedId, onSelect }: Inven
   );
 }
 
+

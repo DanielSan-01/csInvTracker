@@ -40,3 +40,4 @@ export const buildPreviewImageUrl = (
   return `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(safeName)}`;
 };
 
+

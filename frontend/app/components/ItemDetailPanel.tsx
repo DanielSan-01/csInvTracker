@@ -10,6 +10,7 @@ import {
 import DetailImage from './item-detail/DetailImage';
 import DetailStats from './item-detail/DetailStats';
 import DetailFloat from './item-detail/DetailFloat';
+import DetailStickers from './item-detail/DetailStickers';
 import DetailInfoPills from './item-detail/DetailInfoPills';
 import DetailActions from './item-detail/DetailActions';
 

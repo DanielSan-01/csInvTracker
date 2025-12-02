@@ -31,6 +31,20 @@ export interface SkinDto {
   dopplerPhaseImageUrl?: string;
 }
 
+export interface StickerDto {
+  id: number;
+  name: string;
+  price?: number;
+  slot?: number;
+  imageUrl?: string;
+}
+
+export interface StickerCatalogDto {
+  name: string;
+  imageUrl?: string;
+  averagePrice?: number;
+}
+
 export interface InventoryItemDto {
   id: number;
   skinId: number;
@@ -51,6 +65,7 @@ export interface InventoryItemDto {
   paintIndex?: number;
   dopplerPhase?: string;
   dopplerPhaseImageUrl?: string;
+  stickers?: StickerDto[];
 }
 
 export interface InventoryStatsDto {
@@ -92,6 +107,13 @@ export interface GoalDto {
   selectedItems: GoalSelectedItemDto[];
 }
 
+export interface CreateStickerDto {
+  name: string;
+  price?: number;
+  slot?: number;
+  imageUrl?: string;
+}
+
 export interface CreateInventoryItemDto {
   userId: number;
   skinId: number;
@@ -101,6 +123,7 @@ export interface CreateInventoryItemDto {
   cost?: number;
   imageUrl?: string;
   tradeProtected: boolean;
+  stickers?: CreateStickerDto[];
 }
 
 export interface UpdateInventoryItemDto {
@@ -110,6 +133,7 @@ export interface UpdateInventoryItemDto {
   cost?: number;
   imageUrl?: string;
   tradeProtected: boolean;
+  stickers?: CreateStickerDto[];
 }
 
 // Skins API
@@ -191,6 +215,22 @@ export const adminApi = {
   },
 };
 
+// Stickers API
+export const stickersApi = {
+  getStickers: async (search?: string): Promise<StickerCatalogDto[]> => {
+    const url = new URL(`${API_BASE_URL}/stickers`);
+    if (search) {
+      url.searchParams.append('search', search);
+    }
+    
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch stickers');
+    }
+    return response.json();
+  },
+};
+
 // Inventory API
 export const inventoryApi = {
   getInventoryItems: async (userId?: number): Promise<InventoryItemDto[]> => {
@@ -220,7 +260,7 @@ export const inventoryApi = {
     return response.json();
   },
 
-  updateInventoryItem: async (id: number, item: UpdateInventoryItemDto): Promise<void> => {
+  updateInventoryItem: async (id: number, item: UpdateInventoryItemDto): Promise<InventoryItemDto> => {
     const response = await fetch(`${API_BASE_URL}/inventory/${id}`, {
       method: 'PUT',
       headers: {
@@ -231,6 +271,7 @@ export const inventoryApi = {
     if (!response.ok) {
       throw new Error('Failed to update inventory item');
     }
+    return response.json();
   },
 
   deleteInventoryItem: async (id: number): Promise<void> => {

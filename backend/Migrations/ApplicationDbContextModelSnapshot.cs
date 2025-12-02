@@ -360,6 +360,39 @@ namespace backend.Migrations
                         });
                 });
 
+            modelBuilder.Entity("backend.Models.Sticker", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("InventoryItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal?>("Price")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("Slot")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryItemId");
+
+                    b.ToTable("Stickers");
+                });
+
             modelBuilder.Entity("backend.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -429,6 +462,17 @@ namespace backend.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("backend.Models.Sticker", b =>
+                {
+                    b.HasOne("backend.Models.InventoryItem", "InventoryItem")
+                        .WithMany("Stickers")
+                        .HasForeignKey("InventoryItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InventoryItem");
+                });
+
             modelBuilder.Entity("backend.Models.LoadoutFavorite", b =>
                 {
                     b.HasOne("backend.Models.User", "User")
@@ -478,6 +522,11 @@ namespace backend.Migrations
             modelBuilder.Entity("backend.Models.Skin", b =>
                 {
                     b.Navigation("InventoryItems");
+                });
+
+            modelBuilder.Entity("backend.Models.Sticker", b =>
+                {
+                    b.Navigation("InventoryItem");
                 });
 
             modelBuilder.Entity("backend.Models.User", b =>

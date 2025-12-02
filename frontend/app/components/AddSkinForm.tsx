@@ -10,6 +10,7 @@ import { getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
 import SkinCatalogSearch from './add-skin/SkinCatalogSearch';
 import RequiredFieldsSection from './add-skin/RequiredFieldsSection';
 import AdvancedFieldsSection from './add-skin/AdvancedFieldsSection';
+import StickersSection from './add-skin/StickersSection';
 import PreviewPanel from './add-skin/PreviewPanel';
 import {
   EXTERIOR_PRESETS,
@@ -30,19 +31,28 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
 
   const effectiveSkin = selectedSkin ?? initialSkin;
 
-  const baseFormState = useMemo<NewSkinData>(() => ({
-    skinId: item?.skinId ?? effectiveSkin?.id,
-    name: item?.name ?? effectiveSkin?.name ?? '',
-    rarity: item?.rarity ?? (effectiveSkin?.rarity as Rarity) ?? 'Mil-Spec',
-    type: item?.type ?? (effectiveSkin?.type as ItemType) ?? 'Rifle',
-    float: item?.float,
-    paintSeed: item?.paintSeed,
-    patternName: undefined,
-    price: item?.price ?? Number(effectiveSkin?.defaultPrice ?? 0),
-    cost: item?.cost,
-    imageUrl: item?.imageUrl ?? effectiveSkin?.imageUrl,
-    tradeProtected: item?.tradeProtected ?? false,
-  }), [item, effectiveSkin]);
+  const baseFormState = useMemo<NewSkinData>(() => {
+    const state = {
+      skinId: item?.skinId ?? effectiveSkin?.id,
+      name: item?.name ?? effectiveSkin?.name ?? '',
+      rarity: item?.rarity ?? (effectiveSkin?.rarity as Rarity) ?? 'Mil-Spec',
+      type: item?.type ?? (effectiveSkin?.type as ItemType) ?? 'Rifle',
+      float: item?.float,
+      paintSeed: item?.paintSeed,
+      price: item?.price ?? Number(effectiveSkin?.defaultPrice ?? 0),
+      cost: item?.cost,
+      imageUrl: item?.imageUrl ?? effectiveSkin?.imageUrl,
+      tradeProtected: item?.tradeProtected ?? false,
+      stickers: item?.stickers,
+    };
+    console.log('[AddSkinForm] baseFormState initialized:', {
+      itemId: item?.id,
+      hasItem: !!item,
+      stickersFromItem: item?.stickers,
+      finalStickers: state.stickers,
+    });
+    return state;
+  }, [item, effectiveSkin]);
 
   const [formData, setFormData] = useState<NewSkinData>(baseFormState);
   const updateFormData = (updates: Partial<NewSkinData>) => {
@@ -152,6 +162,14 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       imageUrl,
       tradeProtected: formData.tradeProtected || false,
     };
+    
+    console.log('[AddSkinForm] Submitting data:', {
+      isEditMode,
+      itemId: item?.id,
+      stickers: submitData.stickers,
+      stickerCount: submitData.stickers?.length || 0,
+      fullSubmitData: submitData,
+    });
 
     try {
       let result: boolean | void | undefined;
@@ -334,11 +352,17 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
               </div>
 
               {showAdvanced && (
-                <AdvancedFieldsSection
-                  formData={formData}
-                  errors={errors}
-                  onChange={updateFormData}
-                />
+                <>
+                  <AdvancedFieldsSection
+                    formData={formData}
+                    errors={errors}
+                    onChange={updateFormData}
+                  />
+                  <StickersSection
+                    formData={formData}
+                    onChange={updateFormData}
+                  />
+                </>
               )}
             </div>
 

@@ -100,6 +100,7 @@ public class InventoryController : ControllerBase
         {
             var query = _context.InventoryItems
                 .Include(i => i.Skin)
+                .Include(i => i.Stickers)
                 .AsQueryable();
 
             // Filter by user if userId provided
@@ -128,6 +129,7 @@ public class InventoryController : ControllerBase
         {
             var item = await _context.InventoryItems
                 .Include(i => i.Skin)
+                .Include(i => i.Stickers)
                 .FirstOrDefaultAsync(i => i.Id == id);
 
             if (item == null)
@@ -179,12 +181,28 @@ public class InventoryController : ControllerBase
                 AcquiredAt = DateTime.UtcNow
             };
 
+            // Add stickers if provided
+            if (dto.Stickers != null && dto.Stickers.Any())
+            {
+                foreach (var stickerDto in dto.Stickers)
+                {
+                    item.Stickers.Add(new Sticker
+                    {
+                        Name = stickerDto.Name,
+                        Price = stickerDto.Price,
+                        Slot = stickerDto.Slot,
+                        ImageUrl = stickerDto.ImageUrl
+                    });
+                }
+            }
+
             _context.InventoryItems.Add(item);
             await _context.SaveChangesAsync();
 
             // Fetch the complete item with skin data
             var createdItem = await _context.InventoryItems
                 .Include(i => i.Skin)
+                .Include(i => i.Stickers)
                 .FirstAsync(i => i.Id == item.Id);
 
             return CreatedAtAction(nameof(GetInventoryItem), new { id = item.Id }, MapToDto(createdItem));
@@ -202,7 +220,9 @@ public class InventoryController : ControllerBase
     {
         try
         {
-            var item = await _context.InventoryItems.FindAsync(id);
+            var item = await _context.InventoryItems
+                .Include(i => i.Stickers)
+                .FirstOrDefaultAsync(i => i.Id == id);
             if (item == null)
             {
                 return NotFound();
@@ -229,14 +249,44 @@ public class InventoryController : ControllerBase
                 item.TradableAfter = null;
             }
 
+            // Update stickers - remove existing and add new ones
+            item.Stickers.Clear();
+
+            if (dto.Stickers != null && dto.Stickers.Any())
+            {
+                _logger.LogInformation("Adding {Count} stickers to item {ItemId}", dto.Stickers.Count, id);
+                foreach (var stickerDto in dto.Stickers)
+                {
+                    var sticker = new Sticker
+                    {
+                        Name = stickerDto.Name,
+                        Price = stickerDto.Price,
+                        Slot = stickerDto.Slot,
+                        ImageUrl = stickerDto.ImageUrl
+                    };
+                    item.Stickers.Add(sticker);
+                    _logger.LogInformation("Added sticker: {Name} (Price: {Price}, Slot: {Slot})", sticker.Name, sticker.Price, sticker.Slot);
+                }
+            }
+            else
+            {
+                _logger.LogInformation("No stickers to add for item {ItemId}", id);
+            }
+
             await _context.SaveChangesAsync();
+            _logger.LogInformation("Saved changes for item {ItemId}, sticker count: {Count}", id, item.Stickers.Count);
 
             // Fetch the updated item with skin data
             var updatedItem = await _context.InventoryItems
                 .Include(i => i.Skin)
+                .Include(i => i.Stickers)
                 .FirstAsync(i => i.Id == id);
 
-            return Ok(MapToDto(updatedItem));
+            _logger.LogInformation("Fetched updated item {ItemId} with {StickerCount} stickers", id, updatedItem.Stickers.Count);
+            var resultDto = MapToDto(updatedItem);
+            _logger.LogInformation("Mapped to DTO with {StickerCount} stickers", resultDto.Stickers?.Count ?? 0);
+            
+            return Ok(resultDto);
         }
         catch (Exception ex)
         {
@@ -298,6 +348,16 @@ public class InventoryController : ControllerBase
             dto.DopplerPhase = phaseInfo.Phase;
             dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
         }
+
+        // Map stickers
+        dto.Stickers = item.Stickers.Select(s => new StickerDto
+        {
+            Id = s.Id,
+            Name = s.Name,
+            Price = s.Price,
+            Slot = s.Slot,
+            ImageUrl = s.ImageUrl
+        }).ToList();
 
         return dto;
     }

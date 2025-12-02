@@ -5,8 +5,7 @@ type InventoryFilterInputProps = {
 
 export default function InventoryFilterInput({ value, onChange }: InventoryFilterInputProps) {
   return (
-    <div className="mb-6 flex items-center">
-      <div className="relative w-full max-w-md">
+    <div className="relative w-full">
         <label htmlFor="inventory-filter" className="sr-only">
           Filter your inventory
         </label>
@@ -23,7 +22,6 @@ export default function InventoryFilterInput({ value, onChange }: InventoryFilte
           onChange={(event) => onChange(event.target.value)}
           className="w-full rounded-lg border border-gray-700 bg-gray-800 px-10 py-2 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
         />
-      </div>
     </div>
   );
 }

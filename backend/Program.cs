@@ -22,23 +22,59 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowNextJs", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:3000",
-                "http://localhost:3002",
-                "http://127.0.0.1:3000",
-                "http://192.168.10.105:3000",
-                "http://192.168.10.105:3002",
-                "https://192.168.10.105:3000",
-                "https://192.168.10.105:3002",
-                "http://172.20.10.12:3000",
-                "https://172.20.10.12:3000")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        var allowedOrigins = new List<string>
+        {
+            "http://localhost:3000",
+            "http://localhost:3002",
+            "http://127.0.0.1:3000",
+            "http://192.168.10.105:3000",
+            "http://192.168.10.105:3002",
+            "https://192.168.10.105:3000",
+            "https://192.168.10.105:3002",
+            "http://172.20.10.12:3000",
+            "https://172.20.10.12:3000"
+        };
+
+        // Add Vercel frontend URL from environment variable
+        var frontendUrl = builder.Configuration["FRONTEND_URL"];
+        if (!string.IsNullOrEmpty(frontendUrl))
+        {
+            allowedOrigins.Add(frontendUrl);
+        }
+
+        // Allow all origins in development, specific origins in production
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithOrigins(allowedOrigins.ToArray())
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
     });
 });
 
 var app = builder.Build();
+
+// Apply pending migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    try
+    {
+        dbContext.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database.");
+    }
+}
 
 var runByMykelImport = args.Contains("--import-skins", StringComparer.OrdinalIgnoreCase);
 var runCsFloatImport = args.Contains("--import-csfloat", StringComparer.OrdinalIgnoreCase);
@@ -78,5 +114,12 @@ app.UseCors("AllowNextJs");
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Use PORT environment variable if available (for Railway, Render, etc.)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrEmpty(port))
+{
+    app.Urls.Add($"http://0.0.0.0:{port}");
+}
 
 app.Run();

@@ -65,26 +65,6 @@ export default function AdvancedFieldsSection({
           )}
         </div>
 
-        <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-medium text-gray-300">
-            Pattern Name / Pattern ID
-          </label>
-          <input
-            type="text"
-            value={formData.patternName ?? ''}
-            onChange={(event) =>
-              onChange({
-                patternName: event.target.value || undefined,
-              })
-            }
-            className="w-full rounded-lg border-2 border-gray-700 bg-gray-800 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-            placeholder="e.g., Phase 4, Tiger Tooth, Urban Masked"
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Pattern name or ID (e.g., "Doppler Phase 4" or pattern number)
-          </p>
-        </div>
-
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">Cost (USD)</label>
           <input

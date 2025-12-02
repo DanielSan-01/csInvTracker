@@ -9,7 +9,7 @@ import { CSItem, Rarity, Exterior, ItemType } from './mockData';
  * Convert backend InventoryItemDto to frontend CSItem format
  */
 export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
-  return {
+  const converted = {
     id: dto.id.toString(),
     skinId: dto.skinId,
     name: dto.skinName,
@@ -28,7 +28,22 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
     tradableAfter: dto.tradableAfter ? new Date(dto.tradableAfter) : undefined,
     dopplerPhase: dto.dopplerPhase,
     dopplerPhaseImageUrl: dto.dopplerPhaseImageUrl,
+    stickers: dto.stickers?.map(s => ({
+      id: s.id,
+      name: s.name,
+      price: s.price,
+      slot: s.slot,
+      imageUrl: s.imageUrl,
+    })),
   };
+  
+  // Debug logging for stickers
+  if (dto.stickers && dto.stickers.length > 0) {
+    console.log('[dataConverter] Converting item', dto.id, 'with', dto.stickers.length, 'stickers:', dto.stickers);
+    console.log('[dataConverter] Converted stickers:', converted.stickers);
+  }
+  
+  return converted;
 }
 
 /**

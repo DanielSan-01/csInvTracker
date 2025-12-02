@@ -1,4 +1,4 @@
-import type { CSItem, Rarity, ItemType } from '@/lib/mockData';
+import type { CSItem, Rarity, ItemType, CSSticker } from '@/lib/mockData';
 import type { SkinDto } from '@/lib/api';
 
 export interface NewSkinData {
@@ -13,6 +13,7 @@ export interface NewSkinData {
   cost?: number;
   imageUrl?: string;
   tradeProtected?: boolean;
+  stickers?: CSSticker[];
 }
 
 export interface AddSkinFormProps {

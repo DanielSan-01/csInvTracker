@@ -13,6 +13,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Skin> Skins { get; set; } = null!;
     public DbSet<InventoryItem> InventoryItems { get; set; } = null!;
+    public DbSet<Sticker> Stickers { get; set; } = null!;
     public DbSet<Goal> Goals { get; set; } = null!;
     public DbSet<GoalSelectedItem> GoalSelectedItems { get; set; } = null!;
     public DbSet<LoadoutFavorite> LoadoutFavorites { get; set; } = null!;
@@ -76,6 +77,13 @@ public class ApplicationDbContext : DbContext
             .WithMany(s => s.InventoryItems)
             .HasForeignKey(i => i.SkinId)
             .OnDelete(DeleteBehavior.Restrict);
+        
+        // Configure InventoryItem -> Stickers relationship
+        modelBuilder.Entity<InventoryItem>()
+            .HasMany(i => i.Stickers)
+            .WithOne(s => s.InventoryItem)
+            .HasForeignKey(s => s.InventoryItemId)
+            .OnDelete(DeleteBehavior.Cascade);
         
         // Seed initial skin data
         SeedData(modelBuilder);

@@ -23,3 +23,4 @@ export default function InventoryDetailPanel({ item, onEdit, onDelete }: Invento
   );
 }
 
+

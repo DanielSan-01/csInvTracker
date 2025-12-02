@@ -22,6 +22,14 @@ export type ItemType =
   | 'Tool'
   | 'Other';
 
+export interface CSSticker {
+  id?: number;
+  name: string;
+  price?: number;
+  slot?: number;
+  imageUrl?: string;
+}
+
 export interface CSItem {
   id: string;
   skinId?: number;
@@ -41,6 +49,7 @@ export interface CSItem {
   tradableAfter?: Date;
   dopplerPhase?: string;
   dopplerPhaseImageUrl?: string;
+  stickers?: CSSticker[];
 }
 
 export type Rarity = 

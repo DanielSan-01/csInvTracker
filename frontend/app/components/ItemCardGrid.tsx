@@ -58,7 +58,7 @@ export default function ItemCardGrid({
 
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
           <span className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100">
-            {formatFloat(item.float, 3)}
+            {formatFloat(item.float, 4)}
           </span>
           {item.tradeProtected && (
             <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/40 bg-amber-500/30 px-1.5 py-0.5 text-[9px] text-amber-200">
@@ -74,6 +74,60 @@ export default function ItemCardGrid({
           )}
         </div>
       </div>
+
+      {/* Stickers display below weapon image */}
+      {(() => {
+        // Debug logging
+        if (item.stickers && item.stickers.length > 0) {
+          console.log('[ItemCardGrid] Rendering stickers for item', item.id, ':', item.stickers);
+        }
+        return null;
+      })()}
+      {item.stickers && item.stickers.length > 0 && (
+        <div className="flex items-center justify-center gap-1.5 border-t border-white/10 bg-black/60 px-4 py-2">
+          {item.stickers.slice(0, 5).map((sticker, idx) => (
+            <div
+              key={sticker.id ?? idx}
+              className="h-8 w-8 rounded border border-gray-700/50 bg-gray-800/60 p-1 transition-all hover:border-gray-600 hover:bg-gray-800/80"
+              title={sticker.name}
+            >
+              {sticker.imageUrl ? (
+                <img
+                  src={sticker.imageUrl}
+                  alt={sticker.name}
+                  className="h-full w-full object-contain"
+                  onError={(e) => {
+                    const target = e.currentTarget as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent && !parent.querySelector('svg')) {
+                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                      svg.setAttribute('class', 'h-full w-full text-gray-400');
+                      svg.setAttribute('fill', 'currentColor');
+                      svg.setAttribute('viewBox', '0 0 20 20');
+                      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                      path.setAttribute(
+                        'd',
+                        'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z'
+                      );
+                      svg.appendChild(path);
+                      parent.appendChild(svg);
+                    }
+                  }}
+                />
+              ) : (
+                <svg className="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/80 px-4 py-2.5 backdrop-blur-sm">
           <div className="flex flex-col gap-1 text-[8px] uppercase tracking-wide text-gray-500">
