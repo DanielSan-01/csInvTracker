@@ -47,7 +47,7 @@ if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreC
     try
     {
         var uri = new Uri(connectionString);
-        var builder = new Npgsql.NpgsqlConnectionStringBuilder
+        var connBuilder = new Npgsql.NpgsqlConnectionStringBuilder
         {
             Host = uri.Host,
             Port = uri.Port != -1 ? uri.Port : 5432,
@@ -55,7 +55,7 @@ if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreC
             Username = uri.UserInfo.Split(':')[0],
             Password = uri.UserInfo.Split(':').Length > 1 ? uri.UserInfo.Split(':')[1] : string.Empty
         };
-        finalConnectionString = builder.ConnectionString;
+        finalConnectionString = connBuilder.ConnectionString;
         Console.WriteLine("[DB Config] Converted PostgreSQL URI to standard connection string format");
     }
     catch (Exception ex)
