@@ -126,16 +126,16 @@ export default function ItemCardGrid({
       <div className="flex flex-col gap-2 border-t border-white/10 bg-black/80 px-4 py-3 backdrop-blur-sm">
         {/* Price info in a more compact layout */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-          <div>
+          <div className="min-w-0">
             <span className="text-[8px] uppercase tracking-wide text-gray-500">Market Value</span>
-            <div className="text-xs font-semibold text-emerald-400 leading-tight">
+            <div className="text-xs font-semibold text-emerald-400 leading-tight truncate" style={{ fontSize: 'clamp(0.625rem, 2.5vw, 0.75rem)' }}>
               {formatPrice(item.price)}
             </div>
           </div>
           {item.cost !== undefined && (
-            <div>
+            <div className="min-w-0">
               <span className="text-[8px] uppercase tracking-wide text-gray-500">Cost</span>
-              <div className="text-[10px] font-medium text-gray-200 leading-tight">
+              <div className="text-[10px] font-medium text-gray-200 leading-tight truncate" style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}>
                 {formatPrice(item.cost)}
               </div>
             </div>
@@ -149,15 +149,16 @@ export default function ItemCardGrid({
           return (
             <div className="flex items-center justify-between gap-2">
               <div
-                className={`min-w-0 text-[10px] font-semibold leading-tight ${
+                className={`min-w-0 flex-1 text-[10px] font-semibold leading-tight truncate ${
                   profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
                 }`}
+                style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}
               >
                 Profit {profitValue >= 0 ? '+' : ''}
                 {formatPrice(profitValue)}
               </div>
               <span
-                className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
+                className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
               >
                 {exteriorAbbr[item.exterior]}
               </span>
