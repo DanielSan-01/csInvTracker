@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react';
 import type { SkinDto } from '@/lib/api';
+import { skinsApi } from '@/lib/api';
 import { getDopplerPhaseLabel, getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
 
 type SkinCatalogSearchProps = {
@@ -18,15 +20,36 @@ export default function SkinCatalogSearch({
   onSelectSkin,
   selectedCatalogName,
 }: SkinCatalogSearchProps) {
+  const [totalSkinCount, setTotalSkinCount] = useState<number | null>(null);
   const showDropdown = searchTerm.length >= 2;
+
+  // Fetch total skin count on mount
+  useEffect(() => {
+    const fetchTotalCount = async () => {
+      try {
+        const allSkins = await skinsApi.getSkins();
+        setTotalSkinCount(allSkins.length);
+      } catch (err) {
+        console.error('Failed to fetch skin count:', err);
+      }
+    };
+    fetchTotalCount();
+  }, []);
 
   return (
     <div className="rounded-xl border border-purple-500/30 bg-purple-500/10 p-4 shadow-inner shadow-purple-900/20 space-y-3">
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-sm font-semibold text-purple-200">Search Skin Catalog (1,071 skins)</p>
+          <p className="text-sm font-semibold text-purple-200">
+            Search Skin Catalog {totalSkinCount !== null ? `(${totalSkinCount.toLocaleString()} skins)` : ''}
+          </p>
           <p className="text-xs text-purple-300/70">
-            Search by name (e.g., "AK-47", "Dragon Lore"). Selected skin will pre-fill fields.
+            Search by name (e.g., "AK-47", "Dragon Lore", "Butterfly"). Selected skin will pre-fill fields.
+            {totalSkinCount !== null && totalSkinCount < 50 && (
+              <span className="block mt-1 text-yellow-300">
+                ⚠️ Limited catalog ({totalSkinCount} skins). Import skins via Admin panel for full catalog.
+              </span>
+            )}
           </p>
         </div>
         {selectedCatalogName && (
@@ -94,7 +117,19 @@ export default function SkinCatalogSearch({
               </div>
             ) : (
               <div className="p-4 text-center text-gray-400 text-sm">
-                No skins found. Try a different search.
+                {searchTerm.length >= 2 ? (
+                  <>
+                    <p>No skins found matching "{searchTerm}".</p>
+                    {totalSkinCount !== null && totalSkinCount < 50 && (
+                      <p className="mt-2 text-xs text-yellow-300">
+                        The catalog appears to be empty or limited. Import skins via the Admin panel to populate the catalog.
+                      </p>
+                    )}
+                    <p className="mt-2 text-xs">Try a different search term.</p>
+                  </>
+                ) : (
+                  <p>Type at least 2 characters to search.</p>
+                )}
               </div>
             )}
           </div>

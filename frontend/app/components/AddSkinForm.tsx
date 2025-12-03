@@ -153,8 +153,15 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       return;
     }
 
-    // Generate a simple image URL placeholder if not provided
-    const imageUrl = formData.imageUrl || `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(formData.name)}`;
+    // Generate a simple image URL placeholder if not provided (using SVG data URI)
+    const generateSvgPlaceholder = (text: string): string => {
+      const encodedText = encodeURIComponent(text);
+      return `data:image/svg+xml,${encodeURIComponent(`<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="200" fill="#4C1D95"/>
+  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">${text}</text>
+</svg>`)}`;
+    };
+    const imageUrl = formData.imageUrl || generateSvgPlaceholder(formData.name);
 
     // Set tradableAfter date if trade protected is checked
     const submitData = {

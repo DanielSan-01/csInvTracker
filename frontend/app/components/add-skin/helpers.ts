@@ -23,6 +23,15 @@ export const deriveExteriorFromFloat = (floatValue?: number): Exterior => {
   return 'Battle-Scarred';
 };
 
+// Generate a simple SVG placeholder instead of relying on external services
+const generateSvgPlaceholder = (text: string): string => {
+  const encodedText = encodeURIComponent(text);
+  return `data:image/svg+xml,${encodeURIComponent(`<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="200" fill="#4C1D95"/>
+  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">${text}</text>
+</svg>`)}`;
+};
+
 export const buildPreviewImageUrl = (
   name: string,
   provided?: string,
@@ -37,7 +46,7 @@ export const buildPreviewImageUrl = (
   }
 
   const safeName = name?.trim().length ? name : 'Skin Preview';
-  return `https://via.placeholder.com/300x200/4C1D95/FFFFFF?text=${encodeURIComponent(safeName)}`;
+  return generateSvgPlaceholder(safeName);
 };
 
 
