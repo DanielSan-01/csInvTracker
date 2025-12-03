@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { getSteamIdFromUrl, storeSteamId, getStoredSteamId, clearSteamId } from '@/lib/steamAuth';
+import { useUser } from '@/contexts/UserContext';
 
 export default function SteamLoginButton() {
+  const { refreshUser } = useUser();
   const [steamId, setSteamId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
@@ -15,6 +17,8 @@ export default function SteamLoginButton() {
     if (urlSteamId) {
       storeSteamId(urlSteamId);
       setSteamId(urlSteamId);
+      // Refresh user context to load user data
+      refreshUser();
       // Clean up URL
       window.history.replaceState({}, '', window.location.pathname);
     } else {
@@ -24,13 +28,13 @@ export default function SteamLoginButton() {
         setSteamId(stored);
       }
     }
-  }, []);
+  }, [refreshUser]);
 
   const handleLogin = () => {
       setShowManualInput(true);
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (manualSteamId.trim()) {
       // Validate Steam ID format (should be 17 digits)
       if (/^\d{17}$/.test(manualSteamId.trim())) {
@@ -38,15 +42,19 @@ export default function SteamLoginButton() {
         setSteamId(manualSteamId.trim());
         setShowManualInput(false);
         setManualSteamId('');
+        // Refresh user context to load user data
+        await refreshUser();
       } else {
         alert('Invalid Steam ID. Steam IDs are 17-digit numbers.');
       }
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     clearSteamId();
     setSteamId(null);
+    // Refresh user context to clear user data
+    await refreshUser();
   };
 
   if (steamId) {
