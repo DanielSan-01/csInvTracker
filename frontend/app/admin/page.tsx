@@ -168,6 +168,7 @@ export default function AdminPage() {
             stats={stats}
             formatCurrency={formatCurrency}
             formatDate={formatDate}
+            onImportComplete={fetchStats}
           />
         )}
 
