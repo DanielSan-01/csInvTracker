@@ -75,9 +75,9 @@ export default function ItemCardGrid({
           )}
         </div>
 
-        {/* Stickers overlaid on the image, positioned higher to overlay more */}
+        {/* Stickers overlaid on the image, positioned higher to overlay more and avoid float badge */}
         {item.stickers && item.stickers.length > 0 && (
-          <div className="absolute bottom-8 left-3 right-12 flex items-center justify-center gap-1">
+          <div className="absolute bottom-12 left-3 right-12 flex items-center justify-center gap-1">
             {item.stickers.slice(0, 5).map((sticker, idx) => (
               <div
                 key={sticker.id ?? idx}
