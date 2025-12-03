@@ -75,13 +75,13 @@ export default function ItemCardGrid({
           )}
         </div>
 
-        {/* Stickers overlaid at the bottom of the image */}
+        {/* Stickers overlaid on the image, positioned higher to overlay more */}
         {item.stickers && item.stickers.length > 0 && (
-          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-center gap-1">
+          <div className="absolute bottom-8 left-3 right-12 flex items-center justify-center gap-1">
             {item.stickers.slice(0, 5).map((sticker, idx) => (
               <div
                 key={sticker.id ?? idx}
-                className="h-7 w-7 rounded border border-white/30 bg-black/70 p-0.5 backdrop-blur-sm transition-all hover:border-white/50 hover:bg-black/90"
+                className="h-8 w-8 rounded border border-white/30 bg-black/70 p-0.5 backdrop-blur-sm transition-all hover:border-white/50 hover:bg-black/90"
                 title={sticker.name}
               >
                 {sticker.imageUrl ? (
