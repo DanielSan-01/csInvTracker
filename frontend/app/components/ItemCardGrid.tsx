@@ -56,6 +56,7 @@ export default function ItemCardGrid({
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent" />
 
+        {/* Float value and trade protection badge */}
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
           <span className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100">
             {formatFloat(item.float, 4)}
@@ -73,110 +74,106 @@ export default function ItemCardGrid({
             </span>
           )}
         </div>
+
+        {/* Stickers overlaid at the bottom of the image */}
+        {item.stickers && item.stickers.length > 0 && (
+          <div className="absolute bottom-3 left-3 right-3 flex items-center justify-center gap-1">
+            {item.stickers.slice(0, 5).map((sticker, idx) => (
+              <div
+                key={sticker.id ?? idx}
+                className="h-7 w-7 rounded border border-white/30 bg-black/70 p-0.5 backdrop-blur-sm transition-all hover:border-white/50 hover:bg-black/90"
+                title={sticker.name}
+              >
+                {sticker.imageUrl ? (
+                  <img
+                    src={sticker.imageUrl}
+                    alt={sticker.name}
+                    className="h-full w-full object-contain"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent && !parent.querySelector('svg')) {
+                        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                        svg.setAttribute('class', 'h-full w-full text-gray-400');
+                        svg.setAttribute('fill', 'currentColor');
+                        svg.setAttribute('viewBox', '0 0 20 20');
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        path.setAttribute(
+                          'd',
+                          'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z'
+                        );
+                        svg.appendChild(path);
+                        parent.appendChild(svg);
+                      }
+                    }}
+                  />
+                ) : (
+                  <svg className="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Stickers display below weapon image */}
-      {(() => {
-        // Debug logging
-        if (item.stickers && item.stickers.length > 0) {
-          console.log('[ItemCardGrid] Rendering stickers for item', item.id, ':', item.stickers);
-        }
-        return null;
-      })()}
-      {item.stickers && item.stickers.length > 0 && (
-        <div className="flex items-center justify-center gap-1.5 border-t border-white/10 bg-black/60 px-4 py-2">
-          {item.stickers.slice(0, 5).map((sticker, idx) => (
-            <div
-              key={sticker.id ?? idx}
-              className="h-8 w-8 rounded border border-gray-700/50 bg-gray-800/60 p-1 transition-all hover:border-gray-600 hover:bg-gray-800/80"
-              title={sticker.name}
-            >
-              {sticker.imageUrl ? (
-                <img
-                  src={sticker.imageUrl}
-                  alt={sticker.name}
-                  className="h-full w-full object-contain"
-                  onError={(e) => {
-                    const target = e.currentTarget as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent && !parent.querySelector('svg')) {
-                      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                      svg.setAttribute('class', 'h-full w-full text-gray-400');
-                      svg.setAttribute('fill', 'currentColor');
-                      svg.setAttribute('viewBox', '0 0 20 20');
-                      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                      path.setAttribute(
-                        'd',
-                        'M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z'
-                      );
-                      svg.appendChild(path);
-                      parent.appendChild(svg);
-                    }
-                  }}
-                />
-              ) : (
-                <svg className="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              )}
+      <div className="flex flex-col gap-2 border-t border-white/10 bg-black/80 px-4 py-3 backdrop-blur-sm">
+        {/* Price info in a more compact layout */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          <div>
+            <span className="text-[8px] uppercase tracking-wide text-gray-500">Market Value</span>
+            <div className="text-xs font-semibold text-emerald-400 leading-tight">
+              {formatPrice(item.price)}
             </div>
-          ))}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-1.5 border-t border-white/10 bg-black/80 px-4 py-2.5 backdrop-blur-sm">
-          <div className="flex flex-col gap-1 text-[8px] uppercase tracking-wide text-gray-500">
+          </div>
+          {item.cost !== undefined && (
             <div>
-              <span className="mb-0.5 block">Market Value</span>
-              <span className="block text-xs font-semibold text-emerald-400 leading-tight">
-                {formatPrice(item.price)}
+              <span className="text-[8px] uppercase tracking-wide text-gray-500">Cost</span>
+              <div className="text-[10px] font-medium text-gray-200 leading-tight">
+                {formatPrice(item.cost)}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Profit and exterior badge */}
+        {item.cost !== undefined && item.cost !== null && (() => {
+          const cost = item.cost as number;
+          const profitValue = item.price - cost;
+          return (
+            <div className="flex items-center justify-between gap-2">
+              <div
+                className={`min-w-0 text-[10px] font-semibold leading-tight ${
+                  profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                }`}
+              >
+                Profit {profitValue >= 0 ? '+' : ''}
+                {formatPrice(profitValue)}
+              </div>
+              <span
+                className={`rounded px-1.5 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
+              >
+                {exteriorAbbr[item.exterior]}
               </span>
             </div>
-            {item.cost !== undefined && (
-              <div>
-                <span className="mb-0.5 block">Cost</span>
-                <span className="block text-[10px] font-medium text-gray-200 leading-tight">
-                  {formatPrice(item.cost)}
-                </span>
-              </div>
-            )}
-          </div>
+          );
+        })()}
 
-          {item.cost !== undefined && item.cost !== null && (() => {
-            const cost = item.cost as number;
-            const profitValue = item.price - cost;
-            return (
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
-                <div
-                  className={`min-w-0 text-[10px] font-semibold leading-tight ${
-                    profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                  }`}
-                >
-                  Profit {profitValue >= 0 ? '+' : ''}
-                  {formatPrice(profitValue)}
-                </div>
-                <span
-                  className={`rounded px-1 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
-                >
-                  {exteriorAbbr[item.exterior]}
-                </span>
-              </div>
-            );
-          })()}
-
-          <div className="flex items-center gap-1">
-            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
-                style={{ left: `${Math.min(item.float * 100, 100)}%` }}
-              />
-            </div>
+        {/* Float bar */}
+        <div className="flex items-center gap-1">
+          <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
+              style={{ left: `${Math.min(item.float * 100, 100)}%` }}
+            />
           </div>
+        </div>
       </div>
     </div>
   );
