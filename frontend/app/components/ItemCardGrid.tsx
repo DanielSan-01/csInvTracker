@@ -77,11 +77,11 @@ export default function ItemCardGrid({
 
         {/* Stickers overlaid on the image, positioned higher to overlay more and avoid float badge */}
         {item.stickers && item.stickers.length > 0 && (
-          <div className="absolute bottom-12 left-0 right-12 flex items-center justify-center gap-1 px-3">
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex items-center justify-center gap-1.5" style={{ maxWidth: 'calc(100% - 4rem)' }}>
             {item.stickers.slice(0, 5).map((sticker, idx) => (
               <div
                 key={sticker.id ?? idx}
-                className="h-8 w-8 rounded border border-white/30 bg-black/70 p-0.5 backdrop-blur-sm transition-all hover:border-white/50 hover:bg-black/90"
+                className="h-10 w-10"
                 title={sticker.name}
               >
                 {sticker.imageUrl ? (

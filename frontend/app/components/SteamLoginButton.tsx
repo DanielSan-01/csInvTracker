@@ -50,6 +50,16 @@ export default function SteamLoginButton() {
     }
   };
 
+  const handleTestUser = async () => {
+    const testSteamId = '76561197996404463';
+    storeSteamId(testSteamId);
+    setSteamId(testSteamId);
+    setShowManualInput(false);
+    setManualSteamId('');
+    // Refresh user context to load user data
+    await refreshUser();
+  };
+
   const handleLogout = async () => {
     clearSteamId();
     setSteamId(null);
@@ -98,14 +108,22 @@ export default function SteamLoginButton() {
             Submit
           </button>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowManualInput(false)}
-            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors text-xs"
-          >
-            Cancel
-          </button>
-          <p className="text-xs text-gray-500 flex-1 text-right">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowManualInput(false)}
+              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors text-xs"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleTestUser}
+              className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors text-xs"
+            >
+              Test User
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 text-right">
             Find your Steam ID at <a href="https://steamid.io" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">steamid.io</a>
           </p>
         </div>
