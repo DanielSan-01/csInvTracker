@@ -3,15 +3,31 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
+// Configure route for longer execution time (Vercel allows up to 60s on Hobby plan)
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const steamId = searchParams.get('steamId');
   const appId = searchParams.get('appId') || '730';
   const contextId = searchParams.get('contextId') || '2';
 
+  console.log('Steam inventory API route called with params:', { steamId, appId, contextId });
+
   if (!steamId) {
+    console.error('Missing steamId parameter');
     return NextResponse.json(
       { error: 'steamId parameter is required' },
+      { status: 400 }
+    );
+  }
+
+  // Validate steamId format (should be 17 digits)
+  if (!/^\d{17}$/.test(steamId)) {
+    console.error('Invalid steamId format:', steamId);
+    return NextResponse.json(
+      { error: 'Invalid steamId format. Steam IDs must be 17 digits.' },
       { status: 400 }
     );
   }
@@ -106,7 +122,7 @@ export async function GET(request: NextRequest) {
         hasMore = false;
       }
       
-      // Small delay to avoid rate limiting
+      // Small delay to avoid rate limiting (only if we have more pages)
       if (hasMore) {
         await new Promise(resolve => setTimeout(resolve, 200));
       }
@@ -127,10 +143,24 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching Steam inventory:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    // Check if it's a timeout or network error
+    if (errorMessage.includes('timeout') || errorMessage.includes('aborted')) {
+      return NextResponse.json(
+        { 
+          error: 'Request timeout - Steam inventory may be too large. Please try again.',
+          details: errorMessage
+        },
+        { status: 504 }
+      );
+    }
+    
     return NextResponse.json(
       { 
         error: 'Failed to fetch Steam inventory',
-        details: errorMessage
+        details: errorMessage,
+        ...(errorStack && { stack: errorStack })
       },
       { status: 500 }
     );
