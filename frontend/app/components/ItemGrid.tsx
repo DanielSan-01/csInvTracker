@@ -13,7 +13,6 @@ import {
   SkinDto /* , adminApi */,
 } from '@/lib/api';
 import { fetchSteamInventory } from '@/lib/steamApi';
-import { getStoredSteamId } from '@/lib/steamAuth';
 import { formatCurrency } from '@/lib/utils';
 import Navbar from './Navbar';
 import SteamLoginButton from './SteamLoginButton';
@@ -49,22 +48,34 @@ export default function ItemGrid() {
   const [isUpdating, setIsUpdating] = useState(false);
   const { toast, showToast } = useToast();
 
-  // Load Steam ID on mount and listen for changes
+  // Auto-import Steam inventory when user first logs in and has no items
   useEffect(() => {
-    const loadSteamId = () => {
-      const stored = getStoredSteamId();
-      if (stored) {
-        setSteamId(stored);
-      }
-    };
+    // Only auto-import if:
+    // 1. User is logged in
+    // 2. User has no inventory items
+    // 3. Not currently loading
+    // 4. Not already loading Steam inventory
+    // 5. User just authenticated (check URL param)
+    const params = new URLSearchParams(window.location.search);
+    const justAuthenticated = params.get('authenticated') === 'true';
     
-    loadSteamId();
-    
-    // Check periodically in case Steam ID was just set
-    const interval = setInterval(loadSteamId, 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
+    if (
+      user &&
+      !userLoading &&
+      !loading &&
+      !isLoadingSteam &&
+      items.length === 0 &&
+      justAuthenticated
+    ) {
+      // Small delay to ensure user context is fully loaded
+      const timer = setTimeout(() => {
+        handleLoadFromSteam();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, userLoading, loading, isLoadingSteam, items.length]);
 
   // No more localStorage - data comes from backend!
 
@@ -251,24 +262,74 @@ export default function ItemGrid() {
   */
 
   const handleLoadFromSteam = async () => {
-    if (!steamId) {
+    if (!user) {
       showToast('Please log in with Steam first!', 'error');
       return;
     }
 
     setIsLoadingSteam(true);
     try {
-      console.log('Fetching Steam inventory for:', steamId);
-      const steamItems = await fetchSteamInventory(steamId);
+      // Get Steam ID from user
+      const userSteamId = user.steamId;
+      if (!userSteamId) {
+        showToast('Steam ID not found. Please log in again.', 'error');
+        return;
+      }
+
+      console.log('Fetching Steam inventory for:', userSteamId);
+      const steamItems = await fetchSteamInventory(userSteamId);
       console.log('Fetched Steam items:', steamItems);
       
-      // Note: Steam inventory loading is currently disabled when using backend.
-      // To implement this, we would need to:
-      // 1. Match Steam items to skins in our catalog by name
-      // 2. Create inventory items via the backend API
-      // 3. Handle items that don't exist in our catalog yet
-      
-      showToast(`Found ${steamItems.length} item${steamItems.length !== 1 ? 's' : ''} in Steam inventory. Steam import is coming soon!`, 'info');
+      if (steamItems.length === 0) {
+        showToast('No items found in your Steam inventory.', 'info');
+        return;
+      }
+
+      // Convert to import format
+      const importItems: import('@/lib/api').SteamInventoryImportItem[] = steamItems.map(item => ({
+        assetId: item.assetid,
+        marketHashName: item.marketName,
+        name: item.name,
+        imageUrl: item.imageUrl,
+        marketable: item.marketable,
+        tradable: item.tradable,
+        descriptions: item.descriptions?.map(d => ({
+          type: d.type,
+          value: d.value,
+          color: d.color,
+        })),
+        tags: item.tags?.map(t => ({
+          category: t.category,
+          localizedTagName: t.localized_tag_name,
+        })),
+      }));
+
+      // Import via backend
+      const { steamInventoryApi } = await import('@/lib/api');
+      const result = await steamInventoryApi.importFromSteam(user.id, importItems);
+
+      // Refresh inventory
+      await refresh();
+
+      // Show results
+      if (result.imported > 0) {
+        showToast(
+          `Successfully imported ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
+          'success'
+        );
+      } else if (result.skipped > 0) {
+        showToast(
+          `All ${result.skipped} item${result.skipped !== 1 ? 's' : ''} were skipped (already imported or not in catalog)`,
+          'info'
+        );
+      } else {
+        showToast('No items were imported.', 'info');
+      }
+
+      if (result.errors > 0 && result.errorMessages.length > 0) {
+        console.error('Import errors:', result.errorMessages);
+        showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during import. Check console for details.`, 'error');
+      }
     } catch (error) {
       console.error('Error loading Steam inventory:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -313,7 +374,7 @@ export default function ItemGrid() {
     <div className="relative min-h-screen bg-gray-950 pb-16">
       <Navbar
         isAuthenticated={!!user}
-        onLoadFromSteam={steamId && user ? handleLoadFromSteam : undefined}
+        onLoadFromSteam={user ? handleLoadFromSteam : undefined}
         isLoadingSteam={isLoadingSteam}
         authControl={<SteamLoginButton />}
         userInventory={sortedItems}

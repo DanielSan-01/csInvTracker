@@ -1,8 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { User, usersApi } from '@/lib/api';
-import { getStoredSteamId } from '@/lib/steamAuth';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { User, authApi } from '@/lib/api';
 
 interface UserContextType {
   user: User | null;
@@ -17,51 +16,38 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentSteamId, setCurrentSteamId] = useState<string | null>(null);
 
   const refreshUser = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       
-      const steamId = getStoredSteamId();
-      if (!steamId) {
-        setUser(null);
-        setCurrentSteamId(null);
-        return;
-      }
-
-      // Only fetch if Steam ID changed
-      if (steamId === currentSteamId && user) {
-        setLoading(false);
-        return;
-      }
-
-      // Get or create user by Steam ID
-      const userData = await usersApi.getOrCreateUserBySteamId(steamId);
+      // Use secure cookie-based authentication
+      const userData = await authApi.getCurrentUser();
       setUser(userData);
-      setCurrentSteamId(steamId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load user');
       setUser(null);
-      setCurrentSteamId(null);
     } finally {
       setLoading(false);
     }
-  }, [currentSteamId, user]);
+  }, []);
 
-  // Load user on mount only
+  // Load user on mount
   useEffect(() => {
-    const steamId = getStoredSteamId();
-    if (steamId) {
-      refreshUser();
-    } else {
-      setLoading(false);
-    }
-  }, []); // Empty dependency - only run once on mount
+    refreshUser();
+  }, [refreshUser]);
 
-  // Listen for Steam ID changes (manual polling) - disabled for now to prevent flickering
-  // User must manually refresh or we can add event-based system later
+  // Check for authentication success in URL (after Steam login)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('authenticated') === 'true') {
+      // Refresh user data after successful authentication
+      refreshUser();
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [refreshUser]);
 
   return (
     <UserContext.Provider value={{ user, loading, error, refreshUser }}>

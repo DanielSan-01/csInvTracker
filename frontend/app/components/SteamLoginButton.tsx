@@ -1,34 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { getSteamIdFromUrl, storeSteamId, getStoredSteamId, clearSteamId, initiateSteamLogin } from '@/lib/steamAuth';
+import { useState } from 'react';
+import { initiateSteamLogin } from '@/lib/steamAuth';
 import { useUser } from '@/contexts/UserContext';
+import { authApi } from '@/lib/api';
 
 export default function SteamLoginButton() {
   const { user, refreshUser } = useUser();
-  const [steamId, setSteamId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualSteamId, setManualSteamId] = useState('');
-
-  useEffect(() => {
-    // Check for Steam ID in URL (after authentication)
-    const urlSteamId = getSteamIdFromUrl();
-    if (urlSteamId) {
-      storeSteamId(urlSteamId);
-      setSteamId(urlSteamId);
-      // Refresh user context to load user data
-      refreshUser();
-      // Clean up URL
-      window.history.replaceState({}, '', window.location.pathname);
-    } else {
-      // Check stored Steam ID
-      const stored = getStoredSteamId();
-      if (stored) {
-        setSteamId(stored);
-      }
-    }
-  }, [refreshUser]);
 
   const handleLogin = () => {
     // Check if we're on localhost - if so, show manual input
@@ -44,12 +25,30 @@ export default function SteamLoginButton() {
     if (manualSteamId.trim()) {
       // Validate Steam ID format (should be 17 digits)
       if (/^\d{17}$/.test(manualSteamId.trim())) {
-        storeSteamId(manualSteamId.trim());
-        setSteamId(manualSteamId.trim());
-        setShowManualInput(false);
-        setManualSteamId('');
-        // Refresh user context to load user data
-        await refreshUser();
+        setIsLoading(true);
+        try {
+          // For localhost, we'll still use the old endpoint but create a session
+          const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
+          const response = await fetch(`${API_BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ steamId: manualSteamId.trim() }),
+          });
+          
+          if (response.ok) {
+            setShowManualInput(false);
+            setManualSteamId('');
+            await refreshUser();
+          } else {
+            alert('Failed to login. Please try again.');
+          }
+        } catch (error) {
+          console.error('Login error:', error);
+          alert('An error occurred during login.');
+        } finally {
+          setIsLoading(false);
+        }
       } else {
         alert('Invalid Steam ID. Steam IDs are 17-digit numbers.');
       }
@@ -57,14 +56,19 @@ export default function SteamLoginButton() {
   };
 
   const handleLogout = async () => {
-    clearSteamId();
-    setSteamId(null);
-    // Refresh user context to clear user data
-    await refreshUser();
+    setIsLoading(true);
+    try {
+      await authApi.logout();
+      await refreshUser();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Show user profile when logged in
-  if (steamId && user) {
+  if (user) {
     return (
       <div className="flex items-center gap-3">
         {user.avatarMediumUrl && (
@@ -76,7 +80,7 @@ export default function SteamLoginButton() {
         )}
         <div className="flex flex-col">
           <span className="text-sm font-medium text-white">
-            {user.displayName || user.username || `User ${steamId.slice(-6)}`}
+            {user.displayName || user.username || `User ${user.steamId.slice(-6)}`}
           </span>
           {user.profileUrl && (
             <a
@@ -140,28 +144,24 @@ export default function SteamLoginButton() {
     <button
       onClick={handleLogin}
       disabled={isLoading}
-      className="inline-flex items-center gap-2 px-4 py-2 bg-[#171a21] hover:bg-[#1b2838] border border-[#66c0f4] text-[#66c0f4] rounded transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-      style={{
-        // Steam's official brand colors
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-      }}
+      className="relative inline-block transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{ border: 'none', background: 'none', padding: 0 }}
     >
       {isLoading ? (
-        <>
-          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div className="flex items-center gap-2 px-4 py-2 bg-[#171a21] rounded">
+          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <span>Loading...</span>
-        </>
+          <span className="text-white">Loading...</span>
+        </div>
       ) : (
-        <>
-          {/* Steam logo SVG */}
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-          </svg>
-          <span>Sign in through Steam</span>
-        </>
+        <img
+          src="/photos/sits_01.png"
+          alt="Sign in through Steam"
+          className="h-auto w-auto max-h-12 cursor-pointer"
+          style={{ imageRendering: 'auto' }}
+        />
       )}
     </button>
   );

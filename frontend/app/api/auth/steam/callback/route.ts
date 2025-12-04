@@ -1,11 +1,13 @@
 // Steam OpenID callback handler
-// This processes the authentication response from Steam
+// This processes the authentication response from Steam and verifies it with the backend
 
 import { NextRequest, NextResponse } from 'next/server';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
+
 /**
  * Handles Steam OpenID callback
- * Extracts Steam ID from the response and creates a session
+ * Verifies the OpenID response signature and creates a secure session
  */
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -17,7 +19,7 @@ export async function GET(request: NextRequest) {
     params[key] = value;
   });
 
-  // Verify the OpenID response (simplified - in production, verify the signature)
+  // Basic validation
   if (params['openid.mode'] !== 'id_res') {
     return NextResponse.redirect(`${returnUrl}?error=invalid_response`);
   }
@@ -36,14 +38,56 @@ export async function GET(request: NextRequest) {
 
   const steamId = steamIdMatch[1];
 
-  // TODO: In production, you should:
-  // 1. Verify the OpenID response signature
-  // 2. Create a session/token for the user
-  // 3. Store the Steam ID in the session
-  // 4. Redirect to the return URL with success
+  try {
+    // Verify OpenID signature with backend
+    const verifyResponse = await fetch(`${API_BASE_URL}/auth/verify-openid`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ openIdParams: params }),
+    });
 
-  // For now, we'll redirect with the Steam ID as a query parameter
-  // In production, use secure sessions/cookies instead
-  return NextResponse.redirect(`${returnUrl}?steamId=${steamId}&authenticated=true`);
+    if (!verifyResponse.ok) {
+      console.error('OpenID verification failed:', await verifyResponse.text());
+      return NextResponse.redirect(`${returnUrl}?error=verification_failed`);
+    }
+
+    // Create session via backend login endpoint
+    const loginResponse = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ steamId }),
+    });
+
+    if (!loginResponse.ok) {
+      console.error('Login failed:', await loginResponse.text());
+      return NextResponse.redirect(`${returnUrl}?error=login_failed`);
+    }
+
+    const loginData = await loginResponse.json();
+
+    // Create response with secure cookie
+    const response = NextResponse.redirect(`${returnUrl}?authenticated=true`);
+
+    // Set secure HTTP-only cookie with the token
+    // The backend also sets a cookie, but we set one here for frontend access if needed
+    // In production, we should rely on the backend cookie only
+    const isProduction = !request.nextUrl.hostname.includes('localhost');
+    response.cookies.set('auth_token', loginData.token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: '/',
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Error during authentication:', error);
+    return NextResponse.redirect(`${returnUrl}?error=authentication_error`);
+  }
 }
 

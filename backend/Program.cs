@@ -10,11 +10,44 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Configure JWT Authentication
+var jwtSecret = builder.Configuration["JWT:Secret"] ?? Environment.GetEnvironmentVariable("JWT_SECRET");
+var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "cs-inv-tracker";
+var jwtAudience = builder.Configuration["JWT:Audience"] ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "cs-inv-tracker";
+
+if (!string.IsNullOrEmpty(jwtSecret))
+{
+    builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtAudience,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+}
+
+builder.Services.AddAuthorization();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();
 builder.Services.AddScoped<SteamApiService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<OpenIdVerificationService>();
+builder.Services.AddScoped<SteamInventoryImportService>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection
@@ -260,6 +293,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowNextJs");
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

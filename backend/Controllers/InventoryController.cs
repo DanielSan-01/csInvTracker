@@ -15,12 +15,18 @@ public class InventoryController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ILogger<InventoryController> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
+    private readonly SteamInventoryImportService _steamImportService;
 
-    public InventoryController(ApplicationDbContext context, DopplerPhaseService dopplerPhaseService, ILogger<InventoryController> logger)
+    public InventoryController(
+        ApplicationDbContext context,
+        DopplerPhaseService dopplerPhaseService,
+        ILogger<InventoryController> logger,
+        SteamInventoryImportService steamImportService)
     {
         _context = context;
         _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
+        _steamImportService = steamImportService;
     }
 
     // Helper method to determine exterior from float
@@ -361,5 +367,54 @@ public class InventoryController : ControllerBase
 
         return dto;
     }
+
+    // POST: api/inventory/import-from-steam
+    [HttpPost("import-from-steam")]
+    public async Task<ActionResult<SteamInventoryImportService.ImportResult>> ImportFromSteam(
+        [FromBody] ImportSteamInventoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (request.UserId <= 0)
+            {
+                return BadRequest(new { error = "Invalid user ID" });
+            }
+
+            if (request.Items == null || !request.Items.Any())
+            {
+                return BadRequest(new { error = "No items provided" });
+            }
+
+            // Verify user exists
+            var user = await _context.Users.FindAsync(new object[] { request.UserId }, cancellationToken);
+            if (user == null)
+            {
+                return BadRequest(new { error = "User not found" });
+            }
+
+            var result = await _steamImportService.ImportSteamInventoryAsync(
+                request.UserId,
+                request.Items,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Steam inventory import completed for user {UserId}: {Imported} imported, {Skipped} skipped, {Errors} errors",
+                request.UserId, result.Imported, result.Skipped, result.Errors);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing Steam inventory for user {UserId}", request.UserId);
+            return StatusCode(500, new { error = "An error occurred while importing inventory" });
+        }
+    }
+}
+
+public class ImportSteamInventoryRequest
+{
+    public int UserId { get; set; }
+    public List<SteamInventoryItemDto> Items { get; set; } = new();
 }
 

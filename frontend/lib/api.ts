@@ -195,6 +195,85 @@ export const usersApi = {
   },
 };
 
+// Auth API
+export interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+export const authApi = {
+  getCurrentUser: async (): Promise<User | null> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        credentials: 'include', // Include cookies
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          return null;
+        }
+        throw new Error('Failed to get current user');
+      }
+      return response.json();
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+      return null;
+    }
+  },
+
+  logout: async (): Promise<void> => {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  },
+};
+
+// Steam Inventory Import API
+export interface SteamInventoryImportItem {
+  assetId: string;
+  marketHashName: string;
+  name: string;
+  imageUrl?: string;
+  marketable: boolean;
+  tradable: boolean;
+  descriptions?: Array<{ type: string; value?: string; color?: string }>;
+  tags?: Array<{ category: string; localizedTagName: string }>;
+}
+
+export interface SteamInventoryImportResult {
+  totalItems: number;
+  imported: number;
+  skipped: number;
+  errors: number;
+  errorMessages: string[];
+}
+
+export const steamInventoryApi = {
+  importFromSteam: async (
+    userId: number,
+    items: SteamInventoryImportItem[]
+  ): Promise<SteamInventoryImportResult> => {
+    const response = await fetch(`${API_BASE_URL}/inventory/import-from-steam`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        userId,
+        items,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to import Steam inventory: ${error}`);
+    }
+
+    return response.json();
+  },
+};
+
 export interface BulkImportInventoryResult {
   userId: number;
   totalRequested: number;
