@@ -549,14 +549,15 @@ public class InventoryController : ControllerBase
 
             _logger.LogInformation("Starting Steam inventory refresh for user {UserId} (SteamId: {SteamId})", targetUserId, user.SteamId);
 
-            // Fetch Steam inventory with pagination
-            // Note: Steam Web API (api.steampowered.com) doesn't have an inventory endpoint
-            // We must use Steam Community API (steamcommunity.com/inventory/...)
-            // Format: https://steamcommunity.com/inventory/{steamId}/{appId}/{contextId}?l=english&count=5000
-            // This endpoint may be rate-limited or blocked for server IPs
+            // Use frontend Next.js API route as a proxy to avoid Steam blocking Railway IPs
+            // The frontend runs on Vercel with different IP addresses that aren't blocked
+            // This is essentially a proxy service - frontend proxies requests to Steam
+            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "https://www.csinvtracker.com";
+            var proxyUrl = $"{frontendUrl}/api/steam/inventory?steamId={user.SteamId}&appId=730&contextId=2";
+            
+            _logger.LogInformation("Using frontend proxy route to fetch Steam inventory: {ProxyUrl}", proxyUrl);
             
             // Create HttpClient with automatic decompression enabled
-            // Steam returns gzip-compressed responses that need to be automatically decompressed
             var handler = new System.Net.Http.HttpClientHandler
             {
                 AutomaticDecompression = System.Net.DecompressionMethods.All
@@ -564,285 +565,50 @@ public class InventoryController : ControllerBase
             using var httpClient = new System.Net.Http.HttpClient(handler);
             httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
             
-            // Add browser-like headers to avoid being blocked
-            httpClient.DefaultRequestHeaders.Clear();
-            httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
-            httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-            httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
-            httpClient.DefaultRequestHeaders.Add("Referer", $"https://steamcommunity.com/profiles/{user.SteamId}/inventory/");
-            httpClient.DefaultRequestHeaders.Add("Origin", "https://steamcommunity.com");
+            // Call frontend proxy route which handles pagination and returns all items
+            _logger.LogInformation("Fetching Steam inventory via frontend proxy for user {UserId}", targetUserId);
             
-            var allAssets = new List<SteamAsset>();
-            var allDescriptions = new List<SteamItemDescription>();
-            var descriptionMap = new Dictionary<string, SteamItemDescription>();
+            var response = await httpClient.GetAsync(proxyUrl, cancellationToken);
             
-            string? startAssetId = null;
-            bool hasMore = true;
-            int pageCount = 0;
-            const int maxPages = 100; // Safety limit
-
-            while (hasMore && pageCount < maxPages)
+            if (!response.IsSuccessStatusCode)
             {
-                pageCount++;
-                
-                // Build URL with pagination
-                var steamUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/730/2?l=english&count=5000";
-                if (startAssetId != null)
-                {
-                    steamUrl += $"&start_assetid={startAssetId}";
-                }
-                
-                _logger.LogInformation("Fetching Steam inventory page {Page} for user {UserId}", pageCount, targetUserId);
-                
-                // Retry logic for Steam API (may be rate-limited or temporarily blocked)
-                System.Net.Http.HttpResponseMessage? response = null;
-                int retryCount = 0;
-                const int maxRetries = 3;
-                int retryDelayMs = 1000; // Start with 1 second
-                
-                while (retryCount <= maxRetries)
-                {
-                    try
-                    {
-                        response = await httpClient.GetAsync(steamUrl, cancellationToken);
-                        
-                        // If successful or non-retryable error, break
-                        if (response.IsSuccessStatusCode || 
-                            response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
-                            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
-                        {
-                            break;
-                        }
-                        
-                        // If 400 or 429 (rate limit), retry with exponential backoff
-                        if (retryCount < maxRetries && 
-                            (response.StatusCode == System.Net.HttpStatusCode.BadRequest ||
-                             response.StatusCode == (System.Net.HttpStatusCode)429))
-                        {
-                            retryCount++;
-                            _logger.LogWarning("Steam API returned {StatusCode}, retrying ({RetryCount}/{MaxRetries}) after {Delay}ms delay...", 
-                                response.StatusCode, retryCount, maxRetries, retryDelayMs);
-                            await Task.Delay(retryDelayMs, cancellationToken);
-                            retryDelayMs *= 2; // Exponential backoff: 1s, 2s, 4s
-                            response.Dispose();
-                            continue;
-                        }
-                        
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        if (retryCount < maxRetries)
-                        {
-                            retryCount++;
-                            _logger.LogWarning(ex, "Error fetching Steam inventory, retrying ({RetryCount}/{MaxRetries}) after {Delay}ms delay...", 
-                                retryCount, maxRetries, retryDelayMs);
-                            await Task.Delay(retryDelayMs, cancellationToken);
-                            retryDelayMs *= 2;
-                            continue;
-                        }
-                        throw;
-                    }
-                }
-                
-                if (response == null)
-                {
-                    throw new Exception("Failed to get response from Steam API after retries");
-                }
-                
-                if (!response.IsSuccessStatusCode)
-                {
-                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "unknown";
-                    var contentLength = response.Content.Headers.ContentLength ?? 0;
-                    
-                    // Read response body - handle both empty and non-empty responses
-                    string errorText = string.Empty;
-                    try
-                    {
-                        if (contentLength > 0)
-                        {
-                            errorText = await response.Content.ReadAsStringAsync(cancellationToken);
-                        }
-                        else
-                        {
-                            // Try reading anyway in case Content-Length header is missing
-                            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-                            if (bytes.Length > 0)
-                            {
-                                errorText = System.Text.Encoding.UTF8.GetString(bytes);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Failed to read error response body");
-                        errorText = $"Failed to read response: {ex.Message}";
-                    }
-                    
-                    _logger.LogError("Steam Community inventory API error (page {Page}): {StatusCode} - ContentType: {ContentType} - ContentLength: {ContentLength} - Error: {Error}", 
-                        pageCount, response.StatusCode, contentType, contentLength, 
-                        string.IsNullOrEmpty(errorText) ? "(empty)" : (errorText.Length > 1000 ? errorText.Substring(0, 1000) : errorText));
-                    
-                    // Log response headers for debugging
-                    _logger.LogError("Response headers: {Headers}", 
-                        string.Join(", ", response.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}")));
-                    
-                    // Try to parse as JSON if it's JSON content
-                    string? jsonError = null;
-                    if (contentType.Contains("json") && !string.IsNullOrEmpty(errorText))
-                    {
-                        try
-                        {
-                            var jsonDoc = JsonSerializer.Deserialize<JsonElement>(errorText);
-                            jsonError = JsonSerializer.Serialize(jsonDoc, new JsonSerializerOptions { WriteIndented = true });
-                            _logger.LogError("Parsed JSON error response: {JsonError}", jsonError);
-                        }
-                        catch
-                        {
-                            // Not valid JSON, ignore
-                        }
-                    }
-                    
-                    // 400 Bad Request
-                    if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
-                    {
-                        // If Steam returns HTML, it might be a rate limit or blocking page
-                        if (contentType.Contains("text/html"))
-                        {
-                            _logger.LogWarning("Steam returned HTML instead of JSON. This might indicate rate limiting or IP blocking.");
-                            return BadRequest(new { 
-                                error = "Steam returned an error page",
-                                details = "Steam may be rate limiting or blocking the request. The response was HTML instead of JSON. Please try again in a few minutes.",
-                                statusCode = (int)response.StatusCode,
-                                contentType = contentType,
-                                steamUrl = steamUrl,
-                                responsePreview = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
-                            });
-                        }
-                        
-                        // Empty response with 400 usually means Steam is blocking/rate limiting
-                        if (string.IsNullOrEmpty(errorText))
-                        {
-                            _logger.LogWarning("Steam returned 400 with empty response body. This likely indicates rate limiting or IP blocking.");
-                            return BadRequest(new { 
-                                error = "Steam returned an empty error response",
-                                details = "Steam may be rate limiting requests from this IP address, or the inventory endpoint may be temporarily unavailable. Please try again in a few minutes.",
-                                statusCode = (int)response.StatusCode,
-                                contentType = contentType,
-                                steamUrl = steamUrl,
-                                jsonError = jsonError
-                            });
-                        }
-                        
-                        return BadRequest(new { 
-                            error = "Steam inventory is not accessible",
-                            details = "The inventory may be set to private, or the Steam ID may be invalid. Please ensure the inventory privacy settings allow public viewing.",
-                            statusCode = (int)response.StatusCode,
-                            contentType = contentType,
-                            steamUrl = steamUrl,
-                            responsePreview = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
-                            jsonError = jsonError
-                        });
-                    }
-                    
-                    return StatusCode((int)response.StatusCode, new { 
-                        error = $"Steam API error: {response.StatusCode}",
-                        details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
-                        statusCode = (int)response.StatusCode,
-                        contentType = contentType,
-                        jsonError = jsonError
-                    });
-                }
-
-                var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
+                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Frontend proxy route error: {StatusCode} - {Error}", response.StatusCode, errorText);
+                return StatusCode((int)response.StatusCode, new { 
+                    error = $"Frontend proxy route error: {response.StatusCode}",
+                    details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
                 });
-
-                if (data == null)
-                {
-                    _logger.LogError("Failed to parse Steam API response (page {Page})", pageCount);
-                    return StatusCode(500, new { error = "Failed to parse Steam API response" });
-                }
-
-                // Check if request was successful
-                if (data.Success != 1)
-                {
-                    _logger.LogWarning("Steam API returned unsuccessful response (page {Page}): Success = {Success}", pageCount, data.Success);
-                    if (pageCount == 1)
-                    {
-                        return StatusCode(500, new { 
-                            error = "Steam API returned unsuccessful response",
-                            details = $"Success: {data.Success}"
-                        });
-                    }
-                    // Otherwise, break and return what we have
-                    break;
-                }
-
-                // Collect assets
-                if (data.Assets != null)
-                {
-                    allAssets.AddRange(data.Assets);
-                }
-
-                // Collect unique descriptions
-                if (data.Descriptions != null)
-                {
-                    foreach (var desc in data.Descriptions)
-                    {
-                        var key = $"{desc.ClassId}_{desc.InstanceId}";
-                        if (!descriptionMap.ContainsKey(key))
-                        {
-                            descriptionMap[key] = desc;
-                            allDescriptions.Add(desc);
-                        }
-                    }
-                }
-
-                _logger.LogInformation("Page {Page} - Assets: {AssetCount}, Descriptions: {DescCount}, Total so far: {TotalAssets} assets, {TotalDescs} descriptions",
-                    pageCount, data.Assets?.Count ?? 0, data.Descriptions?.Count ?? 0, allAssets.Count, allDescriptions.Count);
-
-                // Check if there are more items to fetch
-                // Steam indicates more items via MoreItems == 1, and provides LastAssetId for pagination
-                // We can only continue if we have both: MoreItems == 1 AND a valid LastAssetId that's different from current
-                if (data.MoreItems == 1 && data.LastAssetId != null && data.LastAssetId != startAssetId)
-                {
-                    // We have more items and a valid asset ID to continue with
-                    hasMore = true;
-                    startAssetId = data.LastAssetId;
-                }
-                else if (data.MoreItems == 1 && data.LastAssetId == null)
-                {
-                    // Steam says there are more items, but didn't provide LastAssetId
-                    // This is an API inconsistency - log warning and stop to avoid infinite loop
-                    _logger.LogWarning("Steam API indicates more items (MoreItems=1) but LastAssetId is null. Cannot continue pagination. Page: {Page}", pageCount);
-                    hasMore = false;
-                }
-                else if (data.MoreItems == 1 && data.LastAssetId == startAssetId)
-                {
-                    // Steam says there are more items, but LastAssetId hasn't changed
-                    // This could cause an infinite loop - log warning and stop
-                    _logger.LogWarning("Steam API indicates more items (MoreItems=1) but LastAssetId hasn't changed. Stopping pagination to avoid infinite loop. Page: {Page}, LastAssetId: {LastAssetId}", pageCount, data.LastAssetId);
-                    hasMore = false;
-                }
-                else
-                {
-                    // No more items indicated (MoreItems != 1)
-                    hasMore = false;
-                }
-
-                // Small delay to avoid rate limiting
-                if (hasMore)
-                {
-                    await Task.Delay(200, cancellationToken);
-                }
             }
 
-            _logger.LogInformation("Finished fetching Steam inventory: {PageCount} pages, {TotalAssets} total assets, {TotalDescs} unique descriptions",
-                pageCount, allAssets.Count, allDescriptions.Count);
+            // Frontend route returns all paginated data in one response
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (data == null)
+            {
+                _logger.LogError("Failed to parse response from frontend proxy route");
+                return StatusCode(500, new { error = "Failed to parse response from frontend proxy" });
+            }
+
+            // Check if request was successful
+            if (data.Success != 1)
+            {
+                _logger.LogWarning("Frontend proxy returned unsuccessful response: Success = {Success}", data.Success);
+                return StatusCode(500, new { 
+                    error = "Steam API returned unsuccessful response",
+                    details = $"Success: {data.Success}"
+                });
+            }
+
+            // Frontend route already handles pagination, so we get all assets and descriptions
+            var allAssets = data.Assets ?? new List<SteamAsset>();
+            var allDescriptions = data.Descriptions ?? new List<SteamItemDescription>();
+
+            _logger.LogInformation("Received {AssetCount} assets and {DescCount} descriptions from frontend proxy",
+                allAssets.Count, allDescriptions.Count);
 
             if (allAssets.Count == 0)
             {
