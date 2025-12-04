@@ -154,6 +154,17 @@ public class InventoryController : ControllerBase
             _logger.LogInformation("Successfully mapped {Count} items to DTOs", dtoItems.Count);
             return Ok(dtoItems);
         }
+        catch (Npgsql.PostgresException pgEx) when (pgEx.SqlState == "42703")
+        {
+            // Column does not exist error
+            _logger.LogError(pgEx, "Database schema error: Column does not exist. SqlState: {SqlState}, Message: {Message}", pgEx.SqlState, pgEx.MessageText);
+            return StatusCode(500, new { 
+                error = "Database schema mismatch", 
+                details = $"Database column missing: {pgEx.MessageText}. The migration may not have been applied yet. Please check Railway logs for migration status.",
+                sqlState = pgEx.SqlState,
+                hint = pgEx.Hint
+            });
+        }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
         {
             _logger.LogError(dbEx, "Database error while fetching inventory for userId: {UserId}", userId);
