@@ -173,11 +173,12 @@ export async function fetchSteamInventory(
       // Check if there are more items
       // Steam uses more_items (0 or 1) and last_assetid for pagination
       const hasMoreItems = data.more_items === 1;
-      const hasValidLastAssetId = data.last_assetid != null && data.last_assetid !== startAssetId;
+      const lastAssetId = data.last_assetid ?? null;
+      const hasValidLastAssetId = lastAssetId != null && lastAssetId !== startAssetId;
       
       if (hasMoreItems && hasValidLastAssetId) {
         hasMore = true;
-        startAssetId = data.last_assetid;
+        startAssetId = lastAssetId;
       } else {
         hasMore = false;
       }
