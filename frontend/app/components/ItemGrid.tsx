@@ -267,46 +267,18 @@ export default function ItemGrid() {
       return;
     }
 
+    if (!user.steamId) {
+      showToast('Steam ID not found. Please log in again.', 'error');
+      return;
+    }
+
     setIsLoadingSteam(true);
     try {
-      // Get Steam ID from user
-      const userSteamId = user.steamId;
-      if (!userSteamId) {
-        showToast('Steam ID not found. Please log in again.', 'error');
-        return;
-      }
-
-      console.log('Fetching Steam inventory for:', userSteamId);
-      const steamItems = await fetchSteamInventory(userSteamId);
-      console.log('Fetched Steam items:', steamItems);
+      console.log('Refreshing Steam inventory for user:', user.id);
       
-      if (steamItems.length === 0) {
-        showToast('No items found in your Steam inventory.', 'info');
-        return;
-      }
-
-      // Convert to import format
-      const importItems: import('@/lib/api').SteamInventoryImportItem[] = steamItems.map(item => ({
-        assetId: item.assetid,
-        marketHashName: item.marketName,
-        name: item.name,
-        imageUrl: item.imageUrl,
-        marketable: item.marketable,
-        tradable: item.tradable,
-        descriptions: item.descriptions?.map(d => ({
-          type: d.type,
-          value: d.value,
-          color: d.color,
-        })),
-        tags: item.tags?.map(t => ({
-          category: t.category,
-          localizedTagName: t.localized_tag_name,
-        })),
-      }));
-
-      // Import via backend
+      // Call new backend endpoint that handles fetching and importing
       const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.importFromSteam(user.id, importItems);
+      const result = await steamInventoryApi.refreshFromSteam(user.id);
 
       // Refresh inventory
       await refresh();
@@ -331,9 +303,9 @@ export default function ItemGrid() {
         showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during import. Check console for details.`, 'error');
       }
     } catch (error) {
-      console.error('Error loading Steam inventory:', error);
+      console.error('Error refreshing from Steam:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`Failed to load inventory from Steam: ${errorMessage}`, 'error');
+      showToast(`Failed to refresh inventory from Steam: ${errorMessage}`, 'error');
     } finally {
       setIsLoadingSteam(false);
     }
