@@ -549,7 +549,14 @@ public class InventoryController : ControllerBase
             // Fetch Steam inventory with pagination
             // Use Steam Community inventory API (doesn't require API key)
             // Format: https://steamcommunity.com/inventory/{steamId}/{appId}/{contextId}?l=english&count=5000
-            var httpClient = _httpClientFactory.CreateClient();
+            
+            // Create HttpClient with automatic decompression enabled
+            // Steam returns gzip-compressed responses that need to be automatically decompressed
+            var handler = new System.Net.Http.HttpClientHandler
+            {
+                AutomaticDecompression = System.Net.DecompressionMethods.All
+            };
+            using var httpClient = new System.Net.Http.HttpClient(handler);
             httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
             
             // Add browser-like headers to avoid being blocked
