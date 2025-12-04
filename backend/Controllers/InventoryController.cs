@@ -551,7 +551,15 @@ public class InventoryController : ControllerBase
             // Format: https://steamcommunity.com/inventory/{steamId}/{appId}/{contextId}?l=english&count=5000
             var httpClient = _httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
+            
+            // Add browser-like headers to avoid being blocked
+            httpClient.DefaultRequestHeaders.Clear();
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+            httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
+            httpClient.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            httpClient.DefaultRequestHeaders.Add("Referer", $"https://steamcommunity.com/profiles/{user.SteamId}/inventory/");
+            httpClient.DefaultRequestHeaders.Add("Origin", "https://steamcommunity.com");
             
             var allAssets = new List<SteamAsset>();
             var allDescriptions = new List<SteamItemDescription>();
@@ -580,23 +588,47 @@ public class InventoryController : ControllerBase
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogError("Steam Community inventory API error (page {Page}): {StatusCode} - {Error}", pageCount, response.StatusCode, errorText);
+                    var contentType = response.Content.Headers.ContentType?.MediaType ?? "unknown";
                     
-                    // 400 Bad Request often means inventory is private or invalid Steam ID
+                    _logger.LogError("Steam Community inventory API error (page {Page}): {StatusCode} - ContentType: {ContentType} - Error: {Error}", 
+                        pageCount, response.StatusCode, contentType, errorText.Length > 1000 ? errorText.Substring(0, 1000) : errorText);
+                    
+                    // Log response headers for debugging
+                    _logger.LogError("Response headers: {Headers}", 
+                        string.Join(", ", response.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}")));
+                    
+                    // 400 Bad Request - check if it's HTML (Steam might be returning an error page)
                     if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
                     {
+                        // If Steam returns HTML, it might be a rate limit or blocking page
+                        if (contentType.Contains("text/html"))
+                        {
+                            _logger.LogWarning("Steam returned HTML instead of JSON. This might indicate rate limiting or IP blocking.");
+                            return BadRequest(new { 
+                                error = "Steam returned an error page",
+                                details = "Steam may be rate limiting or blocking the request. The response was HTML instead of JSON. Please try again in a few minutes.",
+                                statusCode = (int)response.StatusCode,
+                                contentType = contentType,
+                                steamUrl = steamUrl,
+                                responsePreview = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
+                            });
+                        }
+                        
                         return BadRequest(new { 
                             error = "Steam inventory is not accessible",
                             details = "The inventory may be set to private, or the Steam ID may be invalid. Please ensure the inventory privacy settings allow public viewing.",
                             statusCode = (int)response.StatusCode,
-                            steamUrl = steamUrl
+                            contentType = contentType,
+                            steamUrl = steamUrl,
+                            responsePreview = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
                         });
                     }
                     
                     return StatusCode((int)response.StatusCode, new { 
                         error = $"Steam API error: {response.StatusCode}",
                         details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
-                        statusCode = (int)response.StatusCode
+                        statusCode = (int)response.StatusCode,
+                        contentType = contentType
                     });
                 }
 
