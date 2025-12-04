@@ -200,8 +200,8 @@ export async function fetchSteamInventory(
           marketName: description.market_name || description.name,
           imageUrl,
           type: description.type,
-          tradable: description.tradable === 1,
-          marketable: description.marketable === 1,
+          tradable: Boolean(description.tradable === 1),
+          marketable: Boolean(description.marketable === 1),
           descriptions: description.descriptions,
           tags: description.tags,
         } as ParsedSteamItem;
