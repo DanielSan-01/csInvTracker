@@ -14,6 +14,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();
+builder.Services.AddScoped<SteamApiService>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection

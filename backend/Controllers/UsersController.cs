@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.Services;
 
 namespace backend.Controllers;
 
@@ -11,11 +12,13 @@ public class UsersController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<UsersController> _logger;
+    private readonly SteamApiService _steamApiService;
 
-    public UsersController(ApplicationDbContext context, ILogger<UsersController> logger)
+    public UsersController(ApplicationDbContext context, ILogger<UsersController> logger, SteamApiService steamApiService)
     {
         _context = context;
         _logger = logger;
+        _steamApiService = steamApiService;
     }
 
     // GET: api/users/by-steam/{steamId}
@@ -29,10 +32,28 @@ public class UsersController : ControllerBase
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.SteamId == steamId);
 
+            // Fetch Steam profile data
+            var steamProfile = await _steamApiService.GetPlayerSummaryAsync(steamId);
+
             if (user != null)
             {
                 // Update last login time
                 user.LastLoginAt = DateTime.UtcNow;
+                
+                // Update profile data if available
+                if (steamProfile != null)
+                {
+                    user.DisplayName = steamProfile.PersonaName;
+                    user.AvatarUrl = steamProfile.Avatar;
+                    user.AvatarMediumUrl = steamProfile.AvatarMedium;
+                    user.AvatarFullUrl = steamProfile.AvatarFull;
+                    user.ProfileUrl = steamProfile.ProfileUrl;
+                    if (string.IsNullOrEmpty(user.Username))
+                    {
+                        user.Username = steamProfile.PersonaName;
+                    }
+                }
+                
                 await _context.SaveChangesAsync();
                 
                 _logger.LogInformation($"User found: {user.Id} (Steam ID: {steamId})");
@@ -43,7 +64,12 @@ public class UsersController : ControllerBase
             var newUser = new User
             {
                 SteamId = steamId,
-                Username = $"User_{steamId.Substring(steamId.Length - 6)}", // Last 6 digits
+                Username = steamProfile?.PersonaName ?? $"User_{steamId.Substring(steamId.Length - 6)}", // Last 6 digits
+                DisplayName = steamProfile?.PersonaName,
+                AvatarUrl = steamProfile?.Avatar,
+                AvatarMediumUrl = steamProfile?.AvatarMedium,
+                AvatarFullUrl = steamProfile?.AvatarFull,
+                ProfileUrl = steamProfile?.ProfileUrl,
                 CreatedAt = DateTime.UtcNow,
                 LastLoginAt = DateTime.UtcNow
             };
