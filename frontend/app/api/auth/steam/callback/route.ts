@@ -58,12 +58,16 @@ export async function GET(request: NextRequest) {
     // Create session via backend login endpoint
     let loginData;
     try {
+      console.log('Calling backend login endpoint:', `${API_BASE_URL}/auth/login`);
+      
       const loginResponse = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ steamId }),
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!loginResponse.ok) {
@@ -74,10 +78,13 @@ export async function GET(request: NextRequest) {
       }
 
       loginData = await loginResponse.json();
+      console.log('Login successful, received token');
     } catch (loginError) {
       console.error('Backend login request failed:', loginError);
       // If backend is unreachable, still redirect but with error
-      return NextResponse.redirect(`${returnUrl}?error=backend_unreachable&steamId=${steamId}`);
+      // This prevents 500 errors - user will see error message on frontend
+      const errorMsg = loginError instanceof Error ? loginError.message : 'Backend unreachable';
+      return NextResponse.redirect(`${returnUrl}?error=backend_unreachable&steamId=${steamId}&msg=${encodeURIComponent(errorMsg.substring(0, 50))}`);
     }
 
     // Create response with secure cookie
