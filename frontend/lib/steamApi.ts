@@ -171,8 +171,12 @@ export async function fetchSteamInventory(
       console.log(`Page ${pageCount} - Assets: ${data.assets?.length || 0}, Descriptions: ${data.descriptions?.length || 0}, Total: ${allAssets.length} assets, ${allDescriptions.length} descriptions`);
       
       // Check if there are more items
-      hasMore = data.more_items === 1 || (data.last_assetid && data.last_assetid !== startAssetId);
-      if (hasMore && data.last_assetid) {
+      // Steam uses more_items (0 or 1) and last_assetid for pagination
+      const hasMoreItems = data.more_items === 1;
+      const hasValidLastAssetId = data.last_assetid != null && data.last_assetid !== startAssetId;
+      
+      if (hasMoreItems && hasValidLastAssetId) {
+        hasMore = true;
         startAssetId = data.last_assetid;
       } else {
         hasMore = false;
