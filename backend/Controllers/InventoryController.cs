@@ -104,6 +104,8 @@ public class InventoryController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("Fetching inventory for userId: {UserId}", userId);
+            
             var query = _context.InventoryItems
                 .Include(i => i.Skin)
                 .Include(i => i.Stickers)
@@ -116,14 +118,30 @@ public class InventoryController : ControllerBase
             }
             
             var items = await query.ToListAsync();
-            var dtoItems = items.Select(MapToDto).ToList();
+            _logger.LogInformation("Found {Count} inventory items", items.Count);
+            
+            var dtoItems = new List<InventoryItemDto>();
+            foreach (var item in items)
+            {
+                try
+                {
+                    var dto = MapToDto(item);
+                    dtoItems.Add(dto);
+                }
+                catch (Exception itemEx)
+                {
+                    _logger.LogError(itemEx, "Error mapping inventory item {ItemId} to DTO. Skipping item.", item.Id);
+                    // Continue processing other items instead of failing completely
+                }
+            }
 
+            _logger.LogInformation("Successfully mapped {Count} items to DTOs", dtoItems.Count);
             return Ok(dtoItems);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching inventory");
-            return StatusCode(500, "An error occurred while fetching inventory");
+            _logger.LogError(ex, "Error fetching inventory for userId: {UserId}. Exception: {Exception}", userId, ex);
+            return StatusCode(500, new { error = "An error occurred while fetching inventory", details = ex.Message });
         }
     }
 
