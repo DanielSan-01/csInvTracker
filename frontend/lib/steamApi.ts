@@ -104,17 +104,42 @@ export async function fetchSteamInventory(
       
       console.log(`Fetching Steam inventory page ${pageCount} from browser...`);
       
-      const response = await fetch(steamUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
-        },
-      });
+      // Fetch directly from Steam in browser (uses user's IP, avoids server IP blocking)
+      // Note: Browser fetch automatically handles CORS if Steam allows it
+      // If CORS fails, we'll fall back to our proxy route
+      let response: Response;
+      try {
+        response = await fetch(steamUrl, {
+          method: 'GET',
+          mode: 'cors', // Explicitly request CORS
+          credentials: 'omit', // Don't send cookies (Steam doesn't need them for public inventory)
+          headers: {
+            'Accept': 'application/json',
+            // Note: Browser will add User-Agent automatically, we can't override it
+          },
+        });
+      } catch (corsError) {
+        // If CORS fails, fall back to our frontend proxy route
+        console.warn('Direct Steam fetch failed (likely CORS), using frontend proxy route:', corsError);
+        const proxyUrl = `/api/steam/inventory?steamId=${steamId}&appId=${appId}&contextId=${contextId}`;
+        if (startAssetId) {
+          // For pagination, we'd need to modify the proxy route to support it
+          // For now, just fetch first page
+          console.warn('Pagination not supported via proxy fallback, fetching first page only');
+        }
+        response = await fetch(proxyUrl);
+      }
     
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`Steam API error (page ${pageCount}):`, errorText);
-        throw new Error(`Failed to fetch inventory: ${response.status} ${response.statusText}`);
+        console.error(`Steam API error (page ${pageCount}): Status=${response.status}, Error=${errorText.substring(0, 200)}`);
+        
+        // If 400 with empty/null response, Steam is likely blocking
+        if (response.status === 400 && (!errorText || errorText.trim() === '' || errorText === 'null')) {
+          throw new Error('Steam is blocking this request. This may be due to rate limiting or IP blocking. Please try again in a few minutes.');
+        }
+        
+        throw new Error(`Failed to fetch inventory: ${response.status} ${response.statusText}. ${errorText.substring(0, 100)}`);
       }
 
       const data: SteamInventoryResponse = await response.json();
