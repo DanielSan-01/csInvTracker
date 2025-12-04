@@ -594,17 +594,58 @@ public class InventoryController : ControllerBase
                 
                 if (!response.IsSuccessStatusCode)
                 {
-                    var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
                     var contentType = response.Content.Headers.ContentType?.MediaType ?? "unknown";
+                    var contentLength = response.Content.Headers.ContentLength ?? 0;
                     
-                    _logger.LogError("Steam Community inventory API error (page {Page}): {StatusCode} - ContentType: {ContentType} - Error: {Error}", 
-                        pageCount, response.StatusCode, contentType, errorText.Length > 1000 ? errorText.Substring(0, 1000) : errorText);
+                    // Read response body - handle both empty and non-empty responses
+                    string errorText = string.Empty;
+                    try
+                    {
+                        if (contentLength > 0)
+                        {
+                            errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                        }
+                        else
+                        {
+                            // Try reading anyway in case Content-Length header is missing
+                            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                            if (bytes.Length > 0)
+                            {
+                                errorText = System.Text.Encoding.UTF8.GetString(bytes);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to read error response body");
+                        errorText = $"Failed to read response: {ex.Message}";
+                    }
+                    
+                    _logger.LogError("Steam Community inventory API error (page {Page}): {StatusCode} - ContentType: {ContentType} - ContentLength: {ContentLength} - Error: {Error}", 
+                        pageCount, response.StatusCode, contentType, contentLength, 
+                        string.IsNullOrEmpty(errorText) ? "(empty)" : (errorText.Length > 1000 ? errorText.Substring(0, 1000) : errorText));
                     
                     // Log response headers for debugging
                     _logger.LogError("Response headers: {Headers}", 
                         string.Join(", ", response.Headers.Select(h => $"{h.Key}: {string.Join(", ", h.Value)}")));
                     
-                    // 400 Bad Request - check if it's HTML (Steam might be returning an error page)
+                    // Try to parse as JSON if it's JSON content
+                    string? jsonError = null;
+                    if (contentType.Contains("json") && !string.IsNullOrEmpty(errorText))
+                    {
+                        try
+                        {
+                            var jsonDoc = JsonSerializer.Deserialize<JsonElement>(errorText);
+                            jsonError = JsonSerializer.Serialize(jsonDoc, new JsonSerializerOptions { WriteIndented = true });
+                            _logger.LogError("Parsed JSON error response: {JsonError}", jsonError);
+                        }
+                        catch
+                        {
+                            // Not valid JSON, ignore
+                        }
+                    }
+                    
+                    // 400 Bad Request
                     if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
                     {
                         // If Steam returns HTML, it might be a rate limit or blocking page
@@ -621,13 +662,28 @@ public class InventoryController : ControllerBase
                             });
                         }
                         
+                        // Empty response with 400 usually means Steam is blocking/rate limiting
+                        if (string.IsNullOrEmpty(errorText))
+                        {
+                            _logger.LogWarning("Steam returned 400 with empty response body. This likely indicates rate limiting or IP blocking.");
+                            return BadRequest(new { 
+                                error = "Steam returned an empty error response",
+                                details = "Steam may be rate limiting requests from this IP address, or the inventory endpoint may be temporarily unavailable. Please try again in a few minutes.",
+                                statusCode = (int)response.StatusCode,
+                                contentType = contentType,
+                                steamUrl = steamUrl,
+                                jsonError = jsonError
+                            });
+                        }
+                        
                         return BadRequest(new { 
                             error = "Steam inventory is not accessible",
                             details = "The inventory may be set to private, or the Steam ID may be invalid. Please ensure the inventory privacy settings allow public viewing.",
                             statusCode = (int)response.StatusCode,
                             contentType = contentType,
                             steamUrl = steamUrl,
-                            responsePreview = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
+                            responsePreview = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
+                            jsonError = jsonError
                         });
                     }
                     
@@ -635,7 +691,8 @@ public class InventoryController : ControllerBase
                         error = $"Steam API error: {response.StatusCode}",
                         details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
                         statusCode = (int)response.StatusCode,
-                        contentType = contentType
+                        contentType = contentType,
+                        jsonError = jsonError
                     });
                 }
 
