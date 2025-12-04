@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const returnUrl = searchParams.get('returnUrl') || '/';
+    
+    // Get the origin for absolute URLs (required by Next.js redirect)
+    const origin = request.nextUrl.origin;
+    const baseUrl = `${origin}${returnUrl.startsWith('/') ? returnUrl : `/${returnUrl}`}`;
 
     // Get API base URL at runtime
     let API_BASE_URL: string;
@@ -30,7 +34,10 @@ export async function GET(request: NextRequest) {
       API_BASE_URL = getApiBaseUrl();
     } catch (envError) {
       console.error('Failed to get API base URL:', envError);
-      return NextResponse.redirect(`${returnUrl}?error=config_error&msg=${encodeURIComponent('API URL not configured')}`);
+      const errorUrl = new URL(baseUrl);
+      errorUrl.searchParams.set('error', 'config_error');
+      errorUrl.searchParams.set('msg', 'API URL not configured');
+      return NextResponse.redirect(errorUrl.toString());
     }
 
     // Get OpenID response parameters
@@ -39,21 +46,31 @@ export async function GET(request: NextRequest) {
       params[key] = value;
     });
 
+    // Helper function to create absolute redirect URLs
+    const createRedirectUrl = (error: string, details?: string) => {
+      const url = new URL(baseUrl);
+      url.searchParams.set('error', error);
+      if (details) {
+        url.searchParams.set('details', details);
+      }
+      return url.toString();
+    };
+
     // Basic validation
     if (params['openid.mode'] !== 'id_res') {
-      return NextResponse.redirect(`${returnUrl}?error=invalid_response`);
+      return NextResponse.redirect(createRedirectUrl('invalid_response'));
     }
 
     // Extract Steam ID from the claimed_id
     // Format: https://steamcommunity.com/openid/id/76561197996404463
     const claimedId = params['openid.claimed_id'] || params['openid.identity'];
     if (!claimedId) {
-      return NextResponse.redirect(`${returnUrl}?error=no_steam_id`);
+      return NextResponse.redirect(createRedirectUrl('no_steam_id'));
     }
 
     const steamIdMatch = claimedId.match(/\/id\/(\d+)$/);
     if (!steamIdMatch) {
-      return NextResponse.redirect(`${returnUrl}?error=invalid_steam_id`);
+      return NextResponse.redirect(createRedirectUrl('invalid_steam_id'));
     }
 
     const steamId = steamIdMatch[1];
@@ -86,7 +103,7 @@ export async function GET(request: NextRequest) {
         const errorText = await loginResponse.text();
         console.error('Login failed:', errorText);
         // If backend is down, redirect with error but don't crash
-        return NextResponse.redirect(`${returnUrl}?error=login_failed&details=${encodeURIComponent(errorText.substring(0, 100))}`);
+        return NextResponse.redirect(createRedirectUrl('login_failed', errorText.substring(0, 100)));
       }
 
       loginData = await loginResponse.json();
@@ -96,11 +113,17 @@ export async function GET(request: NextRequest) {
       // If backend is unreachable, still redirect but with error
       // This prevents 500 errors - user will see error message on frontend
       const errorMsg = loginError instanceof Error ? loginError.message : 'Backend unreachable';
-      return NextResponse.redirect(`${returnUrl}?error=backend_unreachable&steamId=${steamId}&msg=${encodeURIComponent(errorMsg.substring(0, 50))}`);
+      const errorUrl = new URL(baseUrl);
+      errorUrl.searchParams.set('error', 'backend_unreachable');
+      errorUrl.searchParams.set('steamId', steamId);
+      errorUrl.searchParams.set('msg', errorMsg.substring(0, 50));
+      return NextResponse.redirect(errorUrl.toString());
     }
 
     // Create response with secure cookie
-    const response = NextResponse.redirect(`${returnUrl}?authenticated=true`);
+    const successUrl = new URL(baseUrl);
+    successUrl.searchParams.set('authenticated', 'true');
+    const response = NextResponse.redirect(successUrl.toString());
 
     // Set secure HTTP-only cookie with the token
     // The backend also sets a cookie, but we set one here for frontend access if needed
@@ -122,9 +145,17 @@ export async function GET(request: NextRequest) {
     // Catch any errors that happen outside the main try block
     console.error('Fatal error in Steam callback route:', outerError);
     const errorMessage = outerError instanceof Error ? outerError.message : 'Unknown error';
-    // Use a safe return URL
-    const safeReturnUrl = '/';
-    return NextResponse.redirect(`${safeReturnUrl}?error=fatal_error&msg=${encodeURIComponent(errorMessage.substring(0, 100))}`);
+    // Use a safe absolute URL
+    try {
+      const origin = request.nextUrl.origin;
+      const errorUrl = new URL(`${origin}/`);
+      errorUrl.searchParams.set('error', 'fatal_error');
+      errorUrl.searchParams.set('msg', errorMessage.substring(0, 100));
+      return NextResponse.redirect(errorUrl.toString());
+    } catch {
+      // Last resort - redirect to origin
+      return NextResponse.redirect(request.nextUrl.origin);
+    }
   }
 }
 
