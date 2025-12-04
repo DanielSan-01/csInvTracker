@@ -106,6 +106,22 @@ public class InventoryController : ControllerBase
         {
             _logger.LogInformation("Fetching inventory for userId: {UserId}", userId);
             
+            // Test database connection first
+            try
+            {
+                await _context.Database.CanConnectAsync();
+            }
+            catch (Exception dbEx)
+            {
+                _logger.LogError(dbEx, "Database connection failed. Error: {Error}", dbEx.Message);
+                return StatusCode(500, new { 
+                    error = "Database connection failed", 
+                    details = "The application cannot connect to the database. Please check DATABASE_URL environment variable in Railway.",
+                    connectionError = dbEx.Message,
+                    innerException = dbEx.InnerException?.Message
+                });
+            }
+            
             var query = _context.InventoryItems
                 .Include(i => i.Skin)
                 .Include(i => i.Stickers)
@@ -137,6 +153,15 @@ public class InventoryController : ControllerBase
 
             _logger.LogInformation("Successfully mapped {Count} items to DTOs", dtoItems.Count);
             return Ok(dtoItems);
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+        {
+            _logger.LogError(dbEx, "Database error while fetching inventory for userId: {UserId}", userId);
+            return StatusCode(500, new { 
+                error = "Database error", 
+                details = "An error occurred while querying the database. Please check database connection and configuration.",
+                dbError = dbEx.Message
+            });
         }
         catch (Exception ex)
         {
@@ -388,8 +413,8 @@ public class InventoryController : ControllerBase
             SkinName = item.Skin.Name ?? "Unknown",
             Rarity = item.Skin.Rarity ?? "Unknown",
             Type = item.Skin.Type ?? "Unknown",
-            Collection = item.Skin.Collection,
-            Weapon = item.Skin.Weapon,
+                Collection = item.Skin.Collection,
+                Weapon = item.Skin.Weapon,
             Float = item.Float,
             Exterior = item.Exterior,
             PaintSeed = item.PaintSeed,
