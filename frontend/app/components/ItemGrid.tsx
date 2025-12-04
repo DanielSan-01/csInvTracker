@@ -274,11 +274,42 @@ export default function ItemGrid() {
 
     setIsLoadingSteam(true);
     try {
-      console.log('Refreshing Steam inventory for user:', user.id);
+      console.log('Fetching Steam inventory from browser (user IP) for user:', user.id);
       
-      // Call new backend endpoint that handles fetching and importing
+      // Fetch directly from Steam in the browser (uses user's IP, not blocked)
+      // This avoids Steam blocking server IPs
+      const { fetchSteamInventory } = await import('@/lib/steamApi');
+      const steamItems = await fetchSteamInventory(user.steamId);
+      
+      console.log('Fetched Steam items:', steamItems.length);
+      
+      if (steamItems.length === 0) {
+        showToast('No items found in your Steam inventory.', 'info');
+        return;
+      }
+
+      // Convert to import format
+      const importItems: import('@/lib/api').SteamInventoryImportItem[] = steamItems.map(item => ({
+        assetId: item.assetid,
+        marketHashName: item.marketName,
+        name: item.name,
+        imageUrl: item.imageUrl,
+        marketable: item.marketable,
+        tradable: item.tradable,
+        descriptions: item.descriptions?.map(d => ({
+          type: d.type,
+          value: d.value,
+          color: d.color,
+        })),
+        tags: item.tags?.map(t => ({
+          category: t.category,
+          localizedTagName: t.localized_tag_name,
+        })),
+      }));
+
+      // Send to backend for import
       const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.refreshFromSteam(user.id);
+      const result = await steamInventoryApi.importFromSteam(user.id, importItems);
 
       // Refresh inventory
       await refresh();

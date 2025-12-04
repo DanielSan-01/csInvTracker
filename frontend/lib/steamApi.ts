@@ -81,43 +81,105 @@ export async function fetchSteamInventory(
   contextId: number = 2
 ): Promise<ParsedSteamItem[]> {
   try {
-    // Use our API route to avoid CORS issues
-    const response = await fetch(`/api/steam/inventory?steamId=${steamId}&appId=${appId}&contextId=${contextId}`);
+    // Fetch directly from Steam in the browser (uses user's IP, not blocked by Steam)
+    // This avoids Steam blocking server IPs (Railway/Vercel)
+    // Note: We fetch directly from Steam's API, not through our proxy route
+    const allAssets: any[] = [];
+    const allDescriptions: any[] = [];
+    const descriptionMap = new Map<string, any>();
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Steam API error response:', errorText);
-      throw new Error(`Failed to fetch inventory: ${response.status} ${response.statusText}`);
-    }
+    let startAssetId: string | null = null;
+    let hasMore = true;
+    let pageCount = 0;
+    const maxPages = 50; // Safety limit
+    
+    while (hasMore && pageCount < maxPages) {
+      pageCount++;
+      
+      // Build URL with pagination
+      let steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}?l=english&count=5000`;
+      if (startAssetId) {
+        steamUrl += `&start_assetid=${startAssetId}`;
+      }
+      
+      console.log(`Fetching Steam inventory page ${pageCount} from browser...`);
+      
+      const response = await fetch(steamUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+        },
+      });
+    
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Steam API error (page ${pageCount}):`, errorText);
+        throw new Error(`Failed to fetch inventory: ${response.status} ${response.statusText}`);
+      }
 
-    const data: SteamInventoryResponse = await response.json();
-    
-    console.log('Steam API response:', data);
-    
-    if (data.success !== 1) {
-      console.error('Steam API unsuccessful:', data);
-      throw new Error(`Steam API returned unsuccessful response. Success: ${data.success}`);
+      const data: SteamInventoryResponse = await response.json();
+      
+      if (data.success !== 1) {
+        console.error(`Steam API unsuccessful (page ${pageCount}):`, data);
+        if (pageCount === 1) {
+          throw new Error(`Steam API returned unsuccessful response. Success: ${data.success}`);
+        }
+        // Otherwise, break and return what we have
+        break;
+      }
+      
+      // Collect assets and descriptions
+      if (data.assets && Array.isArray(data.assets)) {
+        allAssets.push(...data.assets);
+      }
+      
+      if (data.descriptions && Array.isArray(data.descriptions)) {
+        for (const desc of data.descriptions) {
+          const key = `${desc.classid}_${desc.instanceid}`;
+          if (!descriptionMap.has(key)) {
+            descriptionMap.set(key, desc);
+            allDescriptions.push(desc);
+          }
+        }
+      }
+      
+      console.log(`Page ${pageCount} - Assets: ${data.assets?.length || 0}, Descriptions: ${data.descriptions?.length || 0}, Total: ${allAssets.length} assets, ${allDescriptions.length} descriptions`);
+      
+      // Check if there are more items
+      hasMore = data.more_items === 1 || (data.last_assetid && data.last_assetid !== startAssetId);
+      if (hasMore && data.last_assetid) {
+        startAssetId = data.last_assetid;
+      } else {
+        hasMore = false;
+      }
+      
+      // Small delay to avoid rate limiting
+      if (hasMore) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
     }
     
-    if (!data.assets || data.assets.length === 0) {
+    console.log(`Finished fetching Steam inventory: ${pageCount} pages, ${allAssets.length} total assets, ${allDescriptions.length} unique descriptions`);
+    
+    if (allAssets.length === 0) {
       console.warn('No assets found in inventory');
       return [];
     }
     
-    if (!data.descriptions || data.descriptions.length === 0) {
+    if (allDescriptions.length === 0) {
       console.warn('No descriptions found in inventory');
       return [];
     }
 
     // Map assets to descriptions
     const itemMap = new Map<string, SteamItemDescription>();
-    data.descriptions.forEach(desc => {
+    allDescriptions.forEach(desc => {
       const key = `${desc.classid}_${desc.instanceid}`;
       itemMap.set(key, desc);
     });
 
     // Parse items
-    const parsedItems: ParsedSteamItem[] = data.assets
+    const parsedItems: ParsedSteamItem[] = allAssets
       .map(asset => {
         const key = `${asset.classid}_${asset.instanceid}`;
         const description = itemMap.get(key);
