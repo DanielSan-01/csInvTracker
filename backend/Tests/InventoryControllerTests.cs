@@ -2,14 +2,15 @@ using System.IO;
 using Xunit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Http;
 using backend.Controllers;
 using backend.Data;
 using backend.Models;
 using backend.DTOs;
 using backend.Services;
-using Microsoft.Extensions.FileProviders;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging.Abstractions;
 
 namespace backend.Tests;
 
@@ -37,7 +38,9 @@ public class InventoryControllerTests : IDisposable
         var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
         var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService);
 
-        _controller = new InventoryController(_context, dopplerService, logger, steamImportService);
+        // Create a simple mock HttpClientFactory for tests
+        var httpClientFactory = new TestHttpClientFactory();
+        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, httpClientFactory);
         
         // Create test user
         var testUser = new User
@@ -272,6 +275,15 @@ public class InventoryControllerTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+    }
+}
+
+// Simple test implementation of IHttpClientFactory
+internal class TestHttpClientFactory : IHttpClientFactory
+{
+    public HttpClient CreateClient(string name)
+    {
+        return new HttpClient();
     }
 }
 

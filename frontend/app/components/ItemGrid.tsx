@@ -12,7 +12,7 @@ import {
   UpdateInventoryItemDto,
   SkinDto /* , adminApi */,
 } from '@/lib/api';
-import { fetchSteamInventory } from '@/lib/steamApi';
+// Removed fetchSteamInventory - now handled by backend
 import { formatCurrency } from '@/lib/utils';
 import Navbar from './Navbar';
 import SteamLoginButton from './SteamLoginButton';

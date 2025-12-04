@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
+using System.Text.Json;
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
@@ -16,17 +17,20 @@ public class InventoryController : ControllerBase
     private readonly ILogger<InventoryController> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly SteamInventoryImportService _steamImportService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public InventoryController(
         ApplicationDbContext context,
         DopplerPhaseService dopplerPhaseService,
         ILogger<InventoryController> logger,
-        SteamInventoryImportService steamImportService)
+        SteamInventoryImportService steamImportService,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
         _steamImportService = steamImportService;
+        _httpClientFactory = httpClientFactory;
     }
 
     // Helper method to determine exterior from float
@@ -500,11 +504,281 @@ public class InventoryController : ControllerBase
             return StatusCode(500, new { error = "An error occurred while importing inventory" });
         }
     }
+
+    // POST: api/inventory/refresh-from-steam
+    // Fetches Steam inventory with pagination and imports it in one call
+    // This avoids Vercel timeout issues by doing everything on the backend
+    [HttpPost("refresh-from-steam")]
+    public async Task<ActionResult<SteamInventoryImportService.ImportResult>> RefreshFromSteam(
+        [FromQuery] int? userId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Get userId from query param or from authenticated user
+            int targetUserId;
+            if (userId.HasValue)
+            {
+                targetUserId = userId.Value;
+            }
+            else
+            {
+                // Try to get from authenticated user
+                var userIdClaim = User.FindFirst("userId")?.Value 
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out targetUserId))
+                {
+                    return Unauthorized(new { error = "User ID is required. Please provide userId query parameter or authenticate." });
+                }
+            }
+
+            // Verify user exists and get Steam ID
+            var user = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
+            if (user == null)
+            {
+                return BadRequest(new { error = "User not found" });
+            }
+
+            if (string.IsNullOrEmpty(user.SteamId))
+            {
+                return BadRequest(new { error = "User does not have a Steam ID" });
+            }
+
+            _logger.LogInformation("Starting Steam inventory refresh for user {UserId} (SteamId: {SteamId})", targetUserId, user.SteamId);
+
+            // Fetch Steam inventory with pagination
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
+            
+            var allAssets = new List<SteamAsset>();
+            var allDescriptions = new List<SteamItemDescription>();
+            var descriptionMap = new Dictionary<string, SteamItemDescription>();
+            
+            string? startAssetId = null;
+            bool hasMore = true;
+            int pageCount = 0;
+            const int maxPages = 100; // Safety limit
+
+            while (hasMore && pageCount < maxPages)
+            {
+                pageCount++;
+                
+                // Build URL with pagination
+                var steamUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/730/2?l=english&count=5000";
+                if (startAssetId != null)
+                {
+                    steamUrl += $"&start_assetid={startAssetId}";
+                }
+                
+                _logger.LogInformation("Fetching Steam inventory page {Page} for user {UserId}", pageCount, targetUserId);
+                
+                var response = await httpClient.GetAsync(steamUrl, cancellationToken);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError("Steam API error (page {Page}): {StatusCode} - {Error}", pageCount, response.StatusCode, errorText);
+                    return StatusCode(500, new { 
+                        error = $"Steam API error: {response.StatusCode}",
+                        details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
+                    });
+                }
+
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (data == null)
+                {
+                    _logger.LogError("Failed to parse Steam API response (page {Page})", pageCount);
+                    return StatusCode(500, new { error = "Failed to parse Steam API response" });
+                }
+
+                // Check if request was successful
+                if (data.Success != 1)
+                {
+                    _logger.LogWarning("Steam API returned unsuccessful response (page {Page}): Success = {Success}", pageCount, data.Success);
+                    if (pageCount == 1)
+                    {
+                        return StatusCode(500, new { 
+                            error = "Steam API returned unsuccessful response",
+                            details = $"Success: {data.Success}"
+                        });
+                    }
+                    // Otherwise, break and return what we have
+                    break;
+                }
+
+                // Collect assets
+                if (data.Assets != null)
+                {
+                    allAssets.AddRange(data.Assets);
+                }
+
+                // Collect unique descriptions
+                if (data.Descriptions != null)
+                {
+                    foreach (var desc in data.Descriptions)
+                    {
+                        var key = $"{desc.ClassId}_{desc.InstanceId}";
+                        if (!descriptionMap.ContainsKey(key))
+                        {
+                            descriptionMap[key] = desc;
+                            allDescriptions.Add(desc);
+                        }
+                    }
+                }
+
+                _logger.LogInformation("Page {Page} - Assets: {AssetCount}, Descriptions: {DescCount}, Total so far: {TotalAssets} assets, {TotalDescs} descriptions",
+                    pageCount, data.Assets?.Count ?? 0, data.Descriptions?.Count ?? 0, allAssets.Count, allDescriptions.Count);
+
+                // Check if there are more items to fetch
+                hasMore = data.MoreItems == 1 || (data.LastAssetId != null && data.LastAssetId != startAssetId);
+                if (hasMore && data.LastAssetId != null)
+                {
+                    startAssetId = data.LastAssetId;
+                }
+                else
+                {
+                    hasMore = false;
+                }
+
+                // Small delay to avoid rate limiting
+                if (hasMore)
+                {
+                    await Task.Delay(200, cancellationToken);
+                }
+            }
+
+            _logger.LogInformation("Finished fetching Steam inventory: {PageCount} pages, {TotalAssets} total assets, {TotalDescs} unique descriptions",
+                pageCount, allAssets.Count, allDescriptions.Count);
+
+            if (allAssets.Count == 0)
+            {
+                return Ok(new SteamInventoryImportService.ImportResult
+                {
+                    TotalItems = 0,
+                    Imported = 0,
+                    Skipped = 0,
+                    Errors = 0,
+                    ErrorMessages = new List<string> { "No items found in Steam inventory" },
+                    SkippedItems = new List<string>()
+                });
+            }
+
+            // Map assets to descriptions and convert to import format
+            var itemMap = new Dictionary<string, SteamItemDescription>();
+            foreach (var desc in allDescriptions)
+            {
+                var key = $"{desc.ClassId}_{desc.InstanceId}";
+                itemMap[key] = desc;
+            }
+
+            var importItems = new List<SteamInventoryItemDto>();
+            foreach (var asset in allAssets)
+            {
+                var key = $"{asset.ClassId}_{asset.InstanceId}";
+                if (itemMap.TryGetValue(key, out var description))
+                {
+                    // Convert relative icon URL to full Steam economy image URL
+                    var imageUrl = !string.IsNullOrEmpty(description.IconUrl)
+                        ? $"https://community.fastly.steamstatic.com/economy/image/{description.IconUrl}/330x192?allow_animated=1"
+                        : null;
+
+                    importItems.Add(new SteamInventoryItemDto
+                    {
+                        AssetId = asset.AssetId,
+                        MarketHashName = description.MarketHashName ?? description.Name,
+                        Name = description.Name,
+                        ImageUrl = imageUrl,
+                        Marketable = description.Marketable == 1,
+                        Tradable = description.Tradable == 1,
+                        Descriptions = description.Descriptions?.Select(d => new SteamDescriptionDto
+                        {
+                            Type = d.Type ?? string.Empty,
+                            Value = d.Value,
+                            Color = d.Color
+                        }).ToList(),
+                        Tags = description.Tags?.Select(t => new SteamTagDto
+                        {
+                            Category = t.Category ?? string.Empty,
+                            LocalizedTagName = t.LocalizedTagName ?? string.Empty
+                        }).ToList()
+                    });
+                }
+            }
+
+            _logger.LogInformation("Converted {Count} Steam items to import format. Starting import...", importItems.Count);
+
+            // Import the items
+            var result = await _steamImportService.ImportSteamInventoryAsync(
+                targetUserId,
+                importItems,
+                cancellationToken);
+
+            _logger.LogInformation(
+                "Steam inventory refresh completed for user {UserId}: {Imported} imported, {Skipped} skipped, {Errors} errors",
+                targetUserId, result.Imported, result.Skipped, result.Errors);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing Steam inventory");
+            return StatusCode(500, new { error = "An error occurred while refreshing inventory from Steam", message = ex.Message });
+        }
+    }
 }
 
 public class ImportSteamInventoryRequest
 {
     public int UserId { get; set; }
     public List<SteamInventoryItemDto> Items { get; set; } = new();
+}
+
+// DTOs for Steam API response
+public class SteamInventoryResponse
+{
+    public int Success { get; set; }
+    public int? MoreItems { get; set; }
+    public string? LastAssetId { get; set; }
+    public List<SteamAsset>? Assets { get; set; }
+    public List<SteamItemDescription>? Descriptions { get; set; }
+}
+
+public class SteamAsset
+{
+    public string AssetId { get; set; } = string.Empty;
+    public string ClassId { get; set; } = string.Empty;
+    public string InstanceId { get; set; } = string.Empty;
+}
+
+public class SteamItemDescription
+{
+    public string ClassId { get; set; } = string.Empty;
+    public string InstanceId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? MarketHashName { get; set; }
+    public string? IconUrl { get; set; }
+    public int Tradable { get; set; }
+    public int Marketable { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public List<SteamDescription>? Descriptions { get; set; }
+    public List<SteamTag>? Tags { get; set; }
+}
+
+public class SteamDescription
+{
+    public string? Type { get; set; }
+    public string? Value { get; set; }
+    public string? Color { get; set; }
+}
+
+public class SteamTag
+{
+    public string? Category { get; set; }
+    public string? LocalizedTagName { get; set; }
 }
 

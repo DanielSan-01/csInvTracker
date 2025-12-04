@@ -339,6 +339,31 @@ export const steamInventoryApi = {
 
     return response.json();
   },
+
+  // New method: Refresh from Steam (fetches and imports in one call, handles pagination on backend)
+  refreshFromSteam: async (
+    userId?: number
+  ): Promise<SteamInventoryImportResult> => {
+    const url = new URL(`${API_BASE_URL}/inventory/refresh-from-steam`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Failed to refresh Steam inventory: ${error}`);
+    }
+
+    return response.json();
+  },
 };
 
 export interface BulkImportInventoryResult {
