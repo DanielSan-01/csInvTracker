@@ -327,15 +327,51 @@ public class InventoryController : ControllerBase
 
     private InventoryItemDto MapToDto(InventoryItem item)
     {
+        // Handle null Skin gracefully (in case skin was deleted)
+        if (item.Skin == null)
+        {
+            _logger.LogWarning("Inventory item {ItemId} has null Skin (SkinId: {SkinId}). Skipping or using defaults.", 
+                item.Id, item.SkinId);
+            
+            return new InventoryItemDto
+            {
+                Id = item.Id,
+                SkinId = item.SkinId,
+                SkinName = "Unknown Skin",
+                Rarity = "Unknown",
+                Type = "Unknown",
+                Collection = null,
+                Weapon = null,
+                Float = item.Float,
+                Exterior = item.Exterior,
+                PaintSeed = item.PaintSeed,
+                Price = item.Price,
+                Cost = item.Cost,
+                ImageUrl = item.ImageUrl,
+                TradeProtected = item.TradeProtected,
+                TradableAfter = item.TradableAfter,
+                AcquiredAt = item.AcquiredAt,
+                PaintIndex = null,
+                Stickers = item.Stickers?.Select(s => new StickerDto
+                {
+                    Id = s.Id,
+                    Name = s.Name,
+                    Price = s.Price,
+                    Slot = s.Slot,
+                    ImageUrl = s.ImageUrl
+                }).ToList() ?? new List<StickerDto>()
+            };
+        }
+        
         var dto = new InventoryItemDto
         {
             Id = item.Id,
             SkinId = item.SkinId,
-            SkinName = item.Skin.Name,
-            Rarity = item.Skin.Rarity,
-            Type = item.Skin.Type,
-                Collection = item.Skin.Collection,
-                Weapon = item.Skin.Weapon,
+            SkinName = item.Skin.Name ?? "Unknown",
+            Rarity = item.Skin.Rarity ?? "Unknown",
+            Type = item.Skin.Type ?? "Unknown",
+            Collection = item.Skin.Collection,
+            Weapon = item.Skin.Weapon,
             Float = item.Float,
             Exterior = item.Exterior,
             PaintSeed = item.PaintSeed,
@@ -356,14 +392,14 @@ public class InventoryController : ControllerBase
         }
 
         // Map stickers
-        dto.Stickers = item.Stickers.Select(s => new StickerDto
+        dto.Stickers = item.Stickers?.Select(s => new StickerDto
         {
             Id = s.Id,
             Name = s.Name,
             Price = s.Price,
             Slot = s.Slot,
             ImageUrl = s.ImageUrl
-        }).ToList();
+        }).ToList() ?? new List<StickerDto>();
 
         return dto;
     }
