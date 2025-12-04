@@ -12,6 +12,16 @@ public class User
     
     public string? Username { get; set; }
     
+    public string? DisplayName { get; set; }
+    
+    public string? AvatarUrl { get; set; }
+    
+    public string? AvatarMediumUrl { get; set; }
+    
+    public string? AvatarFullUrl { get; set; }
+    
+    public string? ProfileUrl { get; set; }
+    
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     public DateTime LastLoginAt { get; set; } = DateTime.UtcNow;

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getSteamIdFromUrl, storeSteamId, getStoredSteamId, clearSteamId } from '@/lib/steamAuth';
+import { getSteamIdFromUrl, storeSteamId, getStoredSteamId, clearSteamId, initiateSteamLogin } from '@/lib/steamAuth';
 import { useUser } from '@/contexts/UserContext';
 
 export default function SteamLoginButton() {
-  const { refreshUser } = useUser();
+  const { user, refreshUser } = useUser();
   const [steamId, setSteamId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
@@ -31,7 +31,13 @@ export default function SteamLoginButton() {
   }, [refreshUser]);
 
   const handleLogin = () => {
+    // Check if we're on localhost - if so, show manual input
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       setShowManualInput(true);
+    } else {
+      // Use proper Steam OpenID
+      initiateSteamLogin(window.location.pathname);
+    }
   };
 
   const handleManualSubmit = async () => {
@@ -50,16 +56,6 @@ export default function SteamLoginButton() {
     }
   };
 
-  const handleTestUser = async () => {
-    const testSteamId = '76561197996404463';
-    storeSteamId(testSteamId);
-    setSteamId(testSteamId);
-    setShowManualInput(false);
-    setManualSteamId('');
-    // Refresh user context to load user data
-    await refreshUser();
-  };
-
   const handleLogout = async () => {
     clearSteamId();
     setSteamId(null);
@@ -67,18 +63,35 @@ export default function SteamLoginButton() {
     await refreshUser();
   };
 
-  if (steamId) {
+  // Show user profile when logged in
+  if (steamId && user) {
     return (
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-          </svg>
-          <span>Steam ID: {steamId}</span>
+        {user.avatarMediumUrl && (
+          <img
+            src={user.avatarMediumUrl}
+            alt={user.displayName || user.username || 'User'}
+            className="h-10 w-10 rounded-full border-2 border-gray-600"
+          />
+        )}
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-white">
+            {user.displayName || user.username || `User ${steamId.slice(-6)}`}
+          </span>
+          {user.profileUrl && (
+            <a
+              href={user.profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-gray-400 hover:text-gray-300"
+            >
+              View Profile
+            </a>
+          )}
         </div>
         <button
           onClick={handleLogout}
-          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
+          className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm"
         >
           Logout
         </button>
@@ -108,22 +121,14 @@ export default function SteamLoginButton() {
             Submit
           </button>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowManualInput(false)}
-              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors text-xs"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleTestUser}
-              className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors text-xs"
-            >
-              Test User
-            </button>
-          </div>
-          <p className="text-xs text-gray-500 text-right">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowManualInput(false)}
+            className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors text-xs"
+          >
+            Cancel
+          </button>
+          <p className="text-xs text-gray-500 flex-1 text-right">
             Find your Steam ID at <a href="https://steamid.io" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">steamid.io</a>
           </p>
         </div>
@@ -135,7 +140,11 @@ export default function SteamLoginButton() {
     <button
       onClick={handleLogin}
       disabled={isLoading}
-      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg transition-colors"
+      className="inline-flex items-center gap-2 px-4 py-2 bg-[#171a21] hover:bg-[#1b2838] border border-[#66c0f4] text-[#66c0f4] rounded transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{
+        // Steam's official brand colors
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
+      }}
     >
       {isLoading ? (
         <>
@@ -147,10 +156,11 @@ export default function SteamLoginButton() {
         </>
       ) : (
         <>
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          {/* Steam logo SVG */}
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
           </svg>
-          <span>Login with Steam</span>
+          <span>Sign in through Steam</span>
         </>
       )}
     </button>

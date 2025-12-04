@@ -168,6 +168,11 @@ export interface User {
   id: number;
   steamId: string;
   username?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  avatarMediumUrl?: string;
+  avatarFullUrl?: string;
+  profileUrl?: string;
   createdAt: string;
   lastLoginAt: string;
 }
