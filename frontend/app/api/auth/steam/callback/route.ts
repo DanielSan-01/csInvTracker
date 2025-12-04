@@ -58,7 +58,6 @@ export async function GET(request: NextRequest) {
 
     const steamId = steamIdMatch[1];
 
-    try {
     // Skip backend verification for now - Steam has already validated the response
     // We can add it back later once backend is confirmed working
     // For now, proceed directly to login
@@ -118,13 +117,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-      return response;
-    } catch (error) {
-      console.error('Unexpected error during authentication:', error);
-      // Always redirect, never throw - this prevents 500 errors
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return NextResponse.redirect(`${returnUrl}?error=authentication_error&message=${encodeURIComponent(errorMessage.substring(0, 100))}`);
-    }
+    return response;
   } catch (outerError) {
     // Catch any errors that happen outside the main try block
     console.error('Fatal error in Steam callback route:', outerError);
