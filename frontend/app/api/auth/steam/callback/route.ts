@@ -3,54 +3,62 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// Get API base URL - must be set in production
+// Get API base URL - computed at runtime to ensure env var is available
 const getApiBaseUrl = () => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl) {
-    // In production, this should always be set
-    // For now, log error but don't throw to see what's happening
     console.error('NEXT_PUBLIC_API_URL is not set!');
-    return 'http://localhost:5027/api'; // Fallback for development
+    // Don't use localhost fallback in production - it will fail
+    throw new Error('NEXT_PUBLIC_API_URL environment variable is not configured');
   }
   return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
 };
-
-const API_BASE_URL = getApiBaseUrl();
 
 /**
  * Handles Steam OpenID callback
  * Verifies the OpenID response signature and creates a secure session
  */
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const returnUrl = searchParams.get('returnUrl') || '/';
-
-  // Get OpenID response parameters
-  const params: Record<string, string> = {};
-  searchParams.forEach((value, key) => {
-    params[key] = value;
-  });
-
-  // Basic validation
-  if (params['openid.mode'] !== 'id_res') {
-    return NextResponse.redirect(`${returnUrl}?error=invalid_response`);
-  }
-
-  // Extract Steam ID from the claimed_id
-  // Format: https://steamcommunity.com/openid/id/76561197996404463
-  const claimedId = params['openid.claimed_id'] || params['openid.identity'];
-  if (!claimedId) {
-    return NextResponse.redirect(`${returnUrl}?error=no_steam_id`);
-  }
-
-  const steamIdMatch = claimedId.match(/\/id\/(\d+)$/);
-  if (!steamIdMatch) {
-    return NextResponse.redirect(`${returnUrl}?error=invalid_steam_id`);
-  }
-
-  const steamId = steamIdMatch[1];
-
+  // Wrap everything in try-catch to prevent any unhandled errors
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const returnUrl = searchParams.get('returnUrl') || '/';
+
+    // Get API base URL at runtime
+    let API_BASE_URL: string;
+    try {
+      API_BASE_URL = getApiBaseUrl();
+    } catch (envError) {
+      console.error('Failed to get API base URL:', envError);
+      return NextResponse.redirect(`${returnUrl}?error=config_error&msg=${encodeURIComponent('API URL not configured')}`);
+    }
+
+    // Get OpenID response parameters
+    const params: Record<string, string> = {};
+    searchParams.forEach((value, key) => {
+      params[key] = value;
+    });
+
+    // Basic validation
+    if (params['openid.mode'] !== 'id_res') {
+      return NextResponse.redirect(`${returnUrl}?error=invalid_response`);
+    }
+
+    // Extract Steam ID from the claimed_id
+    // Format: https://steamcommunity.com/openid/id/76561197996404463
+    const claimedId = params['openid.claimed_id'] || params['openid.identity'];
+    if (!claimedId) {
+      return NextResponse.redirect(`${returnUrl}?error=no_steam_id`);
+    }
+
+    const steamIdMatch = claimedId.match(/\/id\/(\d+)$/);
+    if (!steamIdMatch) {
+      return NextResponse.redirect(`${returnUrl}?error=invalid_steam_id`);
+    }
+
+    const steamId = steamIdMatch[1];
+
+    try {
     // Skip backend verification for now - Steam has already validated the response
     // We can add it back later once backend is confirmed working
     // For now, proceed directly to login
@@ -110,12 +118,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return response;
-  } catch (error) {
-    console.error('Unexpected error during authentication:', error);
-    // Always redirect, never throw - this prevents 500 errors
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.redirect(`${returnUrl}?error=authentication_error&message=${encodeURIComponent(errorMessage.substring(0, 100))}`);
+      return response;
+    } catch (error) {
+      console.error('Unexpected error during authentication:', error);
+      // Always redirect, never throw - this prevents 500 errors
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return NextResponse.redirect(`${returnUrl}?error=authentication_error&message=${encodeURIComponent(errorMessage.substring(0, 100))}`);
+    }
+  } catch (outerError) {
+    // Catch any errors that happen outside the main try block
+    console.error('Fatal error in Steam callback route:', outerError);
+    const errorMessage = outerError instanceof Error ? outerError.message : 'Unknown error';
+    // Use a safe return URL
+    const safeReturnUrl = '/';
+    return NextResponse.redirect(`${safeReturnUrl}?error=fatal_error&msg=${encodeURIComponent(errorMessage.substring(0, 100))}`);
   }
 }
 
