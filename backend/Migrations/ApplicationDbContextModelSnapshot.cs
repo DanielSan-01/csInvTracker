@@ -135,6 +135,10 @@ namespace backend.Migrations
                     b.Property<DateTime>("AcquiredAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("AssetId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<decimal?>("Cost")
                         .HasColumnType("decimal(18,2)");
 
@@ -169,6 +173,8 @@ namespace backend.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AssetId");
 
                     b.HasIndex("SkinId");
 
