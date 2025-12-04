@@ -18,19 +18,22 @@ public class InventoryController : ControllerBase
     private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly SteamInventoryImportService _steamImportService;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly SteamApiService _steamApiService;
 
     public InventoryController(
         ApplicationDbContext context,
         DopplerPhaseService dopplerPhaseService,
         ILogger<InventoryController> logger,
         SteamInventoryImportService steamImportService,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        SteamApiService steamApiService)
     {
         _context = context;
         _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
         _steamImportService = steamImportService;
         _httpClientFactory = httpClientFactory;
+        _steamApiService = steamApiService;
     }
 
     // Helper method to determine exterior from float
@@ -547,8 +550,10 @@ public class InventoryController : ControllerBase
             _logger.LogInformation("Starting Steam inventory refresh for user {UserId} (SteamId: {SteamId})", targetUserId, user.SteamId);
 
             // Fetch Steam inventory with pagination
-            // Use Steam Community inventory API (doesn't require API key)
+            // Note: Steam Web API (api.steampowered.com) doesn't have an inventory endpoint
+            // We must use Steam Community API (steamcommunity.com/inventory/...)
             // Format: https://steamcommunity.com/inventory/{steamId}/{appId}/{contextId}?l=english&count=5000
+            // This endpoint may be rate-limited or blocked for server IPs
             
             // Create HttpClient with automatic decompression enabled
             // Steam returns gzip-compressed responses that need to be automatically decompressed
@@ -590,7 +595,61 @@ public class InventoryController : ControllerBase
                 
                 _logger.LogInformation("Fetching Steam inventory page {Page} for user {UserId}", pageCount, targetUserId);
                 
-                var response = await httpClient.GetAsync(steamUrl, cancellationToken);
+                // Retry logic for Steam API (may be rate-limited or temporarily blocked)
+                System.Net.Http.HttpResponseMessage? response = null;
+                int retryCount = 0;
+                const int maxRetries = 3;
+                int retryDelayMs = 1000; // Start with 1 second
+                
+                while (retryCount <= maxRetries)
+                {
+                    try
+                    {
+                        response = await httpClient.GetAsync(steamUrl, cancellationToken);
+                        
+                        // If successful or non-retryable error, break
+                        if (response.IsSuccessStatusCode || 
+                            response.StatusCode == System.Net.HttpStatusCode.Unauthorized ||
+                            response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                        {
+                            break;
+                        }
+                        
+                        // If 400 or 429 (rate limit), retry with exponential backoff
+                        if (retryCount < maxRetries && 
+                            (response.StatusCode == System.Net.HttpStatusCode.BadRequest ||
+                             response.StatusCode == (System.Net.HttpStatusCode)429))
+                        {
+                            retryCount++;
+                            _logger.LogWarning("Steam API returned {StatusCode}, retrying ({RetryCount}/{MaxRetries}) after {Delay}ms delay...", 
+                                response.StatusCode, retryCount, maxRetries, retryDelayMs);
+                            await Task.Delay(retryDelayMs, cancellationToken);
+                            retryDelayMs *= 2; // Exponential backoff: 1s, 2s, 4s
+                            response.Dispose();
+                            continue;
+                        }
+                        
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (retryCount < maxRetries)
+                        {
+                            retryCount++;
+                            _logger.LogWarning(ex, "Error fetching Steam inventory, retrying ({RetryCount}/{MaxRetries}) after {Delay}ms delay...", 
+                                retryCount, maxRetries, retryDelayMs);
+                            await Task.Delay(retryDelayMs, cancellationToken);
+                            retryDelayMs *= 2;
+                            continue;
+                        }
+                        throw;
+                    }
+                }
+                
+                if (response == null)
+                {
+                    throw new Exception("Failed to get response from Steam API after retries");
+                }
                 
                 if (!response.IsSuccessStatusCode)
                 {

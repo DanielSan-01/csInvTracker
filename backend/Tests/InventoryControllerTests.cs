@@ -40,7 +40,12 @@ public class InventoryControllerTests : IDisposable
 
         // Create a simple mock HttpClientFactory for tests
         var httpClientFactory = new TestHttpClientFactory();
-        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, httpClientFactory);
+        
+        var steamApiLogger = NullLogger<SteamApiService>.Instance;
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var steamApiService = new SteamApiService(httpClientFactory, configuration, steamApiLogger);
+
+        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, httpClientFactory, steamApiService);
         
         // Create test user
         var testUser = new User
