@@ -60,15 +60,20 @@ export async function GET(request: NextRequest) {
     try {
       console.log('Calling backend login endpoint:', `${API_BASE_URL}/auth/login`);
       
+      // Create abort controller for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const loginResponse = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ steamId }),
-        // Add timeout to prevent hanging
-        signal: AbortSignal.timeout(10000), // 10 second timeout
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (!loginResponse.ok) {
         const errorText = await loginResponse.text();
