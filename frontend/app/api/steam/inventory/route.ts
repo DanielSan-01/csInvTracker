@@ -55,22 +55,58 @@ export async function GET(request: NextRequest) {
       
       console.log(`Fetching Steam inventory page ${pageCount} from:`, steamUrl);
       
+      // Add browser-like headers to avoid being blocked
       const response = await fetch(steamUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Referer': `https://steamcommunity.com/profiles/${steamId}/inventory/`,
+          'Origin': 'https://steamcommunity.com',
         },
       });
 
       console.log(`Steam API response status (page ${pageCount}):`, response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Steam API error response:', errorText);
+        // Try to read error response
+        let errorText = '';
+        try {
+          const contentType = response.headers.get('content-type') || 'unknown';
+          const contentLength = response.headers.get('content-length');
+          
+          // Try to read as text first
+          try {
+            errorText = await response.text();
+          } catch (e) {
+            // If text fails, try as array buffer (might be compressed)
+            const buffer = await response.arrayBuffer();
+            errorText = new TextDecoder().decode(buffer);
+          }
+          
+          console.error(`Steam API error (page ${pageCount}): Status=${response.status}, ContentType=${contentType}, ContentLength=${contentLength}, Error=${errorText.substring(0, 200)}`);
+          
+          // If empty response with 400, it's likely IP blocking
+          if (response.status === 400 && (!errorText || errorText.trim() === '')) {
+            return NextResponse.json(
+              { 
+                error: 'Steam API returned empty 400 response',
+                details: 'Steam may be blocking requests from this IP address. This could indicate rate limiting or IP blocking.',
+                statusCode: response.status
+              },
+              { status: 400 }
+            );
+          }
+        } catch (e) {
+          console.error('Failed to read error response:', e);
+          errorText = 'Failed to read error response';
+        }
+        
         return NextResponse.json(
           { 
             error: `Steam API error: ${response.status} ${response.statusText}`,
-            details: errorText.substring(0, 500) // First 500 chars
+            details: errorText ? errorText.substring(0, 500) : 'No error details available'
           },
           { status: response.status }
         );
