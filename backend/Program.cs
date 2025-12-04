@@ -135,14 +135,14 @@ builder.Services.AddCors(options =>
     {
         var allowedOrigins = new List<string>
         {
-            "http://localhost:3000",
-            "http://localhost:3002",
-            "http://127.0.0.1:3000",
-            "http://192.168.10.105:3000",
-            "http://192.168.10.105:3002",
-            "https://192.168.10.105:3000",
-            "https://192.168.10.105:3002",
-            "http://172.20.10.12:3000",
+                "http://localhost:3000",
+                "http://localhost:3002",
+                "http://127.0.0.1:3000",
+                "http://192.168.10.105:3000",
+                "http://192.168.10.105:3002",
+                "https://192.168.10.105:3000",
+                "https://192.168.10.105:3002",
+                "http://172.20.10.12:3000",
             "https://172.20.10.12:3000",
             // Vercel production domains
             "https://www.csinvtracker.com",
@@ -172,9 +172,9 @@ builder.Services.AddCors(options =>
         else
         {
             policy.WithOrigins(allowedOrigins.ToArray())
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
         }
     });
 });
@@ -272,6 +272,47 @@ using (var scope = app.Services.CreateScope())
         {
             logger.LogWarning(ex, "Failed to create Stickers table manually. This might be okay if it already exists.");
             Console.WriteLine($"Warning: Could not verify/create Stickers table: {ex.Message}");
+        }
+        
+        // Workaround: Manually add AssetId column if it doesn't exist
+        // This fixes the immediate issue while migrations are being sorted out
+        try
+        {
+            var connection = dbContext.Database.GetDbConnection();
+            await connection.OpenAsync();
+            using var checkCommand = connection.CreateCommand();
+            checkCommand.CommandText = @"
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'InventoryItems'
+                    AND column_name = 'AssetId'
+                );
+            ";
+            var exists = (bool)(await checkCommand.ExecuteScalarAsync() ?? false);
+            await connection.CloseAsync();
+            
+            if (!exists)
+            {
+                Console.WriteLine("AssetId column does not exist. Adding it manually...");
+                await dbContext.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""InventoryItems""
+                    ADD COLUMN ""AssetId"" character varying(100) NULL;
+                    
+                    CREATE INDEX IF NOT EXISTS ""IX_InventoryItems_AssetId"" 
+                    ON ""InventoryItems"" (""AssetId"");
+                ");
+                Console.WriteLine("AssetId column added successfully.");
+            }
+            else
+            {
+                Console.WriteLine("AssetId column already exists.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to add AssetId column manually. This might be okay if it already exists.");
+            Console.WriteLine($"Warning: Could not verify/add AssetId column: {ex.Message}");
         }
     }
     catch (Exception ex)
