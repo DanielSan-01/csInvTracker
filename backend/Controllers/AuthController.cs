@@ -379,4 +379,3 @@ public class UserDto
     public DateTime CreatedAt { get; set; }
     public DateTime LastLoginAt { get; set; }
 }
-

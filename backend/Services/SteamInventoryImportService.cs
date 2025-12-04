@@ -447,4 +447,3 @@ public class StickerInfo
     public decimal? Price { get; set; }
     public string? ImageUrl { get; set; }
 }
-
