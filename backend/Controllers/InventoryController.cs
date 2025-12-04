@@ -547,8 +547,11 @@ public class InventoryController : ControllerBase
             _logger.LogInformation("Starting Steam inventory refresh for user {UserId} (SteamId: {SteamId})", targetUserId, user.SteamId);
 
             // Fetch Steam inventory with pagination
+            // Use Steam Community inventory API (doesn't require API key)
+            // Format: https://steamcommunity.com/inventory/{steamId}/{appId}/{contextId}?l=english&count=5000
             var httpClient = _httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             
             var allAssets = new List<SteamAsset>();
             var allDescriptions = new List<SteamItemDescription>();
@@ -577,10 +580,23 @@ public class InventoryController : ControllerBase
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
-                    _logger.LogError("Steam API error (page {Page}): {StatusCode} - {Error}", pageCount, response.StatusCode, errorText);
-                    return StatusCode(500, new { 
+                    _logger.LogError("Steam Community inventory API error (page {Page}): {StatusCode} - {Error}", pageCount, response.StatusCode, errorText);
+                    
+                    // 400 Bad Request often means inventory is private or invalid Steam ID
+                    if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                    {
+                        return BadRequest(new { 
+                            error = "Steam inventory is not accessible",
+                            details = "The inventory may be set to private, or the Steam ID may be invalid. Please ensure the inventory privacy settings allow public viewing.",
+                            statusCode = (int)response.StatusCode,
+                            steamUrl = steamUrl
+                        });
+                    }
+                    
+                    return StatusCode((int)response.StatusCode, new { 
                         error = $"Steam API error: {response.StatusCode}",
-                        details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
+                        details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
+                        statusCode = (int)response.StatusCode
                     });
                 }
 
@@ -635,13 +651,31 @@ public class InventoryController : ControllerBase
                     pageCount, data.Assets?.Count ?? 0, data.Descriptions?.Count ?? 0, allAssets.Count, allDescriptions.Count);
 
                 // Check if there are more items to fetch
-                hasMore = data.MoreItems == 1 || (data.LastAssetId != null && data.LastAssetId != startAssetId);
-                if (hasMore && data.LastAssetId != null)
+                // Steam indicates more items via MoreItems == 1, and provides LastAssetId for pagination
+                // We can only continue if we have both: MoreItems == 1 AND a valid LastAssetId that's different from current
+                if (data.MoreItems == 1 && data.LastAssetId != null && data.LastAssetId != startAssetId)
                 {
+                    // We have more items and a valid asset ID to continue with
+                    hasMore = true;
                     startAssetId = data.LastAssetId;
+                }
+                else if (data.MoreItems == 1 && data.LastAssetId == null)
+                {
+                    // Steam says there are more items, but didn't provide LastAssetId
+                    // This is an API inconsistency - log warning and stop to avoid infinite loop
+                    _logger.LogWarning("Steam API indicates more items (MoreItems=1) but LastAssetId is null. Cannot continue pagination. Page: {Page}", pageCount);
+                    hasMore = false;
+                }
+                else if (data.MoreItems == 1 && data.LastAssetId == startAssetId)
+                {
+                    // Steam says there are more items, but LastAssetId hasn't changed
+                    // This could cause an infinite loop - log warning and stop
+                    _logger.LogWarning("Steam API indicates more items (MoreItems=1) but LastAssetId hasn't changed. Stopping pagination to avoid infinite loop. Page: {Page}, LastAssetId: {LastAssetId}", pageCount, data.LastAssetId);
+                    hasMore = false;
                 }
                 else
                 {
+                    // No more items indicated (MoreItems != 1)
                     hasMore = false;
                 }
 
