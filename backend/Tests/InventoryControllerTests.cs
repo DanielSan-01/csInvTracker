@@ -33,8 +33,11 @@ public class InventoryControllerTests : IDisposable
         var dopplerLogger = NullLogger<DopplerPhaseService>.Instance;
         var env = new TestWebHostEnvironment();
         var dopplerService = new DopplerPhaseService(env, dopplerLogger);
+        
+        var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
+        var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService);
 
-        _controller = new InventoryController(_context, dopplerService, logger);
+        _controller = new InventoryController(_context, dopplerService, logger, steamImportService);
         
         // Create test user
         var testUser = new User

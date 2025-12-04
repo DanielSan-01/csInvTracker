@@ -374,8 +374,6 @@ export default function ItemGrid() {
     <div className="relative min-h-screen bg-gray-950 pb-16">
       <Navbar
         isAuthenticated={!!user}
-        onLoadFromSteam={user ? handleLoadFromSteam : undefined}
-        isLoadingSteam={isLoadingSteam}
         authControl={<SteamLoginButton />}
         userInventory={sortedItems}
         onQuickAddSkin={handleQuickAddSkin}

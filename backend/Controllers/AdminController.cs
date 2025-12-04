@@ -11,12 +11,18 @@ public class AdminController : ControllerBase
 {
     private readonly AdminDashboardService _adminService;
     private readonly SkinImportService _skinImportService;
+    private readonly SteamCatalogRefreshService _steamCatalogRefreshService;
     private readonly ILogger<AdminController> _logger;
 
-    public AdminController(AdminDashboardService adminService, SkinImportService skinImportService, ILogger<AdminController> logger)
+    public AdminController(
+        AdminDashboardService adminService, 
+        SkinImportService skinImportService,
+        SteamCatalogRefreshService steamCatalogRefreshService,
+        ILogger<AdminController> logger)
     {
         _adminService = adminService;
         _skinImportService = skinImportService;
+        _steamCatalogRefreshService = steamCatalogRefreshService;
         _logger = logger;
     }
 
@@ -99,7 +105,33 @@ public class AdminController : ControllerBase
         }
     }
 
+    [HttpPost("refresh-from-steam")]
+    public async Task<IActionResult> RefreshFromSteam(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _steamCatalogRefreshService.RefreshFromSteamInventoriesAsync(cancellationToken);
+
+            return Ok(new
+            {
+                Success = result.Errors.Count == 0,
+                TotalItemsFound = result.TotalItemsFound,
+                Created = result.Created,
+                Updated = result.Updated,
+                Skipped = result.Skipped,
+                Errors = result.Errors,
+                Message = result.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing catalog from Steam");
+            return StatusCode(500, new { error = "An error occurred while refreshing catalog from Steam", message = ex.Message });
+        }
+    }
+
     [HttpPost("import-from-bymykel")]
+    [Obsolete("Use refresh-from-steam instead. This endpoint is kept for backward compatibility.")]
     public async Task<IActionResult> ImportFromByMykel(CancellationToken cancellationToken)
     {
         var result = await _skinImportService.ImportFromByMykelAsync(cancellationToken);

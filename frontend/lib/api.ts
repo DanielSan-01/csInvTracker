@@ -204,11 +204,51 @@ export interface LoginResponse {
 export const authApi = {
   getCurrentUser: async (): Promise<User | null> => {
     try {
+      // Try to get token from cookie (set by Next.js API route)
+      // For cross-domain requests, we may need to send it in Authorization header
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Try to get token from non-HttpOnly cookie or localStorage
+      // This is a fallback for cross-domain cookie issues
+      let token: string | null = null;
+      if (typeof document !== 'undefined') {
+        // Try to read from cookie first
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'auth_token_client' && value) {
+            token = value;
+            // Also store in localStorage as backup
+            localStorage.setItem('auth_token', value);
+            break;
+          }
+        }
+        
+        // Fallback to localStorage if cookie not found
+        if (!token) {
+          token = localStorage.getItem('auth_token');
+        }
+        
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+          console.log('Sending token in Authorization header');
+        } else {
+          console.warn('No token found in cookies or localStorage');
+        }
+      }
+      
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         credentials: 'include', // Include cookies
+        headers,
       });
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 404) {
+          // Clear invalid token from localStorage if present
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('auth_token');
+          }
           return null;
         }
         throw new Error('Failed to get current user');
@@ -221,10 +261,37 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
+    try {
+      // Try to get token for Authorization header
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (typeof document !== 'undefined') {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+      
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+      });
+      
+      // Clear localStorage after successful logout
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('auth_token');
+      }
+    } catch (error) {
+      // Even if the request fails, clear localStorage
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('auth_token');
+      }
+      // Don't throw - we've cleared local state
+      console.warn('Logout request failed, but local state cleared:', error);
+    }
   },
 };
 
@@ -326,7 +393,22 @@ export const inventoryApi = {
       url.searchParams.append('userId', userId.toString());
     }
     
-    const response = await fetch(url.toString());
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (typeof document !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+    
+    const response = await fetch(url.toString(), {
+      credentials: 'include',
+      headers,
+    });
     if (!response.ok) {
       throw new Error('Failed to fetch inventory');
     }

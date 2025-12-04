@@ -16,6 +16,16 @@ var jwtSecret = builder.Configuration["JWT:Secret"] ?? Environment.GetEnvironmen
 var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "cs-inv-tracker";
 var jwtAudience = builder.Configuration["JWT:Audience"] ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "cs-inv-tracker";
 
+if (string.IsNullOrEmpty(jwtSecret))
+{
+    Console.WriteLine("[JWT Config] WARNING: JWT_SECRET is not set! Authentication will not work properly.");
+    Console.WriteLine("[JWT Config] Set JWT_SECRET environment variable in Railway.");
+}
+else
+{
+    Console.WriteLine($"[JWT Config] JWT_SECRET loaded. Length: {jwtSecret.Length}, First 10 chars: {(jwtSecret.Length > 10 ? jwtSecret.Substring(0, 10) + "..." : jwtSecret)}");
+}
+
 if (!string.IsNullOrEmpty(jwtSecret))
 {
     builder.Services.AddAuthentication(options =>
@@ -36,6 +46,20 @@ if (!string.IsNullOrEmpty(jwtSecret))
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+        
+        // Read token from cookie if Authorization header is not present
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Try to get token from cookie if not in Authorization header
+                if (string.IsNullOrEmpty(context.Token))
+                {
+                    context.Token = context.Request.Cookies["auth_token"];
+                }
+                return System.Threading.Tasks.Task.CompletedTask;
+            }
+        };
     });
 }
 
@@ -44,10 +68,11 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();
-builder.Services.AddScoped<SteamApiService>();
-builder.Services.AddScoped<AuthService>();
-builder.Services.AddScoped<OpenIdVerificationService>();
-builder.Services.AddScoped<SteamInventoryImportService>();
+    builder.Services.AddScoped<SteamApiService>();
+    builder.Services.AddScoped<AuthService>();
+    builder.Services.AddScoped<OpenIdVerificationService>();
+    builder.Services.AddScoped<SteamInventoryImportService>();
+    builder.Services.AddScoped<SteamCatalogRefreshService>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection

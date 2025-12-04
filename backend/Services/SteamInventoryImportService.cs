@@ -29,6 +29,7 @@ public class SteamInventoryImportService
         public int Skipped { get; set; }
         public int Errors { get; set; }
         public List<string> ErrorMessages { get; set; } = new();
+        public List<string> SkippedItems { get; set; } = new(); // Track which items were skipped and why
     }
 
     /// <summary>
@@ -54,10 +55,13 @@ public class SteamInventoryImportService
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Skip non-marketable or non-tradable items (like cases, stickers, etc.)
-                if (!steamItem.Marketable || !steamItem.Tradable)
+                // Skip items that are both non-marketable AND non-tradable
+                // (Allow items that are marketable OR tradable, as some items might be one but not the other)
+                if (!steamItem.Marketable && !steamItem.Tradable)
                 {
+                    _logger.LogDebug("Skipping non-marketable and non-tradable item: {MarketHashName}", steamItem.MarketHashName);
                     result.Skipped++;
+                    result.SkippedItems.Add($"{steamItem.MarketHashName} (not marketable/tradable)");
                     continue;
                 }
 
@@ -65,20 +69,71 @@ public class SteamInventoryImportService
                 var matchingSkin = FindMatchingSkin(allSkins, steamItem.MarketHashName);
                 if (matchingSkin == null)
                 {
-                    _logger.LogDebug("No matching skin found for: {MarketHashName}", steamItem.MarketHashName);
+                    _logger.LogWarning("No matching skin found in catalog for: {MarketHashName} (AssetId: {AssetId})", 
+                        steamItem.MarketHashName, steamItem.AssetId);
                     result.Skipped++;
+                    result.SkippedItems.Add($"{steamItem.MarketHashName} (no catalog match)");
+                    result.ErrorMessages.Add($"No catalog match: {steamItem.MarketHashName}");
                     continue;
                 }
+                
+                _logger.LogDebug("Found matching skin: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
+                    steamItem.MarketHashName, matchingSkin.Name, matchingSkin.Id);
 
-                // Check if item already exists (by Steam asset ID if we store it, or by skin + user)
-                // For now, we'll check by skin ID and user ID to avoid duplicates
-                var existingItem = await _context.InventoryItems
-                    .FirstOrDefaultAsync(i => i.UserId == userId && i.SkinId == matchingSkin.Id, cancellationToken);
+                // Check if item already exists by AssetId (unique Steam identifier)
+                // If it exists, update it with latest Steam data (especially image URL)
+                InventoryItem? existingItem = null;
+                if (!string.IsNullOrEmpty(steamItem.AssetId))
+                {
+                    existingItem = await _context.InventoryItems
+                        .FirstOrDefaultAsync(i => i.AssetId == steamItem.AssetId, cancellationToken);
+                }
 
                 if (existingItem != null)
                 {
-                    // Update existing item with Steam data if needed
-                    result.Skipped++;
+                    // Update existing item with latest Steam data (especially image URL)
+                    _logger.LogDebug("Updating existing item with latest Steam data: AssetId {AssetId}, {MarketHashName}", 
+                        steamItem.AssetId, steamItem.MarketHashName);
+                    
+                    // Extract item properties from Steam descriptions
+                    var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) = ExtractItemProperties(steamItem);
+                    
+                    // Always update with Steam's image URL if available (Steam has the latest images)
+                    if (!string.IsNullOrEmpty(steamItem.ImageUrl))
+                    {
+                        existingItem.ImageUrl = steamItem.ImageUrl;
+                    }
+                    
+                    // Update other properties that might have changed
+                    existingItem.Float = updatedFloatValue;
+                    existingItem.Exterior = updatedExterior;
+                    existingItem.PaintSeed = updatedPaintSeed;
+                    existingItem.TradeProtected = !steamItem.Tradable;
+                    
+                    // Update stickers if any
+                    if (updatedStickers != null && updatedStickers.Count > 0)
+                    {
+                        // Remove old stickers
+                        var oldStickers = _context.Stickers.Where(s => s.InventoryItemId == existingItem.Id).ToList();
+                        _context.Stickers.RemoveRange(oldStickers);
+                        
+                        // Add new stickers
+                        foreach (var sticker in updatedStickers)
+                        {
+                            var stickerEntity = new Sticker
+                            {
+                                InventoryItemId = existingItem.Id,
+                                Name = sticker.Name,
+                                Price = sticker.Price,
+                                Slot = sticker.Slot,
+                                ImageUrl = sticker.ImageUrl
+                            };
+                            _context.Stickers.Add(stickerEntity);
+                        }
+                    }
+                    
+                    await _context.SaveChangesAsync(cancellationToken);
+                    result.Imported++; // Count as imported (updated)
                     continue;
                 }
 
@@ -86,31 +141,25 @@ public class SteamInventoryImportService
                 var (floatValue, exterior, paintSeed, paintIndex, stickers) = ExtractItemProperties(steamItem);
 
                 // Create inventory item
+                // Always prefer Steam's image URL (it's always up-to-date from Steam's CDN)
+                // Only fall back to catalog image if Steam doesn't provide one (shouldn't happen)
+                var imageUrl = !string.IsNullOrEmpty(steamItem.ImageUrl) 
+                    ? steamItem.ImageUrl 
+                    : matchingSkin.ImageUrl;
+                
                 var inventoryItem = new InventoryItem
                 {
                     UserId = userId,
                     SkinId = matchingSkin.Id,
+                    AssetId = steamItem.AssetId, // Store Steam asset ID for duplicate detection
                     Float = floatValue,
                     Exterior = exterior,
                     PaintSeed = paintSeed,
-                    PaintIndex = paintIndex ?? matchingSkin.PaintIndex,
-                    ImageUrl = steamItem.ImageUrl ?? matchingSkin.ImageUrl,
+                    ImageUrl = imageUrl,
                     Price = 0, // Would need to fetch from market API
                     TradeProtected = !steamItem.Tradable,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    AcquiredAt = DateTime.UtcNow
                 };
-
-                // Handle Doppler phase
-                if (paintIndex.HasValue)
-                {
-                    var dopplerInfo = _dopplerPhaseService.GetPhaseInfo(paintIndex.Value);
-                    if (dopplerInfo != null)
-                    {
-                        inventoryItem.DopplerPhase = dopplerInfo.Phase;
-                        inventoryItem.DopplerPhaseImageUrl = dopplerInfo.ImageUrl;
-                    }
-                }
 
                 _context.InventoryItems.Add(inventoryItem);
                 await _context.SaveChangesAsync(cancellationToken);
@@ -148,6 +197,7 @@ public class SteamInventoryImportService
 
     /// <summary>
     /// Finds a matching skin in the catalog by market hash name
+    /// Uses multiple matching strategies to find the best match
     /// </summary>
     private Skin? FindMatchingSkin(List<Skin> skins, string marketHashName)
     {
@@ -155,58 +205,125 @@ public class SteamInventoryImportService
             return null;
 
         var normalizedSearch = NormalizeSkinName(marketHashName);
+        if (string.IsNullOrWhiteSpace(normalizedSearch))
+            return null;
 
-        // Try exact match first
+        // Strategy 1: Exact match (case-insensitive)
         var exactMatch = skins.FirstOrDefault(s =>
             NormalizeSkinName(s.Name).Equals(normalizedSearch, StringComparison.OrdinalIgnoreCase));
-        if (exactMatch != null) return exactMatch;
+        if (exactMatch != null)
+        {
+            _logger.LogDebug("Exact match found: {MarketHashName} -> {SkinName}", marketHashName, exactMatch.Name);
+            return exactMatch;
+        }
 
-        // Try contains match
+        // Strategy 2: Exact match on original name (before normalization)
+        var exactOriginalMatch = skins.FirstOrDefault(s =>
+            s.Name.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
+        if (exactOriginalMatch != null)
+        {
+            _logger.LogDebug("Exact original match found: {MarketHashName} -> {SkinName}", marketHashName, exactOriginalMatch.Name);
+            return exactOriginalMatch;
+        }
+
+        // Strategy 3: Contains match (either direction)
         var containsMatch = skins.FirstOrDefault(s =>
-            NormalizeSkinName(s.Name).Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
-            normalizedSearch.Contains(NormalizeSkinName(s.Name), StringComparison.OrdinalIgnoreCase));
-        if (containsMatch != null) return containsMatch;
+        {
+            var normalizedSkin = NormalizeSkinName(s.Name);
+            return normalizedSkin.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                   normalizedSearch.Contains(normalizedSkin, StringComparison.OrdinalIgnoreCase);
+        });
+        if (containsMatch != null)
+        {
+            _logger.LogDebug("Contains match found: {MarketHashName} -> {SkinName}", marketHashName, containsMatch.Name);
+            return containsMatch;
+        }
 
-        // Try word-based matching
-        var searchWords = normalizedSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var bestMatch = skins
-            .Select(s => new { Skin = s, Score = CalculateMatchScore(NormalizeSkinName(s.Name), normalizedSearch, searchWords) })
-            .Where(x => x.Score > 0)
-            .OrderByDescending(x => x.Score)
-            .FirstOrDefault();
+        // Strategy 4: Word-based fuzzy matching
+        var searchWords = normalizedSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 2) // Ignore very short words
+            .ToArray();
+            
+        if (searchWords.Length > 0)
+        {
+            var bestMatch = skins
+                .Select(s => new { 
+                    Skin = s, 
+                    Score = CalculateMatchScore(NormalizeSkinName(s.Name), normalizedSearch, searchWords) 
+                })
+                .Where(x => x.Score > 20) // Require at least 2 words to match
+                .OrderByDescending(x => x.Score)
+                .FirstOrDefault();
 
-        return bestMatch?.Skin;
+            if (bestMatch != null)
+            {
+                _logger.LogDebug("Fuzzy match found (score: {Score}): {MarketHashName} -> {SkinName}", 
+                    bestMatch.Score, marketHashName, bestMatch.Skin.Name);
+                return bestMatch.Skin;
+            }
+        }
+
+        return null;
     }
 
     private static string NormalizeSkinName(string name)
     {
+        if (string.IsNullOrWhiteSpace(name))
+            return string.Empty;
+            
         return name
-            .Replace("★", string.Empty)
-            .Replace("|", string.Empty)
-            .Replace("StatTrak™", "StatTrak")
-            .Replace("StatTrak", string.Empty)
-            .Replace("Souvenir", string.Empty)
+            .Replace("★", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("|", " ", StringComparison.OrdinalIgnoreCase) // Replace | with space to preserve word separation
+            .Replace("StatTrak™", "StatTrak", StringComparison.OrdinalIgnoreCase)
+            .Replace("StatTrak", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("Souvenir", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("™", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("(", " ", StringComparison.OrdinalIgnoreCase)
+            .Replace(")", " ", StringComparison.OrdinalIgnoreCase)
             .Trim()
-            .Replace("  ", " ");
+            .Replace("  ", " ", StringComparison.OrdinalIgnoreCase)
+            .Replace("  ", " ", StringComparison.OrdinalIgnoreCase); // Do it twice to catch triple spaces
     }
 
     private static int CalculateMatchScore(string skinName, string searchName, string[] searchWords)
     {
         var score = 0;
         var normalizedSkin = NormalizeSkinName(skinName).ToLowerInvariant();
+        var normalizedSearch = searchName.ToLowerInvariant();
 
+        // Score based on word matches
         foreach (var word in searchWords)
         {
-            if (normalizedSkin.Contains(word.ToLowerInvariant()))
+            var wordLower = word.ToLowerInvariant();
+            if (normalizedSkin.Contains(wordLower))
             {
-                score += 10;
+                // Longer words are more significant
+                score += Math.Min(word.Length * 2, 20);
             }
         }
 
-        if (normalizedSkin.Contains(searchName.ToLowerInvariant()))
+        // Bonus for containing the full search string
+        if (normalizedSkin.Contains(normalizedSearch))
         {
             score += 50;
         }
+
+        // Bonus for starting with the same words
+        var skinWords = normalizedSkin.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var searchWordsLower = searchWords.Select(w => w.ToLowerInvariant()).ToArray();
+        var matchingStartWords = 0;
+        for (int i = 0; i < Math.Min(skinWords.Length, searchWordsLower.Length); i++)
+        {
+            if (skinWords[i] == searchWordsLower[i])
+            {
+                matchingStartWords++;
+            }
+            else
+            {
+                break;
+            }
+        }
+        score += matchingStartWords * 15;
 
         return score;
     }

@@ -101,13 +101,24 @@ export async function GET(request: NextRequest) {
 
       if (!loginResponse.ok) {
         const errorText = await loginResponse.text();
-        console.error('Login failed:', errorText);
+        console.error('Login failed:', {
+          status: loginResponse.status,
+          statusText: loginResponse.statusText,
+          errorText: errorText,
+          headers: Object.fromEntries(loginResponse.headers.entries())
+        });
         // If backend is down, redirect with error but don't crash
         return NextResponse.redirect(createRedirectUrl('login_failed', errorText.substring(0, 100)));
       }
 
       loginData = await loginResponse.json();
-      console.log('Login successful, received token');
+      console.log('Login successful, received token:', loginData?.token ? 'Token present' : 'Token missing');
+      
+      // Store token in response for cookie setting
+      if (!loginData?.token) {
+        console.error('No token received from backend login');
+        return NextResponse.redirect(createRedirectUrl('no_token', 'Backend did not return authentication token'));
+      }
     } catch (loginError) {
       console.error('Backend login request failed:', loginError);
       // If backend is unreachable, still redirect but with error
@@ -131,6 +142,7 @@ export async function GET(request: NextRequest) {
     const isProduction = !request.nextUrl.hostname.includes('localhost');
     
     if (loginData?.token) {
+      // Set HttpOnly cookie (secure, can't be accessed by JavaScript)
       response.cookies.set('auth_token', loginData.token, {
         httpOnly: true,
         secure: isProduction,
@@ -138,6 +150,21 @@ export async function GET(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 30, // 30 days
         path: '/',
       });
+      
+      // Also set a non-HttpOnly cookie for cross-domain fallback
+      // This allows the frontend to read it and send in Authorization header
+      response.cookies.set('auth_token_client', loginData.token, {
+        httpOnly: false, // Can be read by JavaScript
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        path: '/',
+        domain: isProduction ? '.csinvtracker.com' : undefined, // Allow subdomain access
+      });
+      
+      console.log('Set auth_token_client cookie with token');
+    } else {
+      console.error('loginData.token is missing, cannot set cookies');
     }
 
     return response;

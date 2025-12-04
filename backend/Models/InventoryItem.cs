@@ -14,6 +14,13 @@ public class InventoryItem
     [Required]
     public int SkinId { get; set; }
     
+    /// <summary>
+    /// Steam asset ID - unique identifier for each item in Steam inventory
+    /// Used to prevent duplicate imports of the same physical item
+    /// </summary>
+    [MaxLength(100)]
+    public string? AssetId { get; set; }
+    
     [Required]
     public double Float { get; set; }
     

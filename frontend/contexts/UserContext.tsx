@@ -42,6 +42,20 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('authenticated') === 'true') {
+      // Try to get token from cookie and store in localStorage as fallback
+      // This helps with cross-domain cookie issues
+      if (typeof document !== 'undefined') {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'auth_token_client' && value) {
+            // Store in localStorage as fallback for cross-domain requests
+            localStorage.setItem('auth_token', value);
+            break;
+          }
+        }
+      }
+      
       // Refresh user data after successful authentication
       refreshUser();
       // Clean up URL

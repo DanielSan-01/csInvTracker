@@ -27,6 +27,12 @@ public class AuthService
         {
             _logger.LogWarning("JWT_SECRET not set. Using a random secret that will change on restart. Set JWT_SECRET environment variable for production!");
         }
+        else
+        {
+            _logger.LogInformation("JWT_SECRET loaded successfully. Secret length: {Length}, First 10 chars: {Preview}", 
+                _jwtSecret.Length, 
+                _jwtSecret.Length > 10 ? _jwtSecret.Substring(0, 10) + "..." : _jwtSecret);
+        }
     }
 
     /// <summary>
@@ -34,6 +40,12 @@ public class AuthService
     /// </summary>
     public string GenerateToken(User user)
     {
+        _logger.LogInformation("Generating token with secret length: {Length}, First 10 chars: {Preview}, Issuer: {Issuer}, Audience: {Audience}", 
+            _jwtSecret.Length, 
+            _jwtSecret.Length > 10 ? _jwtSecret.Substring(0, 10) + "..." : _jwtSecret,
+            _jwtIssuer,
+            _jwtAudience);
+        
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -58,7 +70,9 @@ public class AuthService
             signingCredentials: creds
         );
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+        _logger.LogInformation("Token generated successfully. Token length: {Length}", tokenString.Length);
+        return tokenString;
     }
 
     /// <summary>
@@ -68,6 +82,10 @@ public class AuthService
     {
         try
         {
+            _logger.LogInformation("Validating token with secret length: {Length}, First 10 chars: {Preview}", 
+                _jwtSecret.Length, 
+                _jwtSecret.Length > 10 ? _jwtSecret.Substring(0, 10) + "..." : _jwtSecret);
+            
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_jwtSecret);
 
@@ -80,15 +98,18 @@ public class AuthService
                 ValidateAudience = true,
                 ValidAudience = _jwtAudience,
                 ValidateLifetime = true,
-                ClockSkew = TimeSpan.Zero
+                ClockSkew = TimeSpan.Zero,
+                RequireSignedTokens = true
             };
 
             var principal = tokenHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
+            _logger.LogInformation("Token validated successfully");
             return principal;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Token validation failed");
+            _logger.LogWarning(ex, "Token validation failed. Exception type: {Type}, Message: {Message}", 
+                ex.GetType().Name, ex.Message);
             return null;
         }
     }
@@ -98,18 +119,33 @@ public class AuthService
     /// </summary>
     public int? GetUserIdFromToken(string token)
     {
-        var principal = ValidateToken(token);
-        if (principal == null) return null;
-
-        var userIdClaim = principal.FindFirst("userId")?.Value 
-            ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        
-        if (int.TryParse(userIdClaim, out var userId))
+        try
         {
-            return userId;
-        }
+            var principal = ValidateToken(token);
+            if (principal == null)
+            {
+                _logger.LogWarning("Token validation returned null principal");
+                return null;
+            }
 
-        return null;
+            var userIdClaim = principal.FindFirst("userId")?.Value 
+                ?? principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            _logger.LogInformation("Found userId claim: {UserIdClaim}", userIdClaim ?? "null");
+            
+            if (int.TryParse(userIdClaim, out var userId))
+            {
+                return userId;
+            }
+
+            _logger.LogWarning("Failed to parse userId claim '{UserIdClaim}' as integer", userIdClaim);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception while extracting user ID from token");
+            return null;
+        }
     }
 
     /// <summary>

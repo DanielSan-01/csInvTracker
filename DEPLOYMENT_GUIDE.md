@@ -34,6 +34,10 @@ In Railway, go to your backend service → Variables tab, and add:
 - `DATABASE_URL` = (Railway automatically sets this when you add PostgreSQL - you can use this OR `ConnectionStrings__DefaultConnection`)
 - `FRONTEND_URL` = `https://your-vercel-app.vercel.app` (your Vercel frontend URL)
 - `ASPNETCORE_ENVIRONMENT` = `Production`
+- `JWT_SECRET` = (Generate a secure random string, e.g., using `openssl rand -base64 32` or an online generator. This is critical for authentication!)
+- `JWT_ISSUER` = `cs-inv-tracker` (optional, defaults to this)
+- `JWT_AUDIENCE` = `cs-inv-tracker` (optional, defaults to this)
+- `STEAM_API_KEY` = (Your Steam Web API key from https://steamcommunity.com/dev/apikey - optional but recommended for profile data)
 
 **Important:** Do NOT set `PORT` manually - Railway automatically sets this for you! If you see a PORT variable, delete it.
 

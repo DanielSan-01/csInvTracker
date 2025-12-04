@@ -36,8 +36,11 @@ public class AuthController : ControllerBase
     {
         try
         {
-            if (string.IsNullOrEmpty(request.SteamId))
+            _logger.LogInformation("Login request received for Steam ID: {SteamId}", request?.SteamId ?? "null");
+            
+            if (string.IsNullOrEmpty(request?.SteamId))
             {
+                _logger.LogWarning("Login request rejected: Steam ID is empty or null");
                 return BadRequest(new { error = "Steam ID is required" });
             }
 
@@ -48,7 +51,12 @@ public class AuthController : ControllerBase
             if (user == null)
             {
                 // Fetch Steam profile to create user with proper data
+                // Don't fail if Steam API is unavailable - create user anyway
                 var steamProfile = await _steamApiService.GetPlayerSummaryAsync(request.SteamId);
+                if (steamProfile == null)
+                {
+                    _logger.LogWarning("Could not fetch Steam profile for Steam ID: {SteamId}. Creating user without profile data.", request.SteamId);
+                }
                 
                 user = new User
                 {
@@ -73,25 +81,45 @@ public class AuthController : ControllerBase
                 // Update last login and profile data
                 user.LastLoginAt = DateTime.UtcNow;
                 
-                var steamProfile = await _steamApiService.GetPlayerSummaryAsync(request.SteamId);
-                if (steamProfile != null)
+                // Try to update profile, but don't fail if Steam API is unavailable
+                try
                 {
-                    user.DisplayName = steamProfile.PersonaName;
-                    user.AvatarUrl = steamProfile.Avatar;
-                    user.AvatarMediumUrl = steamProfile.AvatarMedium;
-                    user.AvatarFullUrl = steamProfile.AvatarFull;
-                    user.ProfileUrl = steamProfile.ProfileUrl;
-                    if (string.IsNullOrEmpty(user.Username))
+                    var steamProfile = await _steamApiService.GetPlayerSummaryAsync(request.SteamId);
+                    if (steamProfile != null)
                     {
-                        user.Username = steamProfile.PersonaName;
+                        user.DisplayName = steamProfile.PersonaName;
+                        user.AvatarUrl = steamProfile.Avatar;
+                        user.AvatarMediumUrl = steamProfile.AvatarMedium;
+                        user.AvatarFullUrl = steamProfile.AvatarFull;
+                        user.ProfileUrl = steamProfile.ProfileUrl;
+                        if (string.IsNullOrEmpty(user.Username))
+                        {
+                            user.Username = steamProfile.PersonaName;
+                        }
                     }
+                }
+                catch (Exception steamEx)
+                {
+                    _logger.LogWarning(steamEx, "Failed to fetch Steam profile for existing user {UserId}. Continuing without profile update.", user.Id);
                 }
                 
                 await _context.SaveChangesAsync();
             }
 
             // Generate JWT token
-            var token = _authService.GenerateToken(user);
+            string token;
+            try
+            {
+                _logger.LogInformation("Attempting to generate JWT token for user {UserId}", user.Id);
+                token = _authService.GenerateToken(user);
+                _logger.LogInformation("JWT token generated successfully. Token length: {Length}", token?.Length ?? 0);
+            }
+            catch (Exception tokenEx)
+            {
+                _logger.LogError(tokenEx, "Failed to generate JWT token for user {UserId}. Exception: {ExceptionType}, Message: {Message}", 
+                    user.Id, tokenEx.GetType().Name, tokenEx.Message);
+                return StatusCode(500, new { error = $"Failed to generate authentication token: {tokenEx.Message}. Please check JWT_SECRET configuration." });
+            }
 
             // Set secure HTTP-only cookie
             var cookieOptions = new CookieOptions
@@ -125,8 +153,12 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during login for Steam ID: {SteamId}", request.SteamId);
-            return StatusCode(500, new { error = "An error occurred during login" });
+            _logger.LogError(ex, "Error during login for Steam ID: {SteamId}. Exception: {ExceptionType}, Message: {Message}, StackTrace: {StackTrace}", 
+                request?.SteamId ?? "null", 
+                ex.GetType().Name, 
+                ex.Message, 
+                ex.StackTrace);
+            return StatusCode(500, new { error = $"An error occurred during login: {ex.Message}" });
         }
     }
 
@@ -139,26 +171,45 @@ public class AuthController : ControllerBase
     {
         try
         {
-            // Try to get token from cookie first, then from Authorization header
-            var token = Request.Cookies["auth_token"] 
-                ?? Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+            // Try to get token from Authorization header first (for cross-domain), then from cookie
+            var authHeader = Request.Headers["Authorization"].ToString();
+            var token = !string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ") 
+                ? authHeader.Substring(7).Trim() 
+                : Request.Cookies["auth_token"];
 
             if (string.IsNullOrEmpty(token))
             {
+                _logger.LogWarning("No authentication token provided in /api/auth/me request. Headers: {Headers}, Cookies: {Cookies}", 
+                    string.Join(", ", Request.Headers.Keys), 
+                    string.Join(", ", Request.Cookies.Keys));
                 return Unauthorized(new { error = "No authentication token provided" });
             }
+            
+            _logger.LogInformation("Token found in /api/auth/me request (from {Source})", 
+                authHeader.StartsWith("Bearer ") ? "Authorization header" : "cookie");
 
+            // Validate token and get user ID
+            _logger.LogInformation("Attempting to validate token. Token length: {Length}, First 20 chars: {Preview}", 
+                token?.Length ?? 0, 
+                token?.Length > 20 ? token.Substring(0, 20) + "..." : token);
+            
             var userId = _authService.GetUserIdFromToken(token);
             if (userId == null)
             {
+                _logger.LogWarning("Invalid or expired token in /api/auth/me request. Token validation failed.");
                 return Unauthorized(new { error = "Invalid or expired token" });
             }
+            
+            _logger.LogInformation("Token validated successfully. User ID: {UserId}", userId);
 
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
+                _logger.LogWarning("User not found for ID {UserId} from token", userId);
                 return Unauthorized(new { error = "User not found" });
             }
+
+            _logger.LogInformation("Successfully retrieved user {UserId} (Steam ID: {SteamId})", user.Id, user.SteamId);
 
             return Ok(new UserDto
             {
@@ -232,12 +283,61 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete("auth_token", new CookieOptions
+        var isProduction = !Request.Host.Host.Contains("localhost");
+        var isSameDomain = Request.Host.Host.Contains("csinvtracker.com");
+        
+        // Delete both auth_token cookies (HttpOnly and client-accessible)
+        // Only set domain if backend and frontend are on the same domain
+        var cookieOptions = new CookieOptions
         {
             HttpOnly = true,
-            Secure = !Request.Host.Host.Contains("localhost"),
+            Secure = isProduction,
             SameSite = SameSiteMode.Lax,
             Path = "/"
+        };
+        
+        // Only set domain if we're on the same domain (not Railway)
+        if (isSameDomain)
+        {
+            cookieOptions.Domain = ".csinvtracker.com";
+        }
+        
+        Response.Cookies.Delete("auth_token", cookieOptions);
+        
+        // Also delete the client-accessible cookie
+        var clientCookieOptions = new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = isProduction,
+            SameSite = SameSiteMode.Lax,
+            Path = "/"
+        };
+        
+        // Only set domain if we're on the same domain
+        if (isSameDomain)
+        {
+            clientCookieOptions.Domain = ".csinvtracker.com";
+        }
+        
+        Response.Cookies.Delete("auth_token_client", clientCookieOptions);
+        
+        // Set expired cookies to ensure they're cleared (without domain for cross-domain)
+        Response.Cookies.Append("auth_token", "", new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = isProduction,
+            SameSite = SameSiteMode.Lax,
+            Path = "/",
+            Expires = DateTimeOffset.UtcNow.AddDays(-1)
+        });
+        
+        Response.Cookies.Append("auth_token_client", "", new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = isProduction,
+            SameSite = SameSiteMode.Lax,
+            Path = "/",
+            Expires = DateTimeOffset.UtcNow.AddDays(-1)
         });
 
         return Ok(new { message = "Logged out successfully" });
