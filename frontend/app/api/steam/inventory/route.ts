@@ -23,11 +23,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Validate steamId format (should be 17 digits)
+  // Validate SteamID64 format: Must be a 17-digit number starting with 7656119...
   if (!/^\d{17}$/.test(steamId)) {
     console.error('Invalid steamId format:', steamId);
     return NextResponse.json(
       { error: 'Invalid steamId format. Steam IDs must be 17 digits.' },
+      { status: 400 }
+    );
+  }
+  
+  if (!steamId.startsWith('7656119')) {
+    console.error('Invalid SteamID64 format (must start with 7656119):', steamId);
+    return NextResponse.json(
+      { error: 'Invalid SteamID64 format. Steam IDs must start with 7656119...' },
       { status: 400 }
     );
   }

@@ -25,6 +25,7 @@ import InventoryStatsGrid from './item-grid/InventoryStatsGrid';
 import InventoryGridList from './item-grid/InventoryGridList';
 import InventoryDetailPanel from './item-grid/InventoryDetailPanel';
 import { useToast } from './item-grid/useToast';
+import AnimatedBanner from './AnimatedBanner';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
@@ -46,6 +47,7 @@ export default function ItemGrid() {
   const [deleteCandidate, setDeleteCandidate] = useState<CSItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
   const { toast, showToast } = useToast();
 
   // Auto-import Steam inventory when user first logs in and has no items
@@ -272,46 +274,18 @@ export default function ItemGrid() {
       return;
     }
 
+    // Clear any existing private inventory banner
+    setPrivateInventoryBanner(null);
+
     setIsLoadingSteam(true);
     try {
-      console.log('Fetching Steam inventory from browser (user IP) for user:', user.id);
+      console.log('Refreshing Steam inventory for user:', user.id);
       
-      // Fetch directly from Steam in the browser (uses user's IP, not blocked)
-      // This avoids Steam blocking server IPs
-      const { fetchSteamInventory } = await import('@/lib/steamApi');
-      const steamItems = await fetchSteamInventory(user.steamId);
-      
-      console.log('Fetched Steam items:', steamItems.length);
-      
-      if (steamItems.length === 0) {
-        showToast('No items found in your Steam inventory.', 'info');
-        return;
-      }
-
-      // Convert to import format
-      const importItems: import('@/lib/api').SteamInventoryImportItem[] = steamItems.map(item => ({
-        assetId: item.assetid,
-        marketHashName: item.marketName,
-        name: item.name,
-        imageUrl: item.imageUrl,
-        marketable: item.marketable,
-        tradable: item.tradable,
-        descriptions: item.descriptions?.map(d => ({
-          type: d.type,
-          value: d.value,
-          color: d.color,
-        })),
-        tags: item.tags?.map(t => ({
-          category: t.category,
-          localizedTagName: t.localized_tag_name,
-        })),
-      }));
-
-      // Send to backend for import
+      // Use the new refreshFromSteam endpoint which handles everything on the backend
       const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.importFromSteam(user.id, importItems);
+      const result = await steamInventoryApi.refreshFromSteam(user.id);
 
-      // Refresh inventory
+      // Refresh inventory display
       await refresh();
 
       // Show results
@@ -326,7 +300,7 @@ export default function ItemGrid() {
           'info'
         );
       } else {
-        showToast('No items were imported.', 'info');
+        showToast('No items found in your Steam inventory.', 'info');
       }
 
       if (result.errors > 0 && result.errorMessages.length > 0) {
@@ -335,8 +309,92 @@ export default function ItemGrid() {
       }
     } catch (error) {
       console.error('Error refreshing from Steam:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`Failed to refresh inventory from Steam: ${errorMessage}`, 'error');
+      
+      // Try to parse error response to detect private inventory
+      let errorMessage = 'Unknown error';
+      let isPrivateInventory = false;
+      let bannerMessage = '';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Try to parse JSON error if available (backend returns JSON error objects)
+        try {
+          // Error message might be a JSON string
+          let errorObj: any = null;
+          
+          // Try to parse as JSON directly
+          try {
+            errorObj = JSON.parse(errorMessage);
+          } catch {
+            // If that fails, try to extract JSON from the message
+            const jsonMatch = errorMessage.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              errorObj = JSON.parse(jsonMatch[0]);
+            }
+          }
+          
+          if (errorObj) {
+            // Extract error details from backend response
+            const details = errorObj.details || errorObj.error || errorMessage;
+            const suggestion = errorObj.suggestion || '';
+            
+            // Check if this is a private inventory error
+            const detailsLower = (details || '').toLowerCase();
+            const errorLower = (errorObj.error || '').toLowerCase();
+            
+            if (
+              detailsLower.includes('private') ||
+              detailsLower.includes('inventory privacy') ||
+              detailsLower.includes('not accessible') ||
+              detailsLower.includes('success=0') ||
+              errorLower.includes('private') ||
+              errorLower.includes('inventory privacy') ||
+              errorObj.error?.toLowerCase().includes('inventory is not accessible')
+            ) {
+              isPrivateInventory = true;
+              bannerMessage = details || errorObj.error || 'Your Steam inventory privacy is set to private.';
+              if (suggestion) {
+                bannerMessage += ` ${suggestion}`;
+              } else {
+                bannerMessage += ' Please make your inventory public in Steam settings: Steam > Settings > Privacy > Inventory Privacy > Public';
+              }
+            } else {
+              errorMessage = details || errorObj.error || errorMessage;
+            }
+          } else {
+            // Check if error message indicates private inventory
+            const errorLower = errorMessage.toLowerCase();
+            if (
+              errorLower.includes('private') ||
+              errorLower.includes('inventory privacy') ||
+              errorLower.includes('not accessible') ||
+              errorLower.includes('success=0')
+            ) {
+              isPrivateInventory = true;
+              bannerMessage = 'Your Steam inventory privacy is set to private. Please make your inventory public in Steam settings: Steam > Settings > Privacy > Inventory Privacy > Public';
+            }
+          }
+        } catch (parseError) {
+          // If parsing fails, check if error message indicates private inventory
+          const errorLower = errorMessage.toLowerCase();
+          if (
+            errorLower.includes('private') ||
+            errorLower.includes('inventory privacy') ||
+            errorLower.includes('not accessible')
+          ) {
+            isPrivateInventory = true;
+            bannerMessage = 'Your Steam inventory privacy is set to private. Please make your inventory public in Steam settings: Steam > Settings > Privacy > Inventory Privacy > Public';
+          }
+        }
+      }
+      
+      if (isPrivateInventory) {
+        // Show banner for private inventory
+        setPrivateInventoryBanner(bannerMessage || 'Your Steam inventory privacy is set to private. Please make your inventory public in Steam settings: Steam > Settings > Privacy > Inventory Privacy > Public');
+      } else {
+        showToast(`Failed to refresh inventory from Steam: ${errorMessage}`, 'error');
+      }
     } finally {
       setIsLoadingSteam(false);
     }
@@ -384,6 +442,18 @@ export default function ItemGrid() {
       />
 
       <InventoryToast toast={toast} />
+
+      {/* Private Inventory Banner - Show prominently at top */}
+      {privateInventoryBanner && (
+        <div className="mx-auto mt-6 w-full max-w-7xl px-4 md:px-6">
+          <AnimatedBanner
+            message={privateInventoryBanner}
+            intent="error"
+            autoClose={false}
+            onDismiss={() => setPrivateInventoryBanner(null)}
+          />
+        </div>
+      )}
 
       {deleteCandidate && (
         <DeleteConfirmationModal

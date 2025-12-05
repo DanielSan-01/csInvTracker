@@ -49,6 +49,29 @@ public class InventoryController : ControllerBase
         };
     }
 
+    /// <summary>
+    /// Validates SteamID64 format: Must be a 17-digit number starting with 7656119...
+    /// </summary>
+    private bool IsValidSteamId64(string steamId)
+    {
+        if (string.IsNullOrWhiteSpace(steamId))
+            return false;
+
+        // Must be exactly 17 digits
+        if (steamId.Length != 17)
+            return false;
+
+        // Must be all digits
+        if (!steamId.All(char.IsDigit))
+            return false;
+
+        // Must start with 7656119 (SteamID64 format)
+        if (!steamId.StartsWith("7656119"))
+            return false;
+
+        return true;
+    }
+
     // GET: api/inventory/stats?userId={userId}
     [HttpGet("stats")]
     public async Task<ActionResult<InventoryStatsDto>> GetInventoryStats([FromQuery] int? userId)
@@ -547,15 +570,27 @@ public class InventoryController : ControllerBase
                 return BadRequest(new { error = "User does not have a Steam ID" });
             }
 
+            // Validate SteamID64 format
+            if (!IsValidSteamId64(user.SteamId))
+            {
+                _logger.LogWarning("Invalid SteamID64 format for user {UserId}: {SteamId}. Expected 17-digit number starting with 7656119", 
+                    targetUserId, user.SteamId);
+                return BadRequest(new { 
+                    error = "Invalid Steam ID format",
+                    details = "Steam ID must be a 17-digit number starting with 7656119...",
+                    providedSteamId = user.SteamId
+                });
+            }
+
             _logger.LogInformation("Starting Steam inventory refresh for user {UserId} (SteamId: {SteamId})", targetUserId, user.SteamId);
 
-            // Use frontend Next.js API route as a proxy to avoid Steam blocking Railway IPs
-            // The frontend runs on Vercel with different IP addresses that aren't blocked
-            // This is essentially a proxy service - frontend proxies requests to Steam
-            var frontendUrl = Environment.GetEnvironmentVariable("FRONTEND_URL") ?? "https://www.csinvtracker.com";
-            var proxyUrl = $"{frontendUrl}/api/steam/inventory?steamId={user.SteamId}&appId=730&contextId=2";
-            
-            _logger.LogInformation("Using frontend proxy route to fetch Steam inventory: {ProxyUrl}", proxyUrl);
+            // Fetch directly from Steam Community API (inventory endpoint)
+            // Note: Steam inventory is only available via Community API, not Web API
+            // URL format: https://steamcommunity.com/inventory/{steamid}/730/2
+            // 730 = CS:GO/CS2 app ID
+            // 2 = context ID (usually 2 for CS:GO/CS2)
+            const int appId = 730;
+            const int contextId = 2;
             
             // Create HttpClient with automatic decompression enabled
             var handler = new System.Net.Http.HttpClientHandler
@@ -565,50 +600,179 @@ public class InventoryController : ControllerBase
             using var httpClient = new System.Net.Http.HttpClient(handler);
             httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
             
-            // Call frontend proxy route which handles pagination and returns all items
-            _logger.LogInformation("Fetching Steam inventory via frontend proxy for user {UserId}", targetUserId);
-            
-            var response = await httpClient.GetAsync(proxyUrl, cancellationToken);
-            
-            if (!response.IsSuccessStatusCode)
+            // Add browser-like headers to avoid being blocked
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+            httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
+            httpClient.DefaultRequestHeaders.Add("Referer", $"https://steamcommunity.com/profiles/{user.SteamId}/inventory/");
+            httpClient.DefaultRequestHeaders.Add("Origin", "https://steamcommunity.com");
+
+            // Fetch all pages with pagination
+            var allAssets = new List<SteamAsset>();
+            var allDescriptions = new List<SteamItemDescription>();
+            var descriptionMap = new Dictionary<string, SteamItemDescription>(); // Track unique descriptions
+            string? startAssetId = null;
+            var hasMore = true;
+            var pageCount = 0;
+            const int maxPages = 50; // Safety limit
+
+            while (hasMore && pageCount < maxPages)
             {
-                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError("Frontend proxy route error: {StatusCode} - {Error}", response.StatusCode, errorText);
-                return StatusCode((int)response.StatusCode, new { 
-                    error = $"Frontend proxy route error: {response.StatusCode}",
-                    details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText
-                });
+                pageCount++;
+                
+                // Build URL with pagination
+                var steamUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/{appId}/{contextId}?l=english&count=5000";
+                if (!string.IsNullOrEmpty(startAssetId))
+                {
+                    steamUrl += $"&start_assetid={startAssetId}";
+                }
+                
+                // Log full URL (safe to log - no API keys or sensitive data)
+                _logger.LogInformation("Fetching Steam inventory page {PageCount} from: {SteamUrl}", pageCount, steamUrl);
+                
+                try
+                {
+                    var response = await httpClient.GetAsync(steamUrl, cancellationToken);
+                    
+                    // Log response headers for debugging
+                    _logger.LogDebug("Steam API response status (page {PageCount}): {StatusCode} {StatusText}", 
+                        pageCount, response.StatusCode, response.ReasonPhrase);
+                    _logger.LogDebug("Response headers: {Headers}", 
+                        string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}")));
+                    
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+                        _logger.LogError("Steam API error (page {PageCount}): Status={StatusCode}, Url={SteamUrl}, Error={Error}", 
+                            pageCount, response.StatusCode, steamUrl, 
+                            errorText.Length > 500 ? errorText.Substring(0, 500) : errorText);
+                        
+                        // Check for common error scenarios
+                        if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                        {
+                            // 400 Bad Request could mean:
+                            // - Invalid SteamID64 format (we already validated, but double-check)
+                            // - Inventory is private
+                            // - IP blocking
+                            if (string.IsNullOrWhiteSpace(errorText))
+                            {
+                                return BadRequest(new { 
+                                    error = "Steam returned 400 Bad Request with empty response",
+                                    details = "This usually means your Steam inventory privacy is set to private. Please make your inventory public in Steam privacy settings.",
+                                    steamUrl = steamUrl // Log URL for debugging
+                                });
+                            }
+                            
+                            return BadRequest(new { 
+                                error = "Steam API returned 400 Bad Request",
+                                details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
+                                steamUrl = steamUrl,
+                                suggestion = "Please verify: 1) Your Steam ID is correct, 2) Your inventory privacy is set to public"
+                            });
+                        }
+                        
+                        return StatusCode((int)response.StatusCode, new { 
+                            error = $"Steam API error: {response.StatusCode}",
+                            details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
+                            steamUrl = steamUrl
+                        });
+                    }
+
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (data == null)
+                    {
+                        _logger.LogError("Failed to parse Steam API response (page {PageCount})", pageCount);
+                        return StatusCode(500, new { error = "Failed to parse Steam API response" });
+                    }
+
+                    // Check if request was successful
+                    if (data.Success != 1)
+                    {
+                        _logger.LogWarning("Steam API returned unsuccessful response (page {PageCount}): Success = {Success}", 
+                            pageCount, data.Success);
+                        
+                        // If this is the first page and it failed, return error
+                        if (pageCount == 1)
+                        {
+                            return BadRequest(new { 
+                                error = "Steam inventory is not accessible",
+                                details = "Steam returned success=0. This usually means your inventory privacy is set to private. Please make your inventory public in Steam privacy settings.",
+                                steamId = user.SteamId,
+                                suggestion = "Go to Steam > Settings > Privacy > Inventory Privacy and set it to Public"
+                            });
+                        }
+                        
+                        // Otherwise, break and return what we have
+                        break;
+                    }
+
+                    // Collect assets
+                    if (data.Assets != null)
+                    {
+                        allAssets.AddRange(data.Assets);
+                    }
+
+                    // Collect unique descriptions (Steam may return duplicates across pages)
+                    if (data.Descriptions != null)
+                    {
+                        foreach (var desc in data.Descriptions)
+                        {
+                            var key = $"{desc.ClassId}_{desc.InstanceId}";
+                            if (!descriptionMap.ContainsKey(key))
+                            {
+                                descriptionMap[key] = desc;
+                                allDescriptions.Add(desc);
+                            }
+                        }
+                    }
+
+                    _logger.LogInformation("Page {PageCount} - Assets: {AssetCount}, Descriptions: {DescCount}, Total so far: {TotalAssets} assets, {TotalDescs} descriptions",
+                        pageCount, data.Assets?.Count ?? 0, data.Descriptions?.Count ?? 0, allAssets.Count, allDescriptions.Count);
+
+                    // Check if there are more items to fetch
+                    hasMore = data.MoreItems == 1 || (!string.IsNullOrEmpty(data.LastAssetId) && data.LastAssetId != startAssetId);
+                    if (hasMore && !string.IsNullOrEmpty(data.LastAssetId))
+                    {
+                        startAssetId = data.LastAssetId;
+                    }
+                    else
+                    {
+                        hasMore = false;
+                    }
+
+                    // Small delay to avoid rate limiting (only if we have more pages)
+                    if (hasMore)
+                    {
+                        await Task.Delay(200, cancellationToken);
+                    }
+                }
+                catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+                {
+                    _logger.LogError("Timeout while fetching Steam inventory page {PageCount}", pageCount);
+                    return StatusCode(504, new { 
+                        error = "Request timeout",
+                        details = "Steam inventory may be too large. Please try again.",
+                        pagesFetched = pageCount - 1
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error fetching Steam inventory page {PageCount}", pageCount);
+                    return StatusCode(500, new { 
+                        error = "Error fetching Steam inventory",
+                        details = ex.Message,
+                        pagesFetched = pageCount - 1
+                    });
+                }
             }
 
-            // Frontend route returns all paginated data in one response
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (data == null)
-            {
-                _logger.LogError("Failed to parse response from frontend proxy route");
-                return StatusCode(500, new { error = "Failed to parse response from frontend proxy" });
-            }
-
-            // Check if request was successful
-            if (data.Success != 1)
-            {
-                _logger.LogWarning("Frontend proxy returned unsuccessful response: Success = {Success}", data.Success);
-                return StatusCode(500, new { 
-                    error = "Steam API returned unsuccessful response",
-                    details = $"Success: {data.Success}"
-                });
-            }
-
-            // Frontend route already handles pagination, so we get all assets and descriptions
-            var allAssets = data.Assets ?? new List<SteamAsset>();
-            var allDescriptions = data.Descriptions ?? new List<SteamItemDescription>();
-
-            _logger.LogInformation("Received {AssetCount} assets and {DescCount} descriptions from frontend proxy",
-                allAssets.Count, allDescriptions.Count);
+            _logger.LogInformation("Finished fetching Steam inventory: {PageCount} pages, {AssetCount} total assets, {DescCount} unique descriptions",
+                pageCount, allAssets.Count, allDescriptions.Count);
 
             if (allAssets.Count == 0)
             {

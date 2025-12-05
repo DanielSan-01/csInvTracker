@@ -358,8 +358,41 @@ export const steamInventoryApi = {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Failed to refresh Steam inventory: ${error}`);
+      // Try to parse as JSON first
+      let errorMessage = `Failed to refresh Steam inventory: ${response.status} ${response.statusText}`;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorJson = await response.json();
+          // Backend returns error objects with 'error' and 'details' fields
+          if (errorJson.error) {
+            errorMessage = errorJson.error;
+            if (errorJson.details) {
+              errorMessage += ` - ${errorJson.details}`;
+            }
+            // Include the full error object as a JSON string for parsing
+            errorMessage = JSON.stringify(errorJson);
+          } else if (typeof errorJson === 'string') {
+            errorMessage = errorJson;
+          }
+        } else {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+      } catch (parseError) {
+        // If parsing fails, try to get text
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        } catch (textError) {
+          // Use default error message
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
