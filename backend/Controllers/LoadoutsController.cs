@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,23 +13,52 @@ public class LoadoutsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<LoadoutsController> _logger;
+    private readonly AuthService _authService;
+    private const int MaxLoadoutsPerUser = 2;
 
-    public LoadoutsController(ApplicationDbContext context, ILogger<LoadoutsController> logger)
+    public LoadoutsController(
+        ApplicationDbContext context,
+        ILogger<LoadoutsController> logger,
+        AuthService authService)
     {
         _context = context;
         _logger = logger;
+        _authService = authService;
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var authHeader = Request.Headers["Authorization"].ToString();
+        var token = !string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ")
+            ? authHeader.Substring(7).Trim()
+            : Request.Cookies["auth_token"];
+
+        if (string.IsNullOrEmpty(token))
+        {
+            return null;
+        }
+
+        return _authService.GetUserIdFromToken(token);
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LoadoutDto>>> GetLoadouts([FromQuery] int? userId)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
+        // Users can only see their own loadouts
         var query = _context.LoadoutFavorites
             .Include(l => l.Entries)
-            .AsQueryable();
+            .Where(l => l.UserId == currentUserId.Value);
 
-        if (userId.HasValue)
+        // If userId is provided, verify it matches the authenticated user
+        if (userId.HasValue && userId.Value != currentUserId.Value)
         {
-            query = query.Where(l => l.UserId == userId.Value);
+            return Forbid();
         }
 
         var loadouts = await query
@@ -41,6 +71,12 @@ public class LoadoutsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<LoadoutDto>> GetLoadout(Guid id)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
         var loadout = await _context.LoadoutFavorites
             .Include(l => l.Entries)
             .FirstOrDefaultAsync(l => l.Id == id);
@@ -50,15 +86,33 @@ public class LoadoutsController : ControllerBase
             return NotFound();
         }
 
+        // Users can only access their own loadouts
+        if (loadout.UserId != currentUserId.Value)
+        {
+            return Forbid();
+        }
+
         return Ok(MapToDto(loadout));
     }
 
     [HttpPost]
     public async Task<ActionResult<LoadoutDto>> UpsertLoadout([FromBody] LoadoutDto request)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
+        }
+
+        // Ensure the userId in the request matches the authenticated user
+        if (request.UserId != currentUserId.Value)
+        {
+            return Forbid(new { error = "Cannot create or modify loadouts for other users" });
         }
 
         var now = DateTime.UtcNow;
@@ -71,6 +125,15 @@ public class LoadoutsController : ControllerBase
 
         if (loadout == null)
         {
+            // Check 2-loadout limit when creating a new loadout
+            var existingLoadoutCount = await _context.LoadoutFavorites
+                .CountAsync(l => l.UserId == currentUserId.Value);
+
+            if (existingLoadoutCount >= MaxLoadoutsPerUser)
+            {
+                return BadRequest(new { error = $"Maximum of {MaxLoadoutsPerUser} loadouts allowed per user" });
+            }
+
             loadout = new LoadoutFavorite
             {
                 Id = loadoutId,
@@ -79,12 +142,16 @@ public class LoadoutsController : ControllerBase
             _context.LoadoutFavorites.Add(loadout);
             isNew = true;
         }
-        else if (loadout.UserId != request.UserId)
+        else
         {
-            return Forbid();
+            // Verify ownership when updating
+            if (loadout.UserId != currentUserId.Value)
+            {
+                return Forbid();
+            }
         }
 
-        loadout.UserId = request.UserId;
+        loadout.UserId = currentUserId.Value;
         loadout.Name = request.Name.Trim();
         loadout.UpdatedAt = now;
 
@@ -108,6 +175,12 @@ public class LoadoutsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteLoadout(Guid id)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
         var loadout = await _context.LoadoutFavorites
             .Include(l => l.Entries)
             .FirstOrDefaultAsync(l => l.Id == id);
@@ -115,6 +188,12 @@ public class LoadoutsController : ControllerBase
         if (loadout == null)
         {
             return NotFound();
+        }
+
+        // Users can only delete their own loadouts
+        if (loadout.UserId != currentUserId.Value)
+        {
+            return Forbid();
         }
 
         _context.LoadoutFavorites.Remove(loadout);
