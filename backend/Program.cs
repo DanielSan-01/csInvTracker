@@ -71,6 +71,7 @@ builder.Services.AddSingleton<DopplerPhaseService>();
     builder.Services.AddScoped<SteamApiService>();
     builder.Services.AddScoped<AuthService>();
     builder.Services.AddScoped<OpenIdVerificationService>();
+    builder.Services.AddScoped<StickerCatalogService>();
     builder.Services.AddScoped<SteamInventoryImportService>();
     builder.Services.AddScoped<SteamCatalogRefreshService>();
 

@@ -12,17 +12,20 @@ public class SteamInventoryImportService
     private readonly ILogger<SteamInventoryImportService> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly SteamApiService _steamApiService;
+    private readonly StickerCatalogService? _stickerCatalogService;
 
     public SteamInventoryImportService(
         ApplicationDbContext context,
         ILogger<SteamInventoryImportService> logger,
         DopplerPhaseService dopplerPhaseService,
-        SteamApiService steamApiService)
+        SteamApiService steamApiService,
+        StickerCatalogService? stickerCatalogService = null)
     {
         _context = context;
         _logger = logger;
         _dopplerPhaseService = dopplerPhaseService;
         _steamApiService = steamApiService;
+        _stickerCatalogService = stickerCatalogService;
     }
 
     public class ImportResult
@@ -116,7 +119,7 @@ public class SteamInventoryImportService
                         steamItem.AssetId, steamItem.MarketHashName);
                     
                     // Extract item properties from Steam descriptions
-                    var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) = ExtractItemProperties(steamItem);
+                    var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
                     
                     // Always update with Steam's image URL if available (Steam has the latest images)
                     if (!string.IsNullOrEmpty(steamItem.ImageUrl))
@@ -166,7 +169,7 @@ public class SteamInventoryImportService
                 }
 
                 // Extract item properties from Steam descriptions
-                var (floatValue, exterior, paintSeed, paintIndex, stickers) = ExtractItemProperties(steamItem);
+                var (floatValue, exterior, paintSeed, paintIndex, stickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
 
                 // Create inventory item
                 // Always prefer Steam's image URL (it's always up-to-date from Steam's CDN)
@@ -391,7 +394,9 @@ public class SteamInventoryImportService
     /// <summary>
     /// Extracts item properties from Steam item descriptions
     /// </summary>
-    private (double floatValue, string exterior, int? paintSeed, int? paintIndex, List<StickerInfo>? stickers) ExtractItemProperties(SteamInventoryItemDto steamItem)
+    private async Task<(double floatValue, string exterior, int? paintSeed, int? paintIndex, List<StickerInfo>? stickers)> ExtractItemPropertiesAsync(
+        SteamInventoryItemDto steamItem, 
+        CancellationToken cancellationToken = default)
     {
         double floatValue = 0.5;
         string exterior = "Field-Tested";
@@ -438,24 +443,69 @@ public class SteamInventoryImportService
             }
         }
 
-        // Extract stickers from tags or descriptions
+        // Extract stickers from tags
+        // Steam API provides stickers in the Tags array with Category == "Sticker"
+        // The order of sticker tags typically corresponds to their slot positions (0-4)
         if (steamItem.Tags != null)
         {
-            var stickerTags = steamItem.Tags.Where(t => t.Category == "Sticker").ToList();
+            var stickerTags = steamItem.Tags
+                .Where(t => t.Category == "Sticker")
+                .ToList();
+            
             if (stickerTags.Count > 0)
             {
                 stickers = new List<StickerInfo>();
-                for (int i = 0; i < stickerTags.Count && i < 5; i++) // Max 5 stickers
+                
+                // Collect all sticker names first for batch lookup
+                var stickerNames = stickerTags
+                    .Take(5) // Max 5 stickers (CS:GO/CS2 limit)
+                    .Select(t => t.LocalizedTagName)
+                    .ToList();
+                
+                // Batch fetch sticker info (images and prices) from catalog
+                Dictionary<string, StickerCatalogService.StickerInfo>? stickerInfoMap = null;
+                if (_stickerCatalogService != null)
+                {
+                    try
+                    {
+                        stickerInfoMap = await _stickerCatalogService.GetStickerInfoBatchAsync(stickerNames, cancellationToken);
+                        _logger.LogDebug("Fetched sticker info for {Found}/{Total} stickers", 
+                            stickerInfoMap.Count, stickerNames.Count);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error fetching sticker catalog info, continuing without images/prices");
+                    }
+                }
+                
+                // Steam provides stickers in order, typically matching slot positions
+                // However, we use the index as slot since Steam doesn't explicitly provide slot numbers
+                for (int i = 0; i < stickerTags.Count && i < 5; i++)
                 {
                     var tag = stickerTags[i];
+                    var stickerName = tag.LocalizedTagName;
+                    
+                    // Get sticker info from catalog if available
+                    string? stickerImageUrl = null;
+                    decimal? stickerPrice = null;
+                    
+                    if (stickerInfoMap != null && stickerInfoMap.TryGetValue(stickerName, out var catalogInfo))
+                    {
+                        stickerImageUrl = catalogInfo.ImageUrl;
+                        stickerPrice = catalogInfo.Price;
+                    }
+                    
                     stickers.Add(new StickerInfo
                     {
-                        Name = tag.LocalizedTagName,
-                        Slot = i,
-                        Price = null, // Would need to fetch from sticker catalog
-                        ImageUrl = null // Would need to fetch from sticker catalog
+                        Name = stickerName,
+                        Slot = i, // Slot 0-4 (CS:GO/CS2 has 4 sticker slots)
+                        Price = stickerPrice,
+                        ImageUrl = stickerImageUrl
                     });
                 }
+                
+                _logger.LogDebug("Extracted {Count} stickers for item: {StickerNames}", 
+                    stickers.Count, string.Join(", ", stickers.Select(s => s.Name)));
             }
         }
 
