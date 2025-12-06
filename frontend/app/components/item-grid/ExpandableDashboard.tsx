@@ -123,19 +123,22 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
         <div className="mt-4 rounded-lg border border-gray-700 bg-gray-900/50 p-6">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Pie Chart */}
-            <div className="flex flex-col">
+            <div className="flex flex-col overflow-hidden">
               <h3 className="mb-4 text-lg font-semibold text-white">Inventory Breakdown</h3>
               {typeBreakdown.length > 0 ? (
-                <div className="flex-1">
-                  <ResponsiveContainer width="100%" height={300}>
+                <div className="flex-1 min-h-0">
+                  <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie
                         data={typeBreakdown}
                         cx="50%"
-                        cy="50%"
+                        cy="45%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${((percent ?? 0) * 100).toFixed(1)}%`}
-                        outerRadius={100}
+                        label={({ name, percent }) => {
+                          const pct = ((percent ?? 0) * 100).toFixed(1);
+                          return pct !== '0.0' ? `${name}: ${pct}%` : '';
+                        }}
+                        outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -153,7 +156,8 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
                         formatter={(value: number) => [formatPrice(value), 'Value']}
                       />
                       <Legend
-                        wrapperStyle={{ color: '#D1D5DB' }}
+                        wrapperStyle={{ color: '#D1D5DB', fontSize: '12px' }}
+                        iconSize={10}
                         formatter={(value) => `${value} (${typeBreakdown.find(t => t.name === value)?.percentage}%)`}
                       />
                     </PieChart>
