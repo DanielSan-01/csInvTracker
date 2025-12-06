@@ -205,16 +205,17 @@ public class SteamInventoryImportService
         if (string.IsNullOrWhiteSpace(marketHashName))
             return null;
 
+        // TODO: Re-enable after migration is applied
         // Strategy 1: EXACT match on MarketHashName field (most accurate - Steam's exact identifier)
-        var exactMarketHashMatch = skins.FirstOrDefault(s =>
-            !string.IsNullOrEmpty(s.MarketHashName) &&
-            s.MarketHashName.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
-        if (exactMarketHashMatch != null)
-        {
-            _logger.LogDebug("Exact MarketHashName match found: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
-                marketHashName, exactMarketHashMatch.Name, exactMarketHashMatch.Id);
-            return exactMarketHashMatch;
-        }
+        // var exactMarketHashMatch = skins.FirstOrDefault(s =>
+        //     !string.IsNullOrEmpty(s.MarketHashName) &&
+        //     s.MarketHashName.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
+        // if (exactMarketHashMatch != null)
+        // {
+        //     _logger.LogDebug("Exact MarketHashName match found: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
+        //         marketHashName, exactMarketHashMatch.Name, exactMarketHashMatch.Id);
+        //     return exactMarketHashMatch;
+        // }
 
         var normalizedSearch = NormalizeSkinName(marketHashName);
         if (string.IsNullOrWhiteSpace(normalizedSearch))
