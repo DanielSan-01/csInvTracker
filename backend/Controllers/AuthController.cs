@@ -92,7 +92,8 @@ public class AuthController : ControllerBase
                         user.AvatarMediumUrl = steamProfile.AvatarMedium;
                         user.AvatarFullUrl = steamProfile.AvatarFull;
                         user.ProfileUrl = steamProfile.ProfileUrl;
-                        if (string.IsNullOrEmpty(user.Username))
+                        // Always update username from Steam profile if available (fixes User_XXXXXX fallback names)
+                        if (!string.IsNullOrEmpty(steamProfile.PersonaName))
                         {
                             user.Username = steamProfile.PersonaName;
                         }
