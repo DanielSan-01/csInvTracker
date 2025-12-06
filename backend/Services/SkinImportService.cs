@@ -12,6 +12,25 @@ public record CsFloatImportResult(bool Success, int TotalProcessed, int Imported
 
 public class SkinImportService
 {
+    private static readonly string[] ByMykelItemTypes =
+    [
+        "skins",
+        "knives",
+        "gloves",
+        "agents",
+        "stickers",
+        "graffiti",
+        "patches",
+        "music_kits",
+        "collectibles",
+        "crates",
+        "keys",
+        "keychains",
+        "tools"
+    ];
+
+    private const string ByMykelBaseUrl = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en";
+
     private readonly ApplicationDbContext _context;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly DopplerPhaseService _dopplerPhaseService;
@@ -27,6 +46,204 @@ public class SkinImportService
         _httpClientFactory = httpClientFactory;
         _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Imports complete skin catalog from ByMykel API
+    /// This provides ALL available skins, not just what users own
+    /// </summary>
+    public async Task<SkinImportResult> ImportFromByMykelAsync(CancellationToken cancellationToken = default)
+    {
+        var httpClient = _httpClientFactory.CreateClient();
+        httpClient.Timeout = TimeSpan.FromMinutes(5);
+
+        var totalProcessed = 0;
+        var totalCreated = 0;
+        var totalUpdated = 0;
+
+        foreach (var itemType in ByMykelItemTypes)
+        {
+            _logger.LogInformation("Fetching {ItemType} from ByMykel API…", itemType);
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await httpClient.GetAsync($"{ByMykelBaseUrl}/{itemType}.json", cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch {ItemType} from ByMykel API", itemType);
+                continue;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("ByMykel API returned {StatusCode} for {ItemType}", response.StatusCode, itemType);
+                continue;
+            }
+
+            var jsonContent = await response.Content.ReadAsStringAsync(cancellationToken);
+            List<JsonElement>? items;
+
+            try
+            {
+                items = JsonSerializer.Deserialize<List<JsonElement>>(jsonContent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to deserialize {ItemType} payload from ByMykel", itemType);
+                continue;
+            }
+
+            if (items == null || items.Count == 0)
+            {
+                _logger.LogWarning("No {ItemType} entries returned from ByMykel", itemType);
+                continue;
+            }
+
+            _logger.LogInformation("Processing {Count} {ItemType} entries", items.Count, itemType);
+
+            foreach (var item in items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                totalProcessed++;
+
+                try
+                {
+                    var skinName = item.GetProperty("name").GetString() ?? "Unknown";
+                    var marketHashName = item.TryGetProperty("market_hash_name", out var mhn) 
+                        ? mhn.GetString() 
+                        : null;
+                    var rarity = GetStringFromProperty(item, "rarity");
+                    var collection = GetCollectionName(item);
+                    var weapon = GetStringFromProperty(item, "weapon");
+                    var imageUrl = item.TryGetProperty("image", out var img) ? img.GetString() : "";
+                    var rawPhase = GetStringFromProperty(item, "phase");
+                    var paintIndex = GetIntFromProperty(item, "paint_index");
+                    var dopplerInfo = _dopplerPhaseService.GetPhaseInfo(paintIndex);
+                    if (dopplerInfo?.ImageUrl is { } dopplerImage && string.IsNullOrWhiteSpace(imageUrl))
+                    {
+                        imageUrl = dopplerImage;
+                    }
+                    var type = DetermineTypeFromCategory(itemType, weapon);
+
+                    if (dopplerInfo != null)
+                    {
+                        var displayName = $"{skinName} ({dopplerInfo.Phase})";
+                        await TryRenameSkinAsync(skinName, paintIndex, displayName, cancellationToken);
+                        var wasUpdate = await UpsertSkinAsync(
+                            displayName,
+                            rarity,
+                            type,
+                            collection,
+                            weapon,
+                            imageUrl,
+                            paintIndex,
+                            marketHashName,
+                            cancellationToken);
+
+                        if (wasUpdate)
+                        {
+                            totalUpdated++;
+                        }
+                        else
+                        {
+                            totalCreated++;
+                        }
+                    }
+                    else
+                    {
+                        var family = DetermineDopplerFamily(skinName);
+                        var handledFamily = false;
+
+                        if (!string.IsNullOrWhiteSpace(family) &&
+                            string.Equals(type, "Knife", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var phases = _dopplerPhaseService
+                                .GetFamilyPhases(family!, weapon)
+                                .ToList();
+
+                            if (phases.Count > 0)
+                            {
+                                handledFamily = true;
+                                foreach (var phase in phases)
+                                {
+                                    var phaseDisplayName = $"{skinName} ({phase.Phase})";
+                                    var phaseImage = string.IsNullOrWhiteSpace(phase.ImageUrl) ? imageUrl : phase.ImageUrl;
+                                    await TryRenameSkinAsync(skinName, phase.PaintSeed, phaseDisplayName, cancellationToken);
+                                    var wasUpdate = await UpsertSkinAsync(
+                                        phaseDisplayName,
+                                        rarity,
+                                        type,
+                                        collection,
+                                        weapon,
+                                        phaseImage,
+                                        phase.PaintSeed,
+                                        marketHashName,
+                                        cancellationToken);
+
+                                    if (wasUpdate)
+                                    {
+                                        totalUpdated++;
+                                    }
+                                    else
+                                    {
+                                        totalCreated++;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!handledFamily)
+                        {
+                            var baseDisplayName = !string.IsNullOrWhiteSpace(rawPhase)
+                                ? $"{skinName} ({rawPhase})"
+                                : skinName;
+
+                            await TryRenameSkinAsync(skinName, paintIndex, baseDisplayName, cancellationToken);
+                            var wasUpdate = await UpsertSkinAsync(
+                                baseDisplayName,
+                                rarity,
+                                type,
+                                collection,
+                                weapon,
+                                imageUrl,
+                                paintIndex,
+                                marketHashName,
+                                cancellationToken);
+
+                            if (wasUpdate)
+                            {
+                                totalUpdated++;
+                            }
+                            else
+                            {
+                                totalCreated++;
+                            }
+                        }
+                    }
+
+                    if (totalProcessed % 100 == 0)
+                    {
+                        await _context.SaveChangesAsync(cancellationToken);
+                        _logger.LogInformation("Saved batch at {TotalProcessed} processed (Created: {Created}, Updated: {Updated})",
+                            totalProcessed, totalCreated, totalUpdated);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing ByMykel item during import");
+                }
+            }
+        }
+
+        await DeduplicateSkinsAsync(cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var message = $"Successfully processed {totalProcessed} records ({totalCreated} created, {totalUpdated} updated)";
+        _logger.LogInformation(message);
+
+        return new SkinImportResult(true, totalProcessed, totalCreated, totalUpdated, message);
     }
 
     public async Task<CsFloatImportResult> ImportFromCsFloatAsync(CancellationToken cancellationToken = default)

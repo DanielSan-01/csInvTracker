@@ -105,6 +105,29 @@ public class AdminController : ControllerBase
         }
     }
 
+    [HttpPost("import-from-bymykel")]
+    public async Task<IActionResult> ImportFromByMykel(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _skinImportService.ImportFromByMykelAsync(cancellationToken);
+
+            return Ok(new
+            {
+                result.Success,
+                result.TotalProcessed,
+                Created = result.Created,
+                Updated = result.Updated,
+                result.Message
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error importing from ByMykel");
+            return StatusCode(500, new { error = "An error occurred while importing from ByMykel", message = ex.Message });
+        }
+    }
+
     [HttpPost("refresh-from-steam")]
     public async Task<IActionResult> RefreshFromSteam(CancellationToken cancellationToken)
     {
