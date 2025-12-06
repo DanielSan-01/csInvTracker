@@ -124,7 +124,31 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Pie Chart */}
             <div className="flex flex-col overflow-hidden">
-              <h3 className="mb-3 text-lg font-semibold text-white">Inventory Breakdown</h3>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-white">Inventory Breakdown</h3>
+                <div className="flex gap-2 rounded-lg border border-gray-700 bg-gray-800/50 p-1">
+                  <button
+                    onClick={() => setBreakdownMode('value')}
+                    className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                      breakdownMode === 'value'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Value
+                  </button>
+                  <button
+                    onClick={() => setBreakdownMode('volume')}
+                    className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                      breakdownMode === 'volume'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Volume
+                  </button>
+                </div>
+              </div>
               {typeBreakdown.length > 0 ? (
                 <div className="flex-1 min-h-0 w-full">
                   <ResponsiveContainer width="100%" height={250}>
@@ -150,7 +174,11 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
                           borderRadius: '8px',
                           color: '#F3F4F6',
                         }}
-                        formatter={(value: number) => [formatPrice(value), 'Value']}
+                        formatter={(value: number) => 
+                          breakdownMode === 'value' 
+                            ? [formatPrice(value), 'Value']
+                            : [`${value} items`, 'Count']
+                        }
                       />
                       <Legend
                         wrapperStyle={{ color: '#D1D5DB', fontSize: '11px', paddingTop: '10px' }}
