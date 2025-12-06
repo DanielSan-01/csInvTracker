@@ -152,24 +152,10 @@ public class LoadoutsController : ControllerBase
                     return BadRequest(new { error = $"Maximum of {MaxLoadoutsPerUser} loadouts allowed per user" });
                 }
 
-            // Parse CreatedAt from ISO string if needed
-            DateTime createdAt = now;
-            if (request.CreatedAt != default)
-            {
-                createdAt = request.CreatedAt;
-            }
-            else if (!string.IsNullOrEmpty(Request.Headers["X-Created-At"].ToString()))
-            {
-                if (DateTime.TryParse(Request.Headers["X-Created-At"].ToString(), out var parsedDate))
-                {
-                    createdAt = parsedDate;
-                }
-            }
-
             loadout = new LoadoutFavorite
             {
                 Id = loadoutId,
-                CreatedAt = createdAt
+                CreatedAt = now // Always use current time for new loadouts
             };
                 _context.LoadoutFavorites.Add(loadout);
                 isNew = true;
