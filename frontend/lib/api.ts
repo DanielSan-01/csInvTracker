@@ -79,6 +79,11 @@ export interface InventoryStatsDto {
   averageProfitPercent?: number | null;
 }
 
+export interface InventoryValueHistoryDto {
+  date: string; // ISO date string
+  totalValue: number;
+}
+
 export interface GoalSelectedItemDto {
   inventoryItemId?: number | null;
   skinName: string;
@@ -521,6 +526,16 @@ export const inventoryApi = {
     const response = await fetch(url.toString());
     if (!response.ok) {
       throw new Error('Failed to fetch inventory stats');
+    }
+    return response.json();
+  },
+
+  getValueHistory: async (userId: number): Promise<InventoryValueHistoryDto[]> => {
+    const url = new URL(`${API_BASE_URL}/inventory/value-history`);
+    url.searchParams.append('userId', userId.toString());
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error('Failed to fetch inventory value history');
     }
     return response.json();
   },

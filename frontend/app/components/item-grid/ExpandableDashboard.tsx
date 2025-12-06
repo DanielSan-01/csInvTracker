@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { useState, useMemo, useEffect } from 'react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, LineChart, Line, XAxis, YAxis, CartesianGrid } from 'recharts';
 import type { CSItem } from '@/lib/mockData';
 import { formatPrice, calculateProfitPercentage } from '@/lib/mockData';
 import { resolveDisplayType } from '../ItemCardShared';
+import { inventoryApi, type InventoryValueHistoryDto } from '@/lib/api';
 
 type ExpandableDashboardProps = {
   items: CSItem[];
+  userId?: number;
 };
 
 // Color palette for pie chart - consistent colors for each category
@@ -46,9 +48,26 @@ function categorizeType(type: string): string {
   return 'Other';
 }
 
-export default function ExpandableDashboard({ items }: ExpandableDashboardProps) {
+export default function ExpandableDashboard({ items, userId }: ExpandableDashboardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [breakdownMode, setBreakdownMode] = useState<'value' | 'volume'>('value');
+  const [valueHistory, setValueHistory] = useState<InventoryValueHistoryDto[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  useEffect(() => {
+    if (isExpanded && userId && valueHistory.length === 0) {
+      setLoadingHistory(true);
+      inventoryApi.getValueHistory(userId)
+        .then(data => {
+          setValueHistory(data);
+          setLoadingHistory(false);
+        })
+        .catch(error => {
+          console.error('Failed to load value history:', error);
+          setLoadingHistory(false);
+        });
+    }
+  }, [isExpanded, userId, valueHistory.length]);
 
   // Calculate item type breakdown
   const typeBreakdown = useMemo(() => {
@@ -146,6 +165,73 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
       {/* Expanded Content */}
       {isExpanded && (
         <div className="mt-4 rounded-lg border border-gray-700 bg-gray-900/50 p-6">
+          {/* Value History Line Chart */}
+          {userId && (
+            <div className="mb-6">
+              <h3 className="mb-3 text-lg font-semibold text-white">Inventory Value Over Time</h3>
+              {loadingHistory ? (
+                <div className="flex h-64 items-center justify-center text-gray-400">
+                  Loading value history...
+                </div>
+              ) : valueHistory.length > 0 ? (
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={valueHistory}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#9CA3AF"
+                        style={{ fontSize: '12px' }}
+                        tickFormatter={(value) => {
+                          const date = new Date(value);
+                          return `${date.getMonth() + 1}/${date.getDate()}`;
+                        }}
+                      />
+                      <YAxis
+                        stroke="#9CA3AF"
+                        style={{ fontSize: '12px' }}
+                        tickFormatter={(value) => {
+                          if (value >= 1000000) {
+                            return `$${(value / 1000000).toFixed(1)}M`;
+                          }
+                          if (value >= 1000) {
+                            return `$${(value / 1000).toFixed(0)}K`;
+                          }
+                          return `$${value}`;
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1F2937',
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F3F4F6',
+                        }}
+                        labelFormatter={(value) => {
+                          const date = new Date(value);
+                          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        }}
+                        formatter={(value: number) => [formatPrice(value), 'Total Value']}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="totalValue"
+                        stroke="#8B5CF6"
+                        strokeWidth={2}
+                        dot={false}
+                        activeDot={{ r: 4, fill: '#8B5CF6' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex h-64 items-center justify-center text-gray-400">
+                  No value history available
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Pie Chart */}
             <div className="flex flex-col overflow-hidden">

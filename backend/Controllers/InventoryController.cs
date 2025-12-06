@@ -93,6 +93,107 @@ public class InventoryController : ControllerBase
         return true;
     }
 
+    // GET: api/inventory/value-history?userId={userId}
+    [HttpGet("value-history")]
+    public async Task<ActionResult<IEnumerable<InventoryValueHistoryDto>>> GetInventoryValueHistory([FromQuery] int? userId)
+    {
+        try
+        {
+            if (!userId.HasValue)
+            {
+                return BadRequest(new { error = "User ID is required" });
+            }
+
+            // Get user to find account creation date
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null)
+            {
+                return NotFound(new { error = "User not found" });
+            }
+
+            // Get all items for this user, ordered by acquisition date
+            var items = await _context.InventoryItems
+                .Where(i => i.UserId == userId.Value)
+                .OrderBy(i => i.AcquiredAt)
+                .Select(i => new { i.AcquiredAt, i.Price })
+                .ToListAsync();
+
+            if (items.Count == 0)
+            {
+                return Ok(new List<InventoryValueHistoryDto>());
+            }
+
+            var startDate = user.CreatedAt.Date;
+            var endDate = DateTime.UtcNow.Date;
+            var history = new List<InventoryValueHistoryDto>();
+
+            // Calculate cumulative value over time
+            decimal cumulativeValue = 0;
+            int itemIndex = 0;
+
+            // Generate data points for each day from account creation to today
+            // For performance, we'll group by week if the account is older than 3 months
+            var daysDiff = (endDate - startDate).Days;
+            var useWeeklyIntervals = daysDiff > 90;
+
+            var currentDate = startDate;
+            while (currentDate <= endDate)
+            {
+                // Add all items acquired up to this date
+                while (itemIndex < items.Count && items[itemIndex].AcquiredAt.Date <= currentDate)
+                {
+                    cumulativeValue += items[itemIndex].Price;
+                    itemIndex++;
+                }
+
+                history.Add(new InventoryValueHistoryDto
+                {
+                    Date = currentDate,
+                    TotalValue = cumulativeValue
+                });
+
+                // Move to next interval
+                if (useWeeklyIntervals)
+                {
+                    currentDate = currentDate.AddDays(7);
+                    // Ensure we don't skip the last date
+                    if (currentDate > endDate && currentDate.AddDays(-7) < endDate)
+                    {
+                        currentDate = endDate;
+                    }
+                }
+                else
+                {
+                    currentDate = currentDate.AddDays(1);
+                }
+            }
+
+            // Always include today's value
+            if (history.LastOrDefault()?.Date != endDate)
+            {
+                // Add all remaining items
+                while (itemIndex < items.Count)
+                {
+                    cumulativeValue += items[itemIndex].Price;
+                    itemIndex++;
+                }
+
+                history.Add(new InventoryValueHistoryDto
+                {
+                    Date = endDate,
+                    TotalValue = cumulativeValue
+                });
+            }
+
+            return Ok(history);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching inventory value history for user {UserId}", userId);
+            return StatusCode(500, "An error occurred while fetching inventory value history");
+        }
+    }
+
     // GET: api/inventory/stats?userId={userId}
     [HttpGet("stats")]
     public async Task<ActionResult<InventoryStatsDto>> GetInventoryStats([FromQuery] int? userId)

@@ -697,7 +697,7 @@ export default function ItemGrid() {
           isLoading={refreshing}
         />
 
-        <ExpandableDashboard items={sortedItems} />
+        <ExpandableDashboard items={sortedItems} userId={user?.id} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <InventoryGridList
