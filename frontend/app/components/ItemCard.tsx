@@ -10,6 +10,7 @@ interface ItemCardProps {
   onClick?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onUpdate?: (field: 'price' | 'cost' | 'float', value: number | null) => void;
   variant?: 'grid' | 'detailed';
   isSelected?: boolean;
 }
@@ -19,6 +20,7 @@ export default function ItemCard({
   onClick,
   onEdit,
   onDelete,
+  onUpdate,
   variant = 'grid',
   isSelected = false,
 }: ItemCardProps) {
@@ -31,6 +33,7 @@ export default function ItemCard({
         animation={animation}
         onEdit={onEdit}
         onDelete={onDelete}
+        onUpdate={onUpdate}
       />
     );
   }

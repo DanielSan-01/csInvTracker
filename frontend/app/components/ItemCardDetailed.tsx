@@ -9,9 +9,10 @@ type ItemCardDetailedProps = {
   animation: ItemCardAnimation;
   onEdit?: () => void;
   onDelete?: () => void;
+  onUpdate?: (field: 'price' | 'cost' | 'float', value: number | null) => void;
 };
 
-export default function ItemCardDetailed({ item, animation, onEdit, onDelete }: ItemCardDetailedProps) {
-  return <ItemDetailPanel item={item} animation={animation} onEdit={onEdit} onDelete={onDelete} />;
+export default function ItemCardDetailed({ item, animation, onEdit, onDelete, onUpdate }: ItemCardDetailedProps) {
+  return <ItemDetailPanel item={item} animation={animation} onEdit={onEdit} onDelete={onDelete} onUpdate={onUpdate} />;
 }
 

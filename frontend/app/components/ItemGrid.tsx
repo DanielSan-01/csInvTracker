@@ -98,6 +98,52 @@ export default function ItemGrid() {
     });
   }, [sortedItems]);
 
+  // Arrow key navigation for item grid
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle arrow keys when not typing in an input/textarea
+      if (
+        document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        document.activeElement?.getAttribute('contenteditable') === 'true'
+      ) {
+        return;
+      }
+
+      if (!selectedItemId || sortedItems.length === 0) return;
+
+      const currentIndex = sortedItems.findIndex(item => item.id === selectedItemId);
+      if (currentIndex === -1) return;
+
+      let newIndex = currentIndex;
+
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+          newIndex = (currentIndex + 1) % sortedItems.length;
+          break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          newIndex = currentIndex === 0 ? sortedItems.length - 1 : currentIndex - 1;
+          break;
+        default:
+          return;
+      }
+
+      e.preventDefault();
+      setSelectedItemId(sortedItems[newIndex].id);
+      
+      // Scroll the selected item into view
+      const selectedElement = document.querySelector(`[data-item-id="${sortedItems[newIndex].id}"]`);
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedItemId, sortedItems]);
+
   const selectedItem = useMemo(
     () => (selectedItemId ? sortedItems.find(item => item.id === selectedItemId) ?? null : null),
     [sortedItems, selectedItemId]
@@ -213,6 +259,34 @@ export default function ItemGrid() {
 
     showToast('Failed to update skin. Please try again.', 'error');
     return false;
+  };
+
+  // Inline update handler for double-click editing
+  const handleInlineUpdate = async (field: 'price' | 'cost' | 'float', value: number | null) => {
+    if (!selectedItem || !user) return;
+
+    const updateDto: UpdateInventoryItemDto = {
+      price: field === 'price' ? (value ?? 0) : (selectedItem.price ?? 0),
+      cost: field === 'cost' ? (value ?? undefined) : (selectedItem.cost ?? undefined),
+      float: field === 'float' ? (value ?? 0.5) : (selectedItem.float ?? 0.5),
+      tradeProtected: selectedItem.tradeProtected ?? false,
+    };
+
+    setIsUpdating(true);
+    try {
+      const success = await updateItem(parseInt(selectedItem.id), updateDto);
+      if (success) {
+        await refresh();
+        showToast(`${field === 'price' ? 'Price' : field === 'cost' ? 'Cost' : 'Float'} updated successfully.`, 'success');
+      } else {
+        showToast(`Failed to update ${field}.`, 'error');
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+      showToast(`Failed to update ${field}.`, 'error');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleEditClick = (item: CSItem) => {

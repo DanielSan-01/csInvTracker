@@ -19,14 +19,27 @@ type ItemDetailPanelProps = {
   animation: ItemCardAnimation;
   onEdit?: () => void;
   onDelete?: () => void;
+  onUpdate?: (field: 'price' | 'cost' | 'float', value: number | null) => void;
 };
 
-export default function ItemDetailPanel({ item, animation, onEdit, onDelete }: ItemDetailPanelProps) {
+export default function ItemDetailPanel({ item, animation, onEdit, onDelete, onUpdate }: ItemDetailPanelProps) {
   const profit = item.cost !== undefined ? calculateProfit(item.price, item.cost) : undefined;
   const profitPercent =
     item.cost !== undefined ? calculateProfitPercentage(item.price, item.cost) : undefined;
   const profitDisplay = formatProfitDisplay(profit, profitPercent);
   const exteriorInfo = exteriorDetails[item.exterior];
+
+  const handlePriceUpdate = (field: 'price' | 'cost', value: number | null) => {
+    if (onUpdate) {
+      onUpdate(field, value);
+    }
+  };
+
+  const handleFloatUpdate = (value: number) => {
+    if (onUpdate) {
+      onUpdate('float', value);
+    }
+  };
 
   return (
     <div
@@ -41,8 +54,9 @@ export default function ItemDetailPanel({ item, animation, onEdit, onDelete }: I
           item={item}
           exteriorLabel={exteriorInfo.label}
           profitDisplay={profitDisplay}
+          onUpdate={onUpdate ? handlePriceUpdate : undefined}
         />
-        <DetailFloat item={item} />
+        <DetailFloat item={item} onUpdate={onUpdate ? handleFloatUpdate : undefined} />
         <DetailInfoPills item={item} />
         <DetailActions onEdit={onEdit} onDelete={onDelete} />
       </div>
