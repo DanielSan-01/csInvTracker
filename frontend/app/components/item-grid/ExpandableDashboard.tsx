@@ -101,20 +101,22 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
   return (
     <div className="mb-8">
       {/* Expand/Collapse Button */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-900/50 px-4 py-3 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-800 hover:text-white"
-      >
-        <span>Dashboard Analytics</span>
-        <svg
-          className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <div className="flex w-full justify-end">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center justify-center rounded-lg border border-gray-700 bg-gray-900/50 px-3 py-2 text-gray-300 transition-colors hover:bg-gray-800 hover:text-white"
+          aria-label={isExpanded ? 'Collapse dashboard' : 'Expand dashboard'}
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
+          <svg
+            className={`h-5 w-5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
 
       {/* Expanded Content */}
       {isExpanded && (
