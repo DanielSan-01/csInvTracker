@@ -130,21 +130,6 @@ public class AdminController : ControllerBase
         }
     }
 
-    [HttpPost("import-from-bymykel")]
-    [Obsolete("Use refresh-from-steam instead. This endpoint is kept for backward compatibility.")]
-    public async Task<IActionResult> ImportFromByMykel(CancellationToken cancellationToken)
-    {
-        var result = await _skinImportService.ImportFromByMykelAsync(cancellationToken);
-
-        return Ok(new
-        {
-            result.Success,
-            result.TotalProcessed,
-            Created = result.Created,
-            Updated = result.Updated,
-            result.Message
-        });
-    }
 
     [HttpPost("import-from-csfloat")]
     public async Task<ActionResult<CsFloatImportResult>> ImportFromCSFloat(CancellationToken cancellationToken)

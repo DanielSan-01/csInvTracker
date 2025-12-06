@@ -24,32 +24,32 @@ export default function AdvancedFieldsSection({
     <div className="animate-fadeIn space-y-4 border-t border-gray-700 pt-4">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {hasFloat && (
-          <div>
-            <label className="mb-2 block text-sm font-medium text-gray-300">
-              Float Value (0.0 - 1.0)
-            </label>
-            <input
-              type="number"
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-300">
+            Float Value (0.0 - 1.0)
+          </label>
+          <input
+            type="number"
               step="any"
-              min="0"
-              max="1"
+            min="0"
+            max="1"
               inputMode="decimal"
-              value={formData.float ?? ''}
-              onChange={(event) =>
-                onChange({
-                  float: event.target.value ? parseFloat(event.target.value) : undefined,
-                })
-              }
-              className={`w-full rounded-lg border-2 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
-                errors.float ? 'border-red-500 bg-gray-900' : 'border-gray-700 bg-gray-800'
-              }`}
-              placeholder="e.g., 0.564978"
-            />
-            {errors.float && <p className="mt-1 text-sm text-red-400">{errors.float}</p>}
-            <p className="mt-1 text-xs text-gray-500">
-              Leave empty if unknown. Float determines wear condition.
-            </p>
-          </div>
+            value={formData.float ?? ''}
+            onChange={(event) =>
+              onChange({
+                float: event.target.value ? parseFloat(event.target.value) : undefined,
+              })
+            }
+            className={`w-full rounded-lg border-2 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+              errors.float ? 'border-red-500 bg-gray-900' : 'border-gray-700 bg-gray-800'
+            }`}
+            placeholder="e.g., 0.564978"
+          />
+          {errors.float && <p className="mt-1 text-sm text-red-400">{errors.float}</p>}
+          <p className="mt-1 text-xs text-gray-500">
+            Leave empty if unknown. Float determines wear condition.
+          </p>
+        </div>
         )}
 
         <div>

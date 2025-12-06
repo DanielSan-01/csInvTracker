@@ -329,21 +329,13 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-var runByMykelImport = args.Contains("--import-skins", StringComparer.OrdinalIgnoreCase);
 var runCsFloatImport = args.Contains("--import-csfloat", StringComparer.OrdinalIgnoreCase);
 
-if (runByMykelImport || runCsFloatImport)
+if (runCsFloatImport)
 {
     using var scope = app.Services.CreateScope();
     var importService = scope.ServiceProvider.GetRequiredService<SkinImportService>();
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("SkinImportCLI");
-
-    if (runByMykelImport)
-    {
-        logger.LogInformation("Running ByMykel import because --import-skins flag was provided.");
-        var result = await importService.ImportFromByMykelAsync();
-        logger.LogInformation("{Message}", result.Message);
-    }
 
     if (runCsFloatImport)
     {
