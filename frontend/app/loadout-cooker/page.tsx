@@ -47,6 +47,8 @@ export default function LoadoutCookerPage() {
   const [loadoutName, setLoadoutName] = useState('');
   const [isSavingLoadout, setIsSavingLoadout] = useState(false);
   const [loadoutError, setLoadoutError] = useState<string | null>(null);
+  const [savedLoadouts, setSavedLoadouts] = useState<LoadoutDto[]>([]);
+  const [loadingLoadouts, setLoadingLoadouts] = useState(false);
 
   const skinById = useMemo(() => {
     const map = new Map<number, SkinDto>();
@@ -159,7 +161,7 @@ export default function LoadoutCookerPage() {
     setLoadoutError(null);
   }, []);
 
-  const handleSaveLoadout = useCallback(async () => {
+  const handleSaveLoadout = useCallback(async (loadoutId?: string) => {
     if (!user?.id) {
       setLoadoutError('Sign in to save loadouts.');
       return;
@@ -178,6 +180,7 @@ export default function LoadoutCookerPage() {
         : `Loadout ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
 
     const payload: LoadoutDto = {
+      id: loadoutId || '',
       userId: user.id,
       name: finalName,
       entries,
@@ -192,12 +195,54 @@ export default function LoadoutCookerPage() {
       setEquipFeedback('Loadout saved to favorites.');
       setIsSaveModalOpen(false);
       setLoadoutName('');
+      
+      // Refresh saved loadouts
+      const loadouts = await loadoutsApi.getLoadouts(user.id);
+      const sorted = loadouts
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .slice(0, 2);
+      setSavedLoadouts(sorted);
     } catch (err) {
       setLoadoutError(err instanceof Error ? err.message : 'Failed to save loadout.');
     } finally {
       setIsSavingLoadout(false);
     }
   }, [user?.id, buildLoadoutEntries, loadoutName]);
+
+  const handleLoadLoadout = useCallback((loadout: LoadoutDto) => {
+    // Convert loadout entries back to selections format
+    const newSelections: LoadoutSelections = {};
+    
+    loadout.entries.forEach((entry) => {
+      const slotKey = entry.slotKey;
+      const teamKey = entry.team.toLowerCase() as 'ct' | 't';
+      
+      // Find the skin from our catalog
+      const skin = skins.find(s => s.id === entry.skinId) || {
+        id: entry.skinId || 0,
+        name: entry.skinName,
+        rarity: '',
+        type: entry.type || '',
+        collection: undefined,
+        weapon: entry.weapon,
+        imageUrl: entry.imageUrl,
+        defaultPrice: 0,
+      } as SkinDto;
+
+      if (!newSelections[slotKey]) {
+        newSelections[slotKey] = {};
+      }
+      
+      newSelections[slotKey][teamKey] = {
+        skin,
+        inventoryId: entry.inventoryItemId,
+      };
+    });
+
+    setSelections(newSelections);
+    setIsSaveModalOpen(false);
+    setEquipFeedback(`Loaded "${loadout.name}"`);
+  }, [skins]);
 
   const handleEquipInventory = useCallback(() => {
     if (!user?.id) {
@@ -553,9 +598,11 @@ export default function LoadoutCookerPage() {
           name={loadoutName}
           error={loadoutError}
           isSaving={isSavingLoadout}
+          existingLoadouts={savedLoadouts}
           onNameChange={setLoadoutName}
           onClose={handleCloseSaveModal}
           onSave={handleSaveLoadout}
+          onLoad={handleLoadLoadout}
         />
       )}
     </div>
