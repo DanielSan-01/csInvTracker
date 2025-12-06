@@ -11,15 +11,18 @@ public class SteamInventoryImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SteamInventoryImportService> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
+    private readonly SteamApiService _steamApiService;
 
     public SteamInventoryImportService(
         ApplicationDbContext context,
         ILogger<SteamInventoryImportService> logger,
-        DopplerPhaseService dopplerPhaseService)
+        DopplerPhaseService dopplerPhaseService,
+        SteamApiService steamApiService)
     {
         _context = context;
         _logger = logger;
         _dopplerPhaseService = dopplerPhaseService;
+        _steamApiService = steamApiService;
     }
 
     public class ImportResult
@@ -48,6 +51,23 @@ public class SteamInventoryImportService
         // Get all skins from catalog for matching
         var allSkins = await _context.Skins.ToListAsync(cancellationToken);
         _logger.LogInformation("Loaded {Count} skins from catalog for matching", allSkins.Count);
+
+        // Fetch market prices for all items (batch fetch with rate limiting)
+        _logger.LogInformation("Fetching Steam market prices for {Count} items...", steamItems.Count);
+        var marketHashNames = steamItems
+            .Where(item => !string.IsNullOrWhiteSpace(item.MarketHashName))
+            .Select(item => item.MarketHashName)
+            .Distinct()
+            .ToList();
+        
+        var marketPrices = await _steamApiService.GetMarketPricesAsync(
+            marketHashNames, 
+            appId: 730, 
+            delayMs: 200, // 200ms delay between requests to avoid rate limiting
+            cancellationToken);
+        
+        var pricesFound = marketPrices.Values.Count(p => p.HasValue);
+        _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
 
         foreach (var steamItem in steamItems)
         {
@@ -110,6 +130,14 @@ public class SteamInventoryImportService
                     existingItem.PaintSeed = updatedPaintSeed;
                     existingItem.TradeProtected = !steamItem.Tradable;
                     
+                    // Update price if it's currently 0 and we have a market price
+                    if (existingItem.Price == 0 && marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) && existingPrice.HasValue)
+                    {
+                        existingItem.Price = existingPrice.Value;
+                        _logger.LogDebug("Updated price for existing item {MarketHashName}: ${Price}", 
+                            steamItem.MarketHashName, existingPrice.Value);
+                    }
+                    
                     // Update stickers if any
                     if (updatedStickers != null && updatedStickers.Count > 0)
                     {
@@ -147,6 +175,22 @@ public class SteamInventoryImportService
                     ? steamItem.ImageUrl 
                     : matchingSkin.ImageUrl;
                 
+                // Get market price if available
+                var marketPrice = marketPrices.TryGetValue(steamItem.MarketHashName, out var price) && price.HasValue
+                    ? price.Value
+                    : 0m;
+                
+                if (marketPrice > 0)
+                {
+                    _logger.LogDebug("Using market price for {MarketHashName}: ${Price}", 
+                        steamItem.MarketHashName, marketPrice);
+                }
+                else
+                {
+                    _logger.LogDebug("No market price available for {MarketHashName}, setting to 0", 
+                        steamItem.MarketHashName);
+                }
+                
                 var inventoryItem = new InventoryItem
                 {
                     UserId = userId,
@@ -156,7 +200,7 @@ public class SteamInventoryImportService
                     Exterior = exterior,
                     PaintSeed = paintSeed,
                     ImageUrl = imageUrl,
-                    Price = 0, // Would need to fetch from market API
+                    Price = marketPrice, // Use fetched market price, or 0 if not available
                     TradeProtected = !steamItem.Tradable,
                     AcquiredAt = DateTime.UtcNow
                 };
