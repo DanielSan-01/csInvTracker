@@ -98,13 +98,13 @@ export default function AdvancedFieldsSection({
                     : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
                 }`}
               >
-                <input
+          <input
                   type="radio"
                   name="tradeLockDays"
                   value={days}
                   checked={formData.tradeLockDays === days}
                   onChange={() => {
-                    onChange({
+              onChange({
                       tradeProtected: days > 0,
                       tradeLockDays: days,
                     });

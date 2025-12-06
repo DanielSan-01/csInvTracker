@@ -650,7 +650,7 @@ public class InventoryController : ControllerBase
                 
                 // Log full URL (safe to log - no API keys or sensitive data)
                 _logger.LogInformation("Fetching Steam inventory page {PageCount} from: {SteamUrl}", pageCount, steamUrl);
-                
+            
                 try
                 {
                     var response = await httpClient.GetAsync(steamUrl, cancellationToken);
@@ -660,10 +660,10 @@ public class InventoryController : ControllerBase
                         pageCount, response.StatusCode, response.ReasonPhrase);
                     _logger.LogDebug("Response headers: {Headers}", 
                         string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}")));
-                    
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
                         _logger.LogError("Steam API error (page {PageCount}): Status={StatusCode}, Url={SteamUrl}, Error={Error}", 
                             pageCount, response.StatusCode, steamUrl, 
                             errorText.Length > 500 ? errorText.Substring(0, 500) : errorText);
@@ -692,14 +692,14 @@ public class InventoryController : ControllerBase
                             });
                         }
                         
-                        return StatusCode((int)response.StatusCode, new { 
+                return StatusCode((int)response.StatusCode, new { 
                             error = $"Steam API error: {response.StatusCode}",
                             details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
                             steamUrl = steamUrl
-                        });
-                    }
+                });
+            }
 
-                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
                     
                     // Handle null response from Steam (can happen with certain query parameters)
                     if (string.IsNullOrWhiteSpace(json) || json.Trim().Equals("null", StringComparison.OrdinalIgnoreCase))
@@ -721,20 +721,20 @@ public class InventoryController : ControllerBase
                         break;
                     }
                     
-                    var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
+            var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
 
-                    if (data == null)
-                    {
+            if (data == null)
+            {
                         _logger.LogError("Failed to parse Steam API response (page {PageCount}). JSON: {Json}", pageCount, json.Length > 200 ? json.Substring(0, 200) : json);
                         return StatusCode(500, new { error = "Failed to parse Steam API response" });
-                    }
+            }
 
-                    // Check if request was successful
-                    if (data.Success != 1)
-                    {
+            // Check if request was successful
+            if (data.Success != 1)
+            {
                         _logger.LogWarning("Steam API returned unsuccessful response (page {PageCount}): Success = {Success}", 
                             pageCount, data.Success);
                         
@@ -805,7 +805,7 @@ public class InventoryController : ControllerBase
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error fetching Steam inventory page {PageCount}", pageCount);
-                    return StatusCode(500, new { 
+                return StatusCode(500, new { 
                         error = "Error fetching Steam inventory",
                         details = ex.Message,
                         pagesFetched = pageCount - 1

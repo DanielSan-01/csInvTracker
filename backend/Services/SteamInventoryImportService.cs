@@ -198,35 +198,47 @@ public class SteamInventoryImportService
     /// <summary>
     /// Finds a matching skin in the catalog by market hash name
     /// Uses multiple matching strategies to find the best match
+    /// PRIORITIZES exact market_hash_name matching for accuracy
     /// </summary>
     private Skin? FindMatchingSkin(List<Skin> skins, string marketHashName)
     {
         if (string.IsNullOrWhiteSpace(marketHashName))
             return null;
 
+        // Strategy 1: EXACT match on MarketHashName field (most accurate - Steam's exact identifier)
+        var exactMarketHashMatch = skins.FirstOrDefault(s =>
+            !string.IsNullOrEmpty(s.MarketHashName) &&
+            s.MarketHashName.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
+        if (exactMarketHashMatch != null)
+        {
+            _logger.LogDebug("Exact MarketHashName match found: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
+                marketHashName, exactMarketHashMatch.Name, exactMarketHashMatch.Id);
+            return exactMarketHashMatch;
+        }
+
         var normalizedSearch = NormalizeSkinName(marketHashName);
         if (string.IsNullOrWhiteSpace(normalizedSearch))
             return null;
 
-        // Strategy 1: Exact match (case-insensitive)
-        var exactMatch = skins.FirstOrDefault(s =>
-            NormalizeSkinName(s.Name).Equals(normalizedSearch, StringComparison.OrdinalIgnoreCase));
-        if (exactMatch != null)
-        {
-            _logger.LogDebug("Exact match found: {MarketHashName} -> {SkinName}", marketHashName, exactMatch.Name);
-            return exactMatch;
-        }
-
-        // Strategy 2: Exact match on original name (before normalization)
-        var exactOriginalMatch = skins.FirstOrDefault(s =>
+        // Strategy 2: Exact match on Name field (case-insensitive)
+        var exactNameMatch = skins.FirstOrDefault(s =>
             s.Name.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
-        if (exactOriginalMatch != null)
+        if (exactNameMatch != null)
         {
-            _logger.LogDebug("Exact original match found: {MarketHashName} -> {SkinName}", marketHashName, exactOriginalMatch.Name);
-            return exactOriginalMatch;
+            _logger.LogDebug("Exact name match found: {MarketHashName} -> {SkinName}", marketHashName, exactNameMatch.Name);
+            return exactNameMatch;
         }
 
-        // Strategy 3: Contains match (either direction)
+        // Strategy 3: Exact match on normalized name
+        var exactNormalizedMatch = skins.FirstOrDefault(s =>
+            NormalizeSkinName(s.Name).Equals(normalizedSearch, StringComparison.OrdinalIgnoreCase));
+        if (exactNormalizedMatch != null)
+        {
+            _logger.LogDebug("Exact normalized match found: {MarketHashName} -> {SkinName}", marketHashName, exactNormalizedMatch.Name);
+            return exactNormalizedMatch;
+        }
+
+        // Strategy 4: Contains match (either direction) - WARNING: Less reliable, may cause mismatches
         var containsMatch = skins.FirstOrDefault(s =>
         {
             var normalizedSkin = NormalizeSkinName(s.Name);
@@ -235,11 +247,13 @@ public class SteamInventoryImportService
         });
         if (containsMatch != null)
         {
-            _logger.LogDebug("Contains match found: {MarketHashName} -> {SkinName}", marketHashName, containsMatch.Name);
+            _logger.LogWarning("Contains match found (may be inaccurate): {MarketHashName} -> {SkinName}. " +
+                "Consider refreshing catalog from Steam to get exact MarketHashName.", 
+                marketHashName, containsMatch.Name);
             return containsMatch;
         }
 
-        // Strategy 4: Word-based fuzzy matching
+        // Strategy 5: Word-based fuzzy matching - WARNING: Least reliable, may cause mismatches
         var searchWords = normalizedSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Where(w => w.Length > 2) // Ignore very short words
             .ToArray();
@@ -257,7 +271,8 @@ public class SteamInventoryImportService
 
             if (bestMatch != null)
             {
-                _logger.LogDebug("Fuzzy match found (score: {Score}): {MarketHashName} -> {SkinName}", 
+                _logger.LogWarning("Fuzzy match found (score: {Score}, may be inaccurate): {MarketHashName} -> {SkinName}. " +
+                    "Consider refreshing catalog from Steam to get exact MarketHashName.", 
                     bestMatch.Score, marketHashName, bestMatch.Skin.Name);
                 return bestMatch.Skin;
             }

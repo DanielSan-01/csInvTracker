@@ -28,6 +28,13 @@ public class Skin
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
     
+    /// <summary>
+    /// Steam's exact market_hash_name - used for precise matching with Steam inventory items
+    /// This is the exact identifier Steam uses and should match exactly with Steam API responses
+    /// </summary>
+    [MaxLength(200)]
+    public string? MarketHashName { get; set; }
+    
     public decimal? DefaultPrice { get; set; }
     
     public int? PaintIndex { get; set; }

@@ -136,7 +136,7 @@ export default function ItemGrid() {
       const date = calculateValveTradeLockDate(newSkinData.tradeLockDays);
       tradableAfter = date.toISOString();
     }
-
+    
     const createDto: CreateInventoryItemDto = {
       userId: user.id,
       skinId: newSkinData.skinId!, // Will be provided by updated AddSkinForm
@@ -187,7 +187,7 @@ export default function ItemGrid() {
       const date = calculateValveTradeLockDate(updatedData.tradeLockDays);
       tradableAfter = date.toISOString();
     }
-
+    
     const updateDto: UpdateInventoryItemDto = {
       float: updatedData.float ?? 0.5,
       paintSeed: updatedData.paintSeed,
@@ -411,7 +411,7 @@ export default function ItemGrid() {
         // Show banner for private inventory
         setPrivateInventoryBanner(bannerMessage || 'Your Steam inventory privacy is set to private. Please make your inventory public in Steam settings: Steam > Settings > Privacy > Inventory Privacy > Public');
       } else {
-        showToast(`Failed to refresh inventory from Steam: ${errorMessage}`, 'error');
+      showToast(`Failed to refresh inventory from Steam: ${errorMessage}`, 'error');
       }
     } finally {
       setIsLoadingSteam(false);

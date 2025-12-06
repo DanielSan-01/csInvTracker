@@ -107,6 +107,9 @@ public class SkinImportService
                 try
                 {
                     var skinName = item.GetProperty("name").GetString() ?? "Unknown";
+                    var marketHashName = item.TryGetProperty("market_hash_name", out var mhn) 
+                        ? mhn.GetString() 
+                        : null; // ByMykel may provide market_hash_name
                     var rarity = GetStringFromProperty(item, "rarity");
                     var collection = GetCollectionName(item);
                     var weapon = GetStringFromProperty(item, "weapon");
@@ -132,6 +135,7 @@ public class SkinImportService
                             weapon,
                             imageUrl,
                             paintIndex,
+                            marketHashName,
                             cancellationToken);
 
                         if (wasUpdate)
@@ -171,6 +175,7 @@ public class SkinImportService
                                         weapon,
                                         phaseImage,
                                         phase.PaintSeed,
+                                        marketHashName,
                                         cancellationToken);
 
                                     if (wasUpdate)
@@ -200,6 +205,7 @@ public class SkinImportService
                                 weapon,
                                 imageUrl,
                                 paintIndex,
+                                marketHashName,
                                 cancellationToken);
 
                             if (wasUpdate)
@@ -357,6 +363,7 @@ public class SkinImportService
         string? weapon,
         string? imageUrl,
         int? paintIndex,
+        string? marketHashName,
         CancellationToken cancellationToken)
     {
         var existingSkin = await _context.Skins
@@ -371,6 +378,11 @@ public class SkinImportService
             if (!string.IsNullOrWhiteSpace(imageUrl))
             {
                 existingSkin.ImageUrl = imageUrl;
+            }
+            // Update MarketHashName if provided and not already set (Steam data is more authoritative)
+            if (!string.IsNullOrWhiteSpace(marketHashName) && string.IsNullOrEmpty(existingSkin.MarketHashName))
+            {
+                existingSkin.MarketHashName = marketHashName;
             }
             existingSkin.DefaultPrice = GetDefaultPriceForRarity(rarity);
             if (paintIndex.HasValue)
@@ -388,6 +400,7 @@ public class SkinImportService
             Collection = collection,
             Weapon = weapon,
             ImageUrl = imageUrl ?? "",
+            MarketHashName = marketHashName, // Store market hash name if available from ByMykel
             DefaultPrice = GetDefaultPriceForRarity(rarity),
             PaintIndex = paintIndex
         };

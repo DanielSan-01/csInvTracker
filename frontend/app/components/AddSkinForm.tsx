@@ -344,15 +344,15 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
                 onChange={updateFormData}
               />
 
-              <AdvancedFieldsSection
-                formData={formData}
-                errors={errors}
-                onChange={updateFormData}
-              />
-              <StickersSection
-                formData={formData}
-                onChange={updateFormData}
-              />
+                  <AdvancedFieldsSection
+                    formData={formData}
+                    errors={errors}
+                    onChange={updateFormData}
+                  />
+                  <StickersSection
+                    formData={formData}
+                    onChange={updateFormData}
+                  />
             </div>
 
             <PreviewPanel previewItem={previewItem} />

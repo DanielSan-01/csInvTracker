@@ -166,6 +166,14 @@ public class SteamCatalogRefreshService
                         // Update existing skin with Steam's latest data
                         var wasUpdated = false;
 
+                        // Always update market_hash_name if it's missing or different
+                        if (!string.IsNullOrEmpty(item.MarketHashName) && existingSkin.MarketHashName != item.MarketHashName)
+                        {
+                            existingSkin.MarketHashName = item.MarketHashName;
+                            wasUpdated = true;
+                        }
+
+                        // Always update image URL from Steam (Steam has the latest images)
                         if (!string.IsNullOrEmpty(item.ImageUrl) && existingSkin.ImageUrl != item.ImageUrl)
                         {
                             existingSkin.ImageUrl = item.ImageUrl;
@@ -193,7 +201,8 @@ public class SteamCatalogRefreshService
                         if (wasUpdated)
                         {
                             result.Updated++;
-                            _logger.LogDebug("Updated skin: {Name}", item.MarketHashName);
+                            _logger.LogDebug("Updated skin: {Name} (MarketHashName: {MarketHashName})", 
+                                existingSkin.Name, item.MarketHashName);
                         }
                         else
                         {
@@ -202,20 +211,23 @@ public class SteamCatalogRefreshService
                     }
                     else
                     {
-                        // Create new skin
+                        // Create new skin from Steam data
                         var newSkin = new Skin
                         {
                             Name = item.MarketHashName,
+                            MarketHashName = item.MarketHashName, // Store exact Steam market hash name
                             Rarity = rarity ?? "Unknown",
                             Type = type ?? "Unknown",
                             Weapon = weapon,
                             ImageUrl = item.ImageUrl,
-                            DefaultPrice = GetDefaultPriceForRarity(rarity)
+                            DefaultPrice = GetDefaultPriceForRarity(rarity),
+                            PaintIndex = paintIndex
                         };
 
                         await _context.Skins.AddAsync(newSkin, cancellationToken);
                         result.Created++;
-                        _logger.LogDebug("Created new skin: {Name}", item.MarketHashName);
+                        _logger.LogDebug("Created new skin from Steam: {Name} (MarketHashName: {MarketHashName})", 
+                            item.MarketHashName, item.MarketHashName);
                     }
 
                     // Save in batches

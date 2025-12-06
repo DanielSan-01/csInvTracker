@@ -1,0 +1,40 @@
+# CS Inv Tracker - Cursor AI Rules
+
+## Commit Message Format
+- **ALL commit messages MUST be in lowercase**
+- Use descriptive, concise messages
+- Example: "add market hash name field to skin model" ✅
+- NOT: "Add Market Hash Name Field to Skin Model" ❌
+
+## AI Response Requirements
+The AI assistant MUST always:
+1. **Confirm understanding** by restating the user's request in clear terms
+2. **List what will be done** - break down the tasks/changes that will be made
+3. **Explain why** - provide reasoning for the approach or changes
+4. **Show confirmation** - demonstrate that the prompt is fully understood before proceeding
+
+This ensures the user can verify their intent is correctly understood before any code changes are made.
+
+Example of good response structure:
+```
+I understand you want to [restate request]. 
+
+Here's what I'll do:
+1. [Task 1] - because [reason]
+2. [Task 2] - because [reason]
+3. [Task 3] - because [reason]
+
+This approach will [benefit/outcome]. Should I proceed?
+```
+
+## Code Style
+- Follow existing code patterns in the repository
+- Maintain consistency with current architecture
+- Use TypeScript/React best practices for frontend
+- Use C#/.NET best practices for backend
+
+## Important Notes
+- These rules should persist across all AI interactions
+- The AI should reference these rules when making commits or responding to requests
+- If unsure about a request, the AI should ask for clarification rather than making assumptions
+
