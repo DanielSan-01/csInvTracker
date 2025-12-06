@@ -91,6 +91,12 @@ export function formatTimeRemaining(targetDate: Date): string {
 }
 
 export function formatCurrency(value: number, locale: string = 'en-US', currency: string = 'USD'): string {
+  // Format values over 10 million as "10 mil" to fit in UI boxes
+  if (value >= 10_000_000) {
+    const millions = value / 1_000_000;
+    return `$${millions.toFixed(1)} mil`;
+  }
+  
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,

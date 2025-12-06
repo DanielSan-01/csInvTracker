@@ -537,6 +537,12 @@ export function getFloatColor(float: number): string {
 
 // Helper function to format price
 export function formatPrice(price: number): string {
+  // Format values over 10 million as "10 mil" to fit in UI boxes
+  if (price >= 10_000_000) {
+    const millions = price / 1_000_000;
+    return `$${millions.toFixed(1)} mil`;
+  }
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
