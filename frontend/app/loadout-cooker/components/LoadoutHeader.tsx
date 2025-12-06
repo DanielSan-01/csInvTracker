@@ -7,9 +7,11 @@ type LoadoutHeaderProps = {
   onToggleViewMode: () => void;
   onTeamChange: (team: Team) => void;
   onSave: () => void;
+  onLoad: () => void;
   onEquip: () => void;
   inventoryLoading: boolean;
   canEquip: boolean;
+  savedLoadoutsCount: number;
 };
 
 export default function LoadoutHeader({
@@ -18,9 +20,11 @@ export default function LoadoutHeader({
   onToggleViewMode,
   onTeamChange,
   onSave,
+  onLoad,
   onEquip,
   inventoryLoading,
   canEquip,
+  savedLoadoutsCount,
 }: LoadoutHeaderProps) {
   const isGridView = viewMode === 'grid';
 
@@ -84,6 +88,14 @@ export default function LoadoutHeader({
             </button>
           ))}
         </div>
+        {savedLoadoutsCount > 0 && (
+          <button
+            onClick={onLoad}
+            className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-200 transition hover:bg-purple-500/20"
+          >
+            Load Saved ({savedLoadoutsCount})
+          </button>
+        )}
         <button
           onClick={onSave}
           className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-200 transition hover:bg-purple-500/20"

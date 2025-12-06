@@ -51,6 +51,7 @@ export default function LoadoutCookerPage() {
   const [loadoutError, setLoadoutError] = useState<string | null>(null);
   const [savedLoadouts, setSavedLoadouts] = useState<LoadoutDto[]>([]);
   const [loadingLoadouts, setLoadingLoadouts] = useState(false);
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
 
   const skinById = useMemo(() => {
     const map = new Map<number, SkinDto>();
@@ -642,6 +643,19 @@ export default function LoadoutCookerPage() {
           onNameChange={setLoadoutName}
           onClose={handleCloseSaveModal}
           onSave={handleSaveLoadout}
+          onLoad={handleLoadLoadout}
+          onDelete={handleDeleteLoadout}
+        />
+      )}
+      {isLoadModalOpen && (
+        <SaveLoadoutModal
+          name=""
+          error={null}
+          isSaving={false}
+          existingLoadouts={savedLoadouts}
+          onNameChange={() => {}}
+          onClose={() => setIsLoadModalOpen(false)}
+          onSave={() => {}}
           onLoad={handleLoadLoadout}
           onDelete={handleDeleteLoadout}
         />
