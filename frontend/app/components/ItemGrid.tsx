@@ -425,10 +425,16 @@ export default function ItemGrid() {
   // Filter items that need pricing (price=0, cost=null/undefined, float=0.5 default)
   const itemsNeedingPricing = useMemo(() => {
     return sortedItems.filter(item => {
-      const hasNoPrice = !item.price || item.price === 0;
-      const hasNoCost = item.cost === null || item.cost === undefined || item.cost === 0;
-      const hasDefaultFloat = item.float === 0.5; // Default float value
+      // Item needs pricing if price is 0, null, undefined, or falsy
+      const hasNoPrice = !item.price || Number(item.price) === 0;
       
+      // Item needs pricing if cost is null, undefined, 0, or falsy
+      const hasNoCost = item.cost == null || item.cost === undefined || Number(item.cost) === 0;
+      
+      // Item needs pricing if float is the default 0.5 (not set)
+      const hasDefaultFloat = item.float === 0.5;
+      
+      // Show item if ANY of these conditions are true
       return hasNoPrice || hasNoCost || hasDefaultFloat;
     });
   }, [sortedItems]);
@@ -596,11 +602,6 @@ export default function ItemGrid() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   Add Price to Items
-                  {itemsNeedingPricing.length > 0 && (
-                    <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-green-700 rounded-full">
-                      {itemsNeedingPricing.length}
-                    </span>
-                  )}
                 </button>
               )}
               <button
