@@ -92,7 +92,8 @@ export default function SlotSelectionModal({
   const totalItems = displayEntries.length;
 
   const renderVariantButton = (variant: SkinDto) => {
-    const variantImage = getFallbackImageForSkin(variant) ?? variant.imageUrl ?? null;
+    // Prioritize actual skin image from catalog, fallback to default weapon image if missing
+    const variantImage = variant.imageUrl ?? getFallbackImageForSkin(variant) ?? null;
     return (
       <button
         key={variant.id}
@@ -116,8 +117,9 @@ export default function SlotSelectionModal({
   const renderGroupedEntry = (entry: DisplayEntry) => {
     const representative = entry.representative;
     const isExpanded = expandedWeapon === entry.key;
+    // Prioritize actual skin image from catalog, fallback to default weapon image if missing
     const representativeImage =
-      getFallbackImageForSkin(representative) ?? representative.imageUrl ?? null;
+      representative.imageUrl ?? getFallbackImageForSkin(representative) ?? null;
 
     return (
       <div
@@ -169,7 +171,8 @@ export default function SlotSelectionModal({
 
   const renderStandardEntry = (entry: DisplayEntry) => {
     const skin = entry.representative;
-    const skinImage = getFallbackImageForSkin(skin) ?? skin.imageUrl ?? null;
+    // Prioritize actual skin image from catalog, fallback to default weapon image if missing
+    const skinImage = skin.imageUrl ?? getFallbackImageForSkin(skin) ?? null;
     return (
       <button
         key={entry.key}
