@@ -198,9 +198,13 @@ export default function LoadoutCookerPage() {
       
       // Refresh saved loadouts
       const loadouts = await loadoutsApi.getLoadouts(user.id);
-      const sorted = loadouts
-        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-        .slice(0, 2);
+        const sorted = loadouts
+            .sort((a, b) => {
+              const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+              const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+              return timeB - timeA;
+            })
+            .slice(0, 2);
       setSavedLoadouts(sorted);
     } catch (err) {
       setLoadoutError(err instanceof Error ? err.message : 'Failed to save loadout.');
@@ -235,7 +239,7 @@ export default function LoadoutCookerPage() {
       
       newSelections[slotKey][teamKey] = {
         skin,
-        inventoryId: entry.inventoryItemId,
+        inventoryId: entry.inventoryItemId ?? undefined,
       };
     });
 

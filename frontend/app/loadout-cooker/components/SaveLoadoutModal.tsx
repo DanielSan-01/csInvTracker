@@ -60,7 +60,7 @@ export default function SaveLoadoutModal({
                           Slot {index + 1}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {new Date(loadout.updatedAt).toLocaleDateString()}
+                          {loadout.updatedAt ? new Date(loadout.updatedAt).toLocaleDateString() : 'Unknown'}
                         </span>
                       </div>
                       <h5 className="text-sm font-semibold text-white">{loadout.name}</h5>
