@@ -82,8 +82,10 @@ export default function SaveLoadoutModal({
                       <>
                         <button
                           onClick={() => {
-                            onDelete(loadout.id);
-                            setDeleteMode(false);
+                            if (loadout.id) {
+                              onDelete(loadout.id);
+                              setDeleteMode(false);
+                            }
                           }}
                           className="flex-1 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:border-red-400/60 hover:bg-red-500/20"
                         >
