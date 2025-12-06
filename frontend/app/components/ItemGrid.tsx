@@ -422,20 +422,17 @@ export default function ItemGrid() {
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Filter items that need pricing (price=0, cost=null/undefined, float=0.5 default)
+  // Filter items that need pricing - simple check: price is 0 or cost is missing/0
   const itemsNeedingPricing = useMemo(() => {
     return sortedItems.filter(item => {
-      // Item needs pricing if price is 0, null, undefined, or falsy
-      const hasNoPrice = !item.price || Number(item.price) === 0;
+      // Simple check: price is 0 or missing
+      const needsPrice = !item.price || item.price === 0;
       
-      // Item needs pricing if cost is null, undefined, 0, or falsy
-      const hasNoCost = item.cost == null || item.cost === undefined || Number(item.cost) === 0;
+      // Simple check: cost is null, undefined, or 0
+      const needsCost = item.cost == null || item.cost === 0;
       
-      // Item needs pricing if float is the default 0.5 (not set)
-      const hasDefaultFloat = item.float === 0.5;
-      
-      // Show item if ANY of these conditions are true
-      return hasNoPrice || hasNoCost || hasDefaultFloat;
+      // Item needs pricing if either price or cost is missing
+      return needsPrice || needsCost;
     });
   }, [sortedItems]);
 
@@ -591,19 +588,19 @@ export default function ItemGrid() {
                   </>
                 )}
               </button>
-              {itemsNeedingPricing.length > 0 && (
-                <button
-                  onClick={() => setShowBulkPriceEditor(true)}
-                  disabled={isUpdating}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={`Add price to ${itemsNeedingPricing.length} items missing pricing information`}
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Add Price to Items
-                </button>
-              )}
+              <button
+                onClick={() => setShowBulkPriceEditor(true)}
+                disabled={isUpdating || itemsNeedingPricing.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={itemsNeedingPricing.length > 0 
+                  ? `Add price to ${itemsNeedingPricing.length} items missing pricing information`
+                  : 'All items have pricing information'}
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Add Price to Items
+              </button>
               <button
                 onClick={() => setShowAddForm(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400 flex-shrink-0"
