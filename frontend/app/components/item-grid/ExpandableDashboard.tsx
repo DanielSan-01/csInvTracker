@@ -150,7 +150,7 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
                           borderRadius: '8px',
                           color: '#F3F4F6',
                         }}
-                        formatter={(value: number) => [`${value} items`, 'Count']}
+                        formatter={(value: number) => [formatPrice(value), 'Value']}
                       />
                       <Legend
                         wrapperStyle={{ color: '#D1D5DB' }}
