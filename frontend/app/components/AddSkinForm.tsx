@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { gsap } from 'gsap';
-import { calculateTradeProtectionDate } from '@/lib/utils';
+import { calculateTradeProtectionDate, calculateValveTradeLockDate } from '@/lib/utils';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import type { SkinDto } from '@/lib/api';
 import type { CSItem, Rarity, ItemType } from '@/lib/mockData';
@@ -21,7 +21,6 @@ import type { AddSkinFormProps, NewSkinData } from './add-skin/types';
 
 export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSkin }: AddSkinFormProps) {
   const isEditMode = !!item;
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [skinSearchTerm, setSkinSearchTerm] = useState(initialSkin?.name ?? '');
   const initialSearch = item?.name?.replace(/^★\s*/u, '') ?? initialSkin?.name ?? undefined;
   const { skins: catalogSkins, loading: catalogLoading, selectedSkin } = useSkinCatalog(
@@ -32,6 +31,18 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
   const effectiveSkin = selectedSkin ?? initialSkin;
 
   const baseFormState = useMemo<NewSkinData>(() => {
+    // Calculate tradeLockDays from existing tradableAfter date if editing
+    let tradeLockDays: number | undefined;
+    if (item?.tradableAfter) {
+      const now = new Date();
+      const tradableDate = new Date(item.tradableAfter);
+      const diffTime = tradableDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays > 0 && diffDays <= 7) {
+        tradeLockDays = diffDays;
+      }
+    }
+
     const state = {
       skinId: item?.skinId ?? effectiveSkin?.id,
       name: item?.name ?? effectiveSkin?.name ?? '',
@@ -43,6 +54,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       cost: item?.cost,
       imageUrl: item?.imageUrl ?? effectiveSkin?.imageUrl,
       tradeProtected: item?.tradeProtected ?? false,
+      tradeLockDays,
       stickers: item?.stickers,
     };
     console.log('[AddSkinForm] baseFormState initialized:', {
@@ -66,14 +78,6 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
 
   useEffect(() => {
     setFormData(baseFormState);
-    if (
-      baseFormState.float !== undefined ||
-      baseFormState.paintSeed !== undefined ||
-      baseFormState.cost !== undefined ||
-      baseFormState.imageUrl
-    ) {
-      setShowAdvanced(true);
-    }
   }, [baseFormState]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -153,21 +157,19 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       return;
     }
 
-    // Generate a simple image URL placeholder if not provided (using SVG data URI)
-    const generateSvgPlaceholder = (text: string): string => {
-      const encodedText = encodeURIComponent(text);
-      return `data:image/svg+xml,${encodeURIComponent(`<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
-  <rect width="300" height="200" fill="#4C1D95"/>
-  <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="16" fill="#FFFFFF" text-anchor="middle" dominant-baseline="middle">${text}</text>
-</svg>`)}`;
-    };
-    const imageUrl = formData.imageUrl || generateSvgPlaceholder(formData.name);
+    // Calculate tradableAfter date using Valve time (9am GMT+1 = 8am UTC)
+    let tradableAfter: string | undefined;
+    if (formData.tradeLockDays && formData.tradeLockDays > 0) {
+      const date = calculateValveTradeLockDate(formData.tradeLockDays);
+      tradableAfter = date.toISOString();
+    }
 
-    // Set tradableAfter date if trade protected is checked
     const submitData = {
       ...formData,
-      imageUrl,
-      tradeProtected: formData.tradeProtected || false,
+      tradeProtected: Boolean(formData.tradeLockDays && formData.tradeLockDays > 0),
+      tradableAfter,
+      // Remove imageUrl from submission - it will be auto-generated
+      imageUrl: undefined,
     };
     
     console.log('[AddSkinForm] Submitting data:', {
@@ -235,10 +237,6 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
 
   const handleSearchSelect = (skin: SkinDto) => {
     fillFromCatalog(skin);
-    const advancedNeeded = skin.defaultPrice !== undefined || skin.imageUrl;
-    if (advancedNeeded) {
-      setShowAdvanced(true);
-    }
   };
 
   const previewItem = useMemo<CSItem>(() => {
@@ -260,12 +258,18 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     const previewType =
       formData.type ?? (effectiveSkin?.type as ItemType) ?? item?.type ?? 'Rifle';
 
-    const previewTradeProtected =
-      formData.tradeProtected ?? item?.tradeProtected ?? false;
+    const previewTradeProtected = Boolean(
+      (formData.tradeLockDays && formData.tradeLockDays > 0) || item?.tradeProtected
+    );
 
-    const previewTradableAfter = previewTradeProtected
-      ? item?.tradableAfter ?? calculateTradeProtectionDate()
-      : undefined;
+    let previewTradableAfter: Date | undefined;
+    if (previewTradeProtected) {
+      if (formData.tradeLockDays && formData.tradeLockDays > 0) {
+        previewTradableAfter = calculateValveTradeLockDate(formData.tradeLockDays);
+      } else {
+        previewTradableAfter = item?.tradableAfter ?? calculateTradeProtectionDate();
+      }
+    }
 
     const previewImage = buildPreviewImageUrl(
       previewName,
@@ -340,37 +344,15 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
                 onChange={updateFormData}
               />
 
-              <div className="border-t border-gray-700 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced((prev) => !prev)}
-                  className="flex items-center gap-2 text-purple-400 transition-colors hover:text-purple-300"
-                >
-                  <svg
-                    className={`h-5 w-5 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                  <span className="font-medium">Show Advanced Options (Optional)</span>
-                </button>
-              </div>
-
-              {showAdvanced && (
-                <>
-                  <AdvancedFieldsSection
-                    formData={formData}
-                    errors={errors}
-                    onChange={updateFormData}
-                  />
-                  <StickersSection
-                    formData={formData}
-                    onChange={updateFormData}
-                  />
-                </>
-              )}
+              <AdvancedFieldsSection
+                formData={formData}
+                errors={errors}
+                onChange={updateFormData}
+              />
+              <StickersSection
+                formData={formData}
+                onChange={updateFormData}
+              />
             </div>
 
             <PreviewPanel previewItem={previewItem} />

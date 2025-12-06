@@ -34,6 +34,7 @@ public class CreateInventoryItemDto
     public decimal? Cost { get; set; }
     public string? ImageUrl { get; set; }
     public bool TradeProtected { get; set; }
+    public DateTime? TradableAfter { get; set; }
     public List<CreateStickerDto> Stickers { get; set; } = new();
 }
 
@@ -45,6 +46,7 @@ public class UpdateInventoryItemDto
     public decimal? Cost { get; set; }
     public string? ImageUrl { get; set; }
     public bool TradeProtected { get; set; }
+    public DateTime? TradableAfter { get; set; }
     public List<CreateStickerDto> Stickers { get; set; } = new();
 }
 

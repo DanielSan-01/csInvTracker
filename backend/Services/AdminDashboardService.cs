@@ -195,7 +195,7 @@ public class AdminDashboardService
                     Price = item.Price,
                     Cost = item.Cost,
                     TradeProtected = item.TradeProtected ?? false,
-                    TradableAfter = (item.TradeProtected ?? false) ? DateTime.UtcNow.AddDays(7) : null,
+                    TradableAfter = (item.TradeProtected ?? false) ? CalculateValveTradeLockDate(7) : null,
                     AcquiredAt = DateTime.UtcNow
                 };
 
@@ -403,6 +403,27 @@ public class AdminDashboardService
             > 0.45 and <= 1.0 => "Battle-Scarred",
             _ => "Field-Tested"
         };
+    }
+
+    /// <summary>
+    /// Calculates tradableAfter date using Valve time
+    /// Valve counts days from 9am GMT+1 (which is 8am UTC)
+    /// </summary>
+    private static DateTime CalculateValveTradeLockDate(int days)
+    {
+        var now = DateTime.UtcNow;
+        
+        // Find the next 8am UTC (9am GMT+1)
+        var nextValveDay = new DateTime(now.Year, now.Month, now.Day, 8, 0, 0, DateTimeKind.Utc);
+        
+        // If we've already passed 8am UTC today, move to tomorrow
+        if (now.Hour > 8 || (now.Hour == 8 && now.Minute > 0))
+        {
+            nextValveDay = nextValveDay.AddDays(1);
+        }
+        
+        // Add the specified number of days
+        return nextValveDay.AddDays(days);
     }
 }
 

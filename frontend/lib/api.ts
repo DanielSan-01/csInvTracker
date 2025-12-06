@@ -126,6 +126,7 @@ export interface CreateInventoryItemDto {
   cost?: number;
   imageUrl?: string;
   tradeProtected: boolean;
+  tradableAfter?: string; // ISO date string
   stickers?: CreateStickerDto[];
 }
 
@@ -136,6 +137,7 @@ export interface UpdateInventoryItemDto {
   cost?: number;
   imageUrl?: string;
   tradeProtected: boolean;
+  tradableAfter?: string; // ISO date string
   stickers?: CreateStickerDto[];
 }
 

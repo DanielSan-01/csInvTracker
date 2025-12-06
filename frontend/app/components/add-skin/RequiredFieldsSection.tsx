@@ -102,6 +102,29 @@ export default function RequiredFieldsSection({
         />
         {errors.price && <p className="mt-1 text-sm text-red-400">{errors.price}</p>}
       </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium text-gray-300">Cost (USD)</label>
+        <input
+          type="number"
+          step="0.01"
+          min="0"
+          value={formData.cost ?? ''}
+          onChange={(event) =>
+            onChange({
+              cost: event.target.value ? parseFloat(event.target.value) : undefined,
+            })
+          }
+          className={`w-full rounded-lg border-2 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+            errors.cost ? 'border-red-500 bg-gray-900' : 'border-gray-700 bg-gray-800'
+          }`}
+          placeholder="0.00"
+        />
+        {errors.cost && <p className="mt-1 text-sm text-red-400">{errors.cost}</p>}
+        <p className="mt-1 text-xs text-gray-500">
+          The amount you paid for this item (used for profit calculation)
+        </p>
+      </div>
     </div>
   );
 }

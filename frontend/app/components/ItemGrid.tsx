@@ -13,7 +13,7 @@ import {
   SkinDto /* , adminApi */,
 } from '@/lib/api';
 // Removed fetchSteamInventory - now handled by backend
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, calculateValveTradeLockDate } from '@/lib/utils';
 import Navbar from './Navbar';
 import SteamLoginButton from './SteamLoginButton';
 import InventoryToast from './item-grid/InventoryToast';
@@ -26,6 +26,7 @@ import InventoryGridList from './item-grid/InventoryGridList';
 import InventoryDetailPanel from './item-grid/InventoryDetailPanel';
 import { useToast } from './item-grid/useToast';
 import AnimatedBanner from './AnimatedBanner';
+import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
@@ -48,6 +49,7 @@ export default function ItemGrid() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
+  const [showBulkPriceEditor, setShowBulkPriceEditor] = useState(false);
   const { toast, showToast } = useToast();
 
   // Auto-import Steam inventory when user first logs in and has no items
@@ -128,6 +130,13 @@ export default function ItemGrid() {
     
     console.log('[ItemGrid] Creating item with stickers:', validStickers);
     
+    // Calculate tradableAfter using Valve time (9am GMT+1 = 8am UTC)
+    let tradableAfter: string | undefined;
+    if (newSkinData.tradeLockDays && newSkinData.tradeLockDays > 0) {
+      const date = calculateValveTradeLockDate(newSkinData.tradeLockDays);
+      tradableAfter = date.toISOString();
+    }
+
     const createDto: CreateInventoryItemDto = {
       userId: user.id,
       skinId: newSkinData.skinId!, // Will be provided by updated AddSkinForm
@@ -135,8 +144,9 @@ export default function ItemGrid() {
       paintSeed: newSkinData.paintSeed,
       price: newSkinData.price,
       cost: newSkinData.cost,
-      imageUrl: newSkinData.imageUrl,
+      imageUrl: undefined, // Image URL is auto-generated
       tradeProtected: newSkinData.tradeProtected ?? false,
+      tradableAfter,
       stickers: validStickers.length > 0 ? validStickers : undefined,
     };
 
@@ -171,13 +181,21 @@ export default function ItemGrid() {
     
     console.log('[ItemGrid] Updating item with stickers:', validStickers);
     
+    // Calculate tradableAfter using Valve time (9am GMT+1 = 8am UTC)
+    let tradableAfter: string | undefined;
+    if (updatedData.tradeLockDays && updatedData.tradeLockDays > 0) {
+      const date = calculateValveTradeLockDate(updatedData.tradeLockDays);
+      tradableAfter = date.toISOString();
+    }
+
     const updateDto: UpdateInventoryItemDto = {
       float: updatedData.float ?? 0.5,
       paintSeed: updatedData.paintSeed,
       price: updatedData.price,
       cost: updatedData.cost,
-      imageUrl: updatedData.imageUrl,
+      imageUrl: undefined, // Image URL is auto-generated
       tradeProtected: updatedData.tradeProtected ?? false,
+      tradableAfter,
       stickers: validStickers.length > 0 ? validStickers : undefined,
     };
 
@@ -404,6 +422,53 @@ export default function ItemGrid() {
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Filter items that need pricing (price=0, cost=null/undefined, float=0.5 default)
+  const itemsNeedingPricing = useMemo(() => {
+    return sortedItems.filter(item => {
+      const hasNoPrice = !item.price || item.price === 0;
+      const hasNoCost = item.cost === null || item.cost === undefined || item.cost === 0;
+      const hasDefaultFloat = item.float === 0.5; // Default float value
+      
+      return hasNoPrice || hasNoCost || hasDefaultFloat;
+    });
+  }, [sortedItems]);
+
+  const handleBulkPriceSave = async (updates: Array<{ id: number; data: UpdateInventoryItemDto }>) => {
+    try {
+      setIsUpdating(true);
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Update each item
+      for (const { id, data } of updates) {
+        try {
+          await updateItem(id, data);
+          successCount++;
+        } catch (err) {
+          console.error(`Error updating item ${id}:`, err);
+          errorCount++;
+        }
+      }
+
+      // Refresh inventory to show updated stats
+      await refresh();
+
+      if (successCount > 0) {
+        showToast(
+          `Successfully updated ${successCount} item${successCount !== 1 ? 's' : ''}${errorCount > 0 ? ` (${errorCount} failed)` : ''}`,
+          errorCount > 0 ? 'info' : 'success'
+        );
+      } else {
+        showToast('Failed to update items', 'error');
+      }
+    } catch (err) {
+      console.error('Error in bulk price save:', err);
+      showToast('An error occurred while saving updates', 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const statsSummary = useMemo(() => {
     if (!stats) {
       return {
@@ -464,11 +529,24 @@ export default function ItemGrid() {
         />
       )}
 
-      {/* Backend Loading State */}
-      {loading && user && user.username && <InventoryLoadingOverlay username={user.username} />}
+      {/* Bulk Price Editor Modal */}
+      <BulkPriceEditorModal
+        items={itemsNeedingPricing}
+        isOpen={showBulkPriceEditor}
+        onClose={() => setShowBulkPriceEditor(false)}
+        onSave={handleBulkPriceSave}
+      />
+
+      {/* Consolidated Loading State - Show single overlay for any loading state */}
+      {(userLoading || loading || isLoadingSteam) && (
+        <InventoryLoadingOverlay 
+          username={user?.username} 
+          displayName={user?.displayName}
+        />
+      )}
 
       {/* Backend Error State */}
-      {error && (
+      {error && !loading && (
         <div className="mb-4 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-200">
           <p className="font-semibold">Error loading inventory:</p>
           <p className="text-sm">{error}</p>
@@ -477,8 +555,6 @@ export default function ItemGrid() {
           </button>
         </div>
       )}
-
-      {isLoadingSteam && <SteamLoadingOverlay />}
 
       <div className="mx-auto mt-8 w-full max-w-7xl px-4 md:px-6">
         <div className="mb-6 flex items-center justify-between gap-4">
@@ -509,6 +585,24 @@ export default function ItemGrid() {
                   </>
                 )}
               </button>
+              {itemsNeedingPricing.length > 0 && (
+                <button
+                  onClick={() => setShowBulkPriceEditor(true)}
+                  disabled={isUpdating}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={`Add price to ${itemsNeedingPricing.length} items missing pricing information`}
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Add Price to Items
+                  {itemsNeedingPricing.length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-green-700 rounded-full">
+                      {itemsNeedingPricing.length}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 onClick={() => setShowAddForm(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-purple-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-400 flex-shrink-0"

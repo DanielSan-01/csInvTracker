@@ -7,6 +7,37 @@ export function calculateTradeProtectionDate(): Date {
   return date;
 }
 
+/**
+ * Calculates tradableAfter date using Valve time
+ * Valve counts days from 9am GMT+1 (which is 8am UTC)
+ * @param days - Number of days to add (1-7)
+ * @returns Date when item becomes tradable
+ */
+export function calculateValveTradeLockDate(days: number): Date {
+  const now = new Date();
+  
+  // Get current UTC time
+  const utcYear = now.getUTCFullYear();
+  const utcMonth = now.getUTCMonth();
+  const utcDate = now.getUTCDate();
+  const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
+  
+  // Find the next 8am UTC (9am GMT+1)
+  // Create date for today at 8am UTC
+  const nextValveDay = new Date(Date.UTC(utcYear, utcMonth, utcDate, 8, 0, 0, 0));
+  
+  // If we've already passed 8am UTC today, move to tomorrow
+  if (utcHours > 8 || (utcHours === 8 && utcMinutes > 0)) {
+    nextValveDay.setUTCDate(nextValveDay.getUTCDate() + 1);
+  }
+  
+  // Add the specified number of days
+  nextValveDay.setUTCDate(nextValveDay.getUTCDate() + days);
+  
+  return nextValveDay;
+}
+
 export function getTimeRemaining(targetDate: Date): {
   days: number;
   hours: number;

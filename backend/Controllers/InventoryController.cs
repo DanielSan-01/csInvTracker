@@ -50,6 +50,27 @@ public class InventoryController : ControllerBase
     }
 
     /// <summary>
+    /// Calculates tradableAfter date using Valve time
+    /// Valve counts days from 9am GMT+1 (which is 8am UTC)
+    /// </summary>
+    private DateTime CalculateValveTradeLockDate(int days)
+    {
+        var now = DateTime.UtcNow;
+        
+        // Find the next 8am UTC (9am GMT+1)
+        var nextValveDay = new DateTime(now.Year, now.Month, now.Day, 8, 0, 0, DateTimeKind.Utc);
+        
+        // If we've already passed 8am UTC today, move to tomorrow
+        if (now.Hour > 8 || (now.Hour == 8 && now.Minute > 0))
+        {
+            nextValveDay = nextValveDay.AddDays(1);
+        }
+        
+        // Add the specified number of days
+        return nextValveDay.AddDays(days);
+    }
+
+    /// <summary>
     /// Validates SteamID64 format: Must be a 17-digit number starting with 7656119...
     /// </summary>
     private bool IsValidSteamId64(string steamId)
@@ -267,7 +288,7 @@ public class InventoryController : ControllerBase
                 Cost = dto.Cost,
                 ImageUrl = dto.ImageUrl,
                 TradeProtected = dto.TradeProtected,
-                TradableAfter = dto.TradeProtected ? DateTime.UtcNow.AddDays(7) : null,
+                TradableAfter = dto.TradableAfter ?? (dto.TradeProtected ? CalculateValveTradeLockDate(7) : null),
                 AcquiredAt = DateTime.UtcNow
             };
 
@@ -326,16 +347,15 @@ public class InventoryController : ControllerBase
             item.ImageUrl = dto.ImageUrl;
             
             // Handle trade protection changes
-            if (dto.TradeProtected && !item.TradeProtected)
+            item.TradeProtected = dto.TradeProtected;
+            if (dto.TradeProtected)
             {
-                // Newly protected
-                item.TradeProtected = true;
-                item.TradableAfter = DateTime.UtcNow.AddDays(7);
+                // Use provided TradableAfter or default to 7 days using Valve time
+                item.TradableAfter = dto.TradableAfter ?? CalculateValveTradeLockDate(7);
             }
-            else if (!dto.TradeProtected)
+            else
             {
                 // Protection removed
-                item.TradeProtected = false;
                 item.TradableAfter = null;
             }
 

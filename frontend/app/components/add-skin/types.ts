@@ -13,6 +13,7 @@ export interface NewSkinData {
   cost?: number;
   imageUrl?: string;
   tradeProtected?: boolean;
+  tradeLockDays?: number; // 1-7 days for trade lock
   stickers?: CSSticker[];
 }
 

@@ -60,8 +60,12 @@ export default function SteamLoginButton() {
     try {
       await authApi.logout();
       await refreshUser();
+      // Redirect to home page and refresh to clear all state
+      window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);
+      // Even if logout fails, redirect to clear state
+      window.location.href = '/';
     } finally {
       setIsLoading(false);
     }
