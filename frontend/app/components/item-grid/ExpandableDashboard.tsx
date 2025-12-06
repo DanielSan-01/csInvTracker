@@ -188,9 +188,10 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {typeBreakdown.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
+                        {typeBreakdown.map((entry, index) => {
+                          const color = CATEGORY_COLORS[entry.name] || FALLBACK_COLORS[index % FALLBACK_COLORS.length];
+                          return <Cell key={`cell-${index}`} fill={color} />;
+                        })}
                       </Pie>
                       <Tooltip
                         contentStyle={{
