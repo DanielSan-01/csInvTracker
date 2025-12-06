@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { LoadoutDto } from '@/lib/api';
 
 type SaveLoadoutModalProps = {
@@ -9,6 +10,7 @@ type SaveLoadoutModalProps = {
   onClose: () => void;
   onSave: (loadoutId?: string) => void;
   onLoad: (loadout: LoadoutDto) => void;
+  onDelete: (loadoutId: string) => void;
 };
 
 export default function SaveLoadoutModal({
@@ -20,10 +22,12 @@ export default function SaveLoadoutModal({
   onClose,
   onSave,
   onLoad,
+  onDelete,
 }: SaveLoadoutModalProps) {
   const maxLoadouts = 2;
   const canSaveNew = existingLoadouts.length < maxLoadouts;
   const loadoutsToShow = existingLoadouts.slice(0, maxLoadouts);
+  const [deleteMode, setDeleteMode] = useState(false);
 
   return (
     <div
@@ -34,11 +38,15 @@ export default function SaveLoadoutModal({
         className="w-full max-w-2xl rounded-2xl border border-purple-500 bg-gray-950 p-6 shadow-2xl shadow-purple-900/40"
         onClick={(event) => event.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-white">Save Loadout</h3>
+        <h3 className="text-lg font-semibold text-white">
+          {deleteMode ? 'Delete Loadout to Make Room' : 'Save Loadout'}
+        </h3>
         <p className="mt-2 text-sm text-gray-400">
-          {canSaveNew
+          {deleteMode
+            ? 'You have 2 saved loadouts. Choose which one to delete to save your current loadout.'
+            : canSaveNew
             ? 'Save your current loadout to a slot or load an existing one.'
-            : 'You have 2 saved loadouts. Select one to overwrite or load an existing loadout.'}
+            : 'You have 2 saved loadouts. Select one to overwrite, or delete one to save a new loadout.'}
         </p>
 
         {/* Existing Loadouts */}
@@ -70,18 +78,40 @@ export default function SaveLoadoutModal({
                     </div>
                   </div>
                   <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => onLoad(loadout)}
-                      className="flex-1 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-200 transition hover:border-purple-400/60 hover:bg-purple-500/20"
-                    >
-                      Load
-                    </button>
-                    <button
-                      onClick={() => onSave(loadout.id)}
-                      className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-semibold text-gray-300 transition hover:border-purple-400/40 hover:text-purple-200"
-                    >
-                      Overwrite
-                    </button>
+                    {deleteMode ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            onDelete(loadout.id);
+                            setDeleteMode(false);
+                          }}
+                          className="flex-1 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:border-red-400/60 hover:bg-red-500/20"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setDeleteMode(false)}
+                          className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-semibold text-gray-300 transition hover:border-gray-600 hover:text-white"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => onLoad(loadout)}
+                          className="flex-1 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-200 transition hover:border-purple-400/60 hover:bg-purple-500/20"
+                        >
+                          Load
+                        </button>
+                        <button
+                          onClick={() => onSave(loadout.id)}
+                          className="flex-1 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-xs font-semibold text-gray-300 transition hover:border-purple-400/40 hover:text-purple-200"
+                        >
+                          Overwrite
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
               ))}
@@ -90,7 +120,7 @@ export default function SaveLoadoutModal({
         )}
 
         {/* Save New Loadout Form */}
-        {canSaveNew && (
+        {canSaveNew && !deleteMode && (
           <div className="mt-6 space-y-3 border-t border-gray-800 pt-6">
             <label className="block text-xs uppercase tracking-wide text-purple-200">
               Save to Slot {existingLoadouts.length + 1}
@@ -112,6 +142,21 @@ export default function SaveLoadoutModal({
               }`}
             >
               {isSaving ? 'Saving...' : `Save to Slot ${existingLoadouts.length + 1}`}
+            </button>
+          </div>
+        )}
+
+        {/* Delete Mode - Show when user has 2 loadouts and wants to save new one */}
+        {!canSaveNew && !deleteMode && (
+          <div className="mt-6 space-y-3 border-t border-gray-800 pt-6">
+            <p className="text-sm text-gray-400">
+              You have 2 saved loadouts. Delete one to save your current loadout.
+            </p>
+            <button
+              onClick={() => setDeleteMode(true)}
+              className="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-200 transition hover:border-red-400/60 hover:bg-red-500/20"
+            >
+              Delete a Loadout to Make Room
             </button>
           </div>
         )}

@@ -248,6 +248,36 @@ export default function LoadoutCookerPage() {
     setEquipFeedback(`Loaded "${loadout.name}"`);
   }, [skins]);
 
+  const handleDeleteLoadout = useCallback(async (loadoutId: string) => {
+    if (!user?.id) return;
+
+    try {
+      await loadoutsApi.deleteLoadout(loadoutId);
+      setEquipFeedback('Loadout deleted.');
+      
+      // Refresh saved loadouts
+      const loadouts = await loadoutsApi.getLoadouts(user.id);
+      const sorted = loadouts
+        .sort((a, b) => {
+          const timeA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+          const timeB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+          return timeB - timeA;
+        })
+        .slice(0, 2);
+      setSavedLoadouts(sorted);
+      
+      // After deleting, if user has a name entered, they can now save
+      if (loadoutName.trim().length > 0) {
+        // Auto-save after deletion if name is provided
+        setTimeout(() => {
+          handleSaveLoadout();
+        }, 100);
+      }
+    } catch (err) {
+      setLoadoutError(err instanceof Error ? err.message : 'Failed to delete loadout.');
+    }
+  }, [user?.id, loadoutName, handleSaveLoadout]);
+
   const handleEquipInventory = useCallback(() => {
     if (!user?.id) {
       setEquipFeedback('Sign in to equip your inventory.');
@@ -607,6 +637,7 @@ export default function LoadoutCookerPage() {
           onClose={handleCloseSaveModal}
           onSave={handleSaveLoadout}
           onLoad={handleLoadLoadout}
+          onDelete={handleDeleteLoadout}
         />
       )}
     </div>
