@@ -45,12 +45,12 @@ export default function InventoryGridList({ items, selectedId, onSelect }: Inven
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {paginatedItems.map((item) => (
           <div key={item.id} data-item-id={item.id}>
-            <ItemCard
-              item={item}
-              onClick={() => onSelect(item.id)}
-              isSelected={selectedId === item.id}
-              variant="grid"
-            />
+          <ItemCard
+            item={item}
+            onClick={() => onSelect(item.id)}
+            isSelected={selectedId === item.id}
+            variant="grid"
+          />
           </div>
         ))}
       </div>

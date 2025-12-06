@@ -86,8 +86,8 @@ export default function DetailStats({ item, exteriorLabel, profitDisplay, onUpda
               className={`mt-1 block text-[18px] font-semibold tracking-tight text-emerald-400 ${onUpdate ? 'cursor-pointer select-none hover:bg-gray-800/50 rounded px-1 py-0.5 transition-colors' : ''}`}
               title={onUpdate ? 'Double-click to edit' : ''}
             >
-              {formatPrice(item.price)}
-            </span>
+            {formatPrice(item.price)}
+          </span>
           )}
         </div>
         {item.cost !== undefined && (
@@ -111,8 +111,8 @@ export default function DetailStats({ item, exteriorLabel, profitDisplay, onUpda
                 className={`mt-1 block text-xs font-medium tracking-normal text-gray-200 ${onUpdate ? 'cursor-pointer select-none hover:bg-gray-800/50 rounded px-1 py-0.5 transition-colors' : ''}`}
                 title={onUpdate ? 'Double-click to edit' : ''}
               >
-                {formatPrice(item.cost)}
-              </span>
+              {formatPrice(item.cost)}
+            </span>
             )}
           </div>
         )}

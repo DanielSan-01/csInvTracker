@@ -225,7 +225,7 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("Applying pending migrations...");
         try
         {
-            dbContext.Database.Migrate();
+        dbContext.Database.Migrate();
             Console.WriteLine("[Migration] Database migrations applied successfully");
         }
         catch (Exception migrationEx)
