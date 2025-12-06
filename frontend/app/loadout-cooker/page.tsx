@@ -31,7 +31,7 @@ export default function LoadoutCookerPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selections, setSelections] = useState<LoadoutSelections>({});
   const [activeTeam, setActiveTeam] = useState<Team>('CT');
-  const [viewMode, setViewMode] = useState<'card' | 'grid'>('card');
+  const [viewMode, setViewMode] = useState<'card' | 'grid'>('grid');
   const [expandedWeapon, setExpandedWeapon] = useState<string | null>(null);
   const { user } = useUser();
   const {
