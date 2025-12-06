@@ -2,7 +2,8 @@
 
 A full-stack inventory tracking application built with Next.js, .NET EF Core, PostgreSQL, and GSAP.
 
-<img width="1288" height="927" alt="CleanShot 2025-12-04 at 06 56 19" src="https://github.com/user-attachments/assets/6bf94f10-94a1-49b5-a5aa-a92b351f51e2" />
+<img width="879" height="933" alt="CleanShot 2025-12-06 at 19 32 28" src="https://github.com/user-attachments/assets/6430ab37-e1a4-4177-a020-a5f4c2b9c9f8" />
+
 
 ## Project Structure
 
