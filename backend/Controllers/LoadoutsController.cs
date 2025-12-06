@@ -122,7 +122,7 @@ public class LoadoutsController : ControllerBase
             {
                 _logger.LogWarning("UpsertLoadout: User {UserId} attempted to modify loadout for user {RequestUserId}", 
                     currentUserId.Value, request.UserId);
-                return Forbid(new { error = "Cannot create or modify loadouts for other users" });
+                return StatusCode(403, new { error = "Cannot create or modify loadouts for other users" });
             }
 
             if (string.IsNullOrWhiteSpace(request.Name))
