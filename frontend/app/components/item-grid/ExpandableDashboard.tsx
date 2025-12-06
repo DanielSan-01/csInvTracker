@@ -124,21 +124,18 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Pie Chart */}
             <div className="flex flex-col overflow-hidden">
-              <h3 className="mb-4 text-lg font-semibold text-white">Inventory Breakdown</h3>
+              <h3 className="mb-3 text-lg font-semibold text-white">Inventory Breakdown</h3>
               {typeBreakdown.length > 0 ? (
-                <div className="flex-1 min-h-0">
-                  <ResponsiveContainer width="100%" height={280}>
-                    <PieChart>
+                <div className="flex-1 min-h-0 w-full">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                       <Pie
                         data={typeBreakdown}
                         cx="50%"
-                        cy="45%"
+                        cy="40%"
                         labelLine={false}
-                        label={({ name, percent }) => {
-                          const pct = ((percent ?? 0) * 100).toFixed(1);
-                          return pct !== '0.0' ? `${name}: ${pct}%` : '';
-                        }}
-                        outerRadius={80}
+                        label={false}
+                        outerRadius={70}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -156,8 +153,10 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
                         formatter={(value: number) => [formatPrice(value), 'Value']}
                       />
                       <Legend
-                        wrapperStyle={{ color: '#D1D5DB', fontSize: '12px' }}
-                        iconSize={10}
+                        wrapperStyle={{ color: '#D1D5DB', fontSize: '11px', paddingTop: '10px' }}
+                        iconSize={8}
+                        layout="horizontal"
+                        verticalAlign="bottom"
                         formatter={(value) => `${value} (${typeBreakdown.find(t => t.name === value)?.percentage}%)`}
                       />
                     </PieChart>
