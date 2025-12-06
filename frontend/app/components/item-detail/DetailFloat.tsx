@@ -57,9 +57,10 @@ export default function DetailFloat({ item, onUpdate }: DetailFloatProps) {
           <input
             ref={inputRef}
             type="number"
-            step="0.0000001"
+            step="any"
             min="0"
             max="1"
+            inputMode="decimal"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={handleBlur}

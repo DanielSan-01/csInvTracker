@@ -290,9 +290,10 @@ export default function BulkPriceEditorModal({
                           </label>
                           <input
                             type="number"
-                            step="0.000001"
+                            step="any"
                             min="0"
                             max="1"
+                            inputMode="decimal"
                             value={update.float || ''}
                             onChange={(e) => handleUpdate(item.id, 'float', e.target.value)}
                             className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"

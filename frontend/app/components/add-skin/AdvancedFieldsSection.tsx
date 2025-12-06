@@ -20,9 +20,10 @@ export default function AdvancedFieldsSection({
           </label>
           <input
             type="number"
-            step="0.0000001"
+            step="any"
             min="0"
             max="1"
+            inputMode="decimal"
             value={formData.float ?? ''}
             onChange={(event) =>
               onChange({
