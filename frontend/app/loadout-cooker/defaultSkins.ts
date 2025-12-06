@@ -217,7 +217,7 @@ const DEFAULT_SLOT_SKINS: Record<string, SlotDefaultConfig> = {
       name: 'Default XM1014',
       weapon: 'XM1014',
       type: 'Shotgun',
-      imageUrl: getWeaponImage('XM1014'),
+      imageUrl: '/photos/weapons/CS2_XM1014_Inventory.png',
     },
   },
   'mag-7': {
