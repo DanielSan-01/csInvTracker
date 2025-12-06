@@ -44,25 +44,46 @@ function categorizeType(type: string): string {
 
 export default function ExpandableDashboard({ items }: ExpandableDashboardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [breakdownMode, setBreakdownMode] = useState<'value' | 'volume'>('value');
 
-  // Calculate item type breakdown by value (not volume)
+  // Calculate item type breakdown
   const typeBreakdown = useMemo(() => {
-    const typeValues: Record<string, number> = {};
-    
-    items.forEach(item => {
-      const category = categorizeType(resolveDisplayType(item));
-      typeValues[category] = (typeValues[category] || 0) + (item.price || 0);
-    });
+    if (breakdownMode === 'volume') {
+      // Volume breakdown (count of items)
+      const typeCounts: Record<string, number> = {};
+      
+      items.forEach(item => {
+        const category = categorizeType(resolveDisplayType(item));
+        typeCounts[category] = (typeCounts[category] || 0) + 1;
+      });
 
-    const totalValue = Object.values(typeValues).reduce((sum, val) => sum + val, 0);
-    return Object.entries(typeValues)
-      .map(([name, value]) => ({
-        name,
-        value: value,
-        percentage: totalValue > 0 ? ((value / totalValue) * 100).toFixed(1) : '0',
-      }))
-      .sort((a, b) => b.value - a.value);
-  }, [items]);
+      const total = items.length;
+      return Object.entries(typeCounts)
+        .map(([name, count]) => ({
+          name,
+          value: count,
+          percentage: total > 0 ? ((count / total) * 100).toFixed(1) : '0',
+        }))
+        .sort((a, b) => b.value - a.value);
+    } else {
+      // Value breakdown (sum of prices)
+      const typeValues: Record<string, number> = {};
+      
+      items.forEach(item => {
+        const category = categorizeType(resolveDisplayType(item));
+        typeValues[category] = (typeValues[category] || 0) + (item.price || 0);
+      });
+
+      const totalValue = Object.values(typeValues).reduce((sum, val) => sum + val, 0);
+      return Object.entries(typeValues)
+        .map(([name, value]) => ({
+          name,
+          value: value,
+          percentage: totalValue > 0 ? ((value / totalValue) * 100).toFixed(1) : '0',
+        }))
+        .sort((a, b) => b.value - a.value);
+    }
+  }, [items, breakdownMode]);
 
   // Find best and worst performers (by profit percentage)
   const { bestPerformer, worstPerformer } = useMemo(() => {
