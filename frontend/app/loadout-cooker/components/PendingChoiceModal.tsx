@@ -19,7 +19,7 @@ export default function PendingChoiceModal({ choice, onSelect, onSkip }: Pending
       >
         <h3 className="text-lg font-semibold text-white">
           <span className="flex items-center gap-2">
-            <TeamIcon team={choice.team} />
+            <TeamIcon team={choice.team} size="h-8 w-8" />
             Select {choice.slot.label} for {choice.team} side
           </span>
         </h3>

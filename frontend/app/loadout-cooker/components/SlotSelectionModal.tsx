@@ -241,9 +241,9 @@ export default function SlotSelectionModal({
           <div className="mb-2 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {groupedSlot ? (
-                (slot.key === 'gloves' || slot.key === 'knife') && <TeamIcon team="Both" />
+                (slot.key === 'gloves' || slot.key === 'knife') && <TeamIcon team="Both" size="h-8 w-8" />
               ) : (
-                <TeamIcon team={activeTeam} />
+                <TeamIcon team={activeTeam} size="h-8 w-8" />
               )}
               <h4 className="text-sm font-semibold text-purple-200">{teamLabel}</h4>
             </div>

@@ -7,7 +7,7 @@ type TeamIconProps = {
   size?: string;
 };
 
-export default function TeamIcon({ team, className = '', size = 'h-4 w-4' }: TeamIconProps) {
+export default function TeamIcon({ team, className = '', size = 'h-6 w-6' }: TeamIconProps) {
   if (team === 'Both') {
     return (
       <span className={`flex items-center gap-1 ${className}`}>

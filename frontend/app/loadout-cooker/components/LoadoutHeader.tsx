@@ -30,7 +30,7 @@ export default function LoadoutHeader({
         <p className="text-sm text-purple-300/80">Loadout Lab</p>
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold text-white">Loadout Cooker</h1>
-          <TeamIcon team={activeTeam} size="h-7 w-7" />
+          <TeamIcon team={activeTeam} size="h-10 w-10" />
         </div>
         <p className="text-sm text-gray-400">
           Build your dream CT & T loadouts by mixing and matching skins from the entire catalog.
@@ -78,7 +78,7 @@ export default function LoadoutHeader({
               }`}
             >
               <span className="flex items-center gap-2">
-                <TeamIcon team={team} />
+                <TeamIcon team={team} size="h-6 w-6" />
                 {team} Loadout
               </span>
             </button>
