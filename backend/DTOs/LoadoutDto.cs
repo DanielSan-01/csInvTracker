@@ -35,9 +35,9 @@ public class LoadoutDto
     [MaxLength(120)]
     public string Name { get; set; } = string.Empty;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? CreatedAt { get; set; }
 
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
 
     [MinLength(0)]
     public List<LoadoutEntryDto> Entries { get; set; } = new();
