@@ -321,6 +321,74 @@ using (var scope = app.Services.CreateScope())
         {
             Console.WriteLine("Stickers table already exists.");
         }
+        
+        // Workaround: Manually create LoadoutFavorites tables if they don't exist
+        Console.WriteLine("Checking for LoadoutFavorites table...");
+        await connection.OpenAsync();
+        using var checkLoadoutsCommand = connection.CreateCommand();
+        checkLoadoutsCommand.CommandText = @"
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'LoadoutFavorites'
+            );
+        ";
+        var loadoutsExists = (bool)(await checkLoadoutsCommand.ExecuteScalarAsync() ?? false);
+        await connection.CloseAsync();
+        
+        if (!loadoutsExists)
+        {
+            Console.WriteLine("LoadoutFavorites tables do not exist. Creating them manually...");
+            await dbContext.Database.ExecuteSqlRawAsync(@"
+                CREATE TABLE ""LoadoutFavorites"" (
+                    ""Id"" uuid NOT NULL,
+                    ""UserId"" integer NOT NULL,
+                    ""Name"" character varying(120) NOT NULL,
+                    ""CreatedAt"" timestamp with time zone NOT NULL,
+                    ""UpdatedAt"" timestamp with time zone NOT NULL,
+                    CONSTRAINT ""PK_LoadoutFavorites"" PRIMARY KEY (""Id""),
+                    CONSTRAINT ""FK_LoadoutFavorites_Users_UserId"" 
+                        FOREIGN KEY (""UserId"") 
+                        REFERENCES ""Users"" (""Id"") 
+                        ON DELETE CASCADE
+                );
+                CREATE INDEX ""IX_LoadoutFavorites_UserId"" ON ""LoadoutFavorites"" (""UserId"");
+                
+                CREATE TABLE ""LoadoutFavoriteEntries"" (
+                    ""Id"" uuid NOT NULL,
+                    ""LoadoutFavoriteId"" uuid NOT NULL,
+                    ""SlotKey"" character varying(100) NOT NULL,
+                    ""Team"" character varying(8) NOT NULL,
+                    ""InventoryItemId"" integer NULL,
+                    ""SkinId"" integer NULL,
+                    ""SkinName"" character varying(200) NOT NULL,
+                    ""ImageUrl"" character varying(500) NULL,
+                    ""Weapon"" character varying(100) NULL,
+                    ""Type"" character varying(100) NULL,
+                    CONSTRAINT ""PK_LoadoutFavoriteEntries"" PRIMARY KEY (""Id""),
+                    CONSTRAINT ""FK_LoadoutFavoriteEntries_LoadoutFavorites_LoadoutFavoriteId"" 
+                        FOREIGN KEY (""LoadoutFavoriteId"") 
+                        REFERENCES ""LoadoutFavorites"" (""Id"") 
+                        ON DELETE CASCADE,
+                    CONSTRAINT ""FK_LoadoutFavoriteEntries_InventoryItems_InventoryItemId"" 
+                        FOREIGN KEY (""InventoryItemId"") 
+                        REFERENCES ""InventoryItems"" (""Id"") 
+                        ON DELETE SET NULL,
+                    CONSTRAINT ""FK_LoadoutFavoriteEntries_Skins_SkinId"" 
+                        FOREIGN KEY (""SkinId"") 
+                        REFERENCES ""Skins"" (""Id"") 
+                        ON DELETE SET NULL
+                );
+                CREATE INDEX ""IX_LoadoutFavoriteEntries_LoadoutFavoriteId"" ON ""LoadoutFavoriteEntries"" (""LoadoutFavoriteId"");
+                CREATE INDEX ""IX_LoadoutFavoriteEntries_InventoryItemId"" ON ""LoadoutFavoriteEntries"" (""InventoryItemId"");
+                CREATE INDEX ""IX_LoadoutFavoriteEntries_SkinId"" ON ""LoadoutFavoriteEntries"" (""SkinId"");
+            ");
+            Console.WriteLine("LoadoutFavorites tables created successfully.");
+        }
+        else
+        {
+            Console.WriteLine("LoadoutFavorites tables already exist.");
+        }
     }
     catch (Exception ex)
     {
