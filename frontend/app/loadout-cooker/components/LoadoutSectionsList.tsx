@@ -45,7 +45,10 @@ export default function LoadoutSectionsList({
                     : getDefaultSlotSkin(slot.key, teamForDefault) ??
                       getDefaultSlotSkin(slot.key, teamForDefault === 'CT' ? 'T' : 'CT');
                 const displaySkin = selectedSkin ?? defaultSkin ?? null;
-                const displayImageUrl = displaySkin ? getFallbackImageForSkin(displaySkin) : null;
+                // Prioritize actual skin image from catalog, fallback to default weapon image if missing
+                const displayImageUrl = displaySkin 
+                  ? (displaySkin.imageUrl ?? getFallbackImageForSkin(displaySkin) ?? null)
+                  : null;
 
                 return (
                   <LoadoutSlotCard
@@ -56,9 +59,10 @@ export default function LoadoutSectionsList({
                       selectedSkin
                         ? {
                             ...selectedSkin,
+                            // Prioritize actual skin image from catalog, fallback to default weapon image if missing
                             imageUrl:
-                              getFallbackImageForSkin(selectedSkin) ??
                               selectedSkin.imageUrl ??
+                              getFallbackImageForSkin(selectedSkin) ??
                               undefined,
                           }
                         : null

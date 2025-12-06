@@ -49,7 +49,10 @@ export default function LoadoutGridView({
                     : getDefaultSlotSkin(slot.key, teamStrict) ??
                       getDefaultSlotSkin(slot.key, teamStrict === 'CT' ? 'T' : 'CT');
                 const displaySkin = selectedSkin ?? defaultSkin ?? null;
-                const displayImageUrl = displaySkin ? getFallbackImageForSkin(displaySkin) : null;
+                // Prioritize actual skin image from catalog, fallback to default weapon image if missing
+                const displayImageUrl = displaySkin 
+                  ? (displaySkin.imageUrl ?? getFallbackImageForSkin(displaySkin) ?? null)
+                  : null;
                 const isDefault = !selectedSkin && !!defaultSkin;
 
                 return (
