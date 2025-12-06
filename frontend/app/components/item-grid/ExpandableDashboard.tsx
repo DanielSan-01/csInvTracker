@@ -45,21 +45,21 @@ function categorizeType(type: string): string {
 export default function ExpandableDashboard({ items }: ExpandableDashboardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Calculate item type breakdown
+  // Calculate item type breakdown by value (not volume)
   const typeBreakdown = useMemo(() => {
-    const typeCounts: Record<string, number> = {};
+    const typeValues: Record<string, number> = {};
     
     items.forEach(item => {
       const category = categorizeType(resolveDisplayType(item));
-      typeCounts[category] = (typeCounts[category] || 0) + 1;
+      typeValues[category] = (typeValues[category] || 0) + (item.price || 0);
     });
 
-    const total = items.length;
-    return Object.entries(typeCounts)
-      .map(([name, count]) => ({
+    const totalValue = Object.values(typeValues).reduce((sum, val) => sum + val, 0);
+    return Object.entries(typeValues)
+      .map(([name, value]) => ({
         name,
-        value: count,
-        percentage: total > 0 ? ((count / total) * 100).toFixed(1) : '0',
+        value: value,
+        percentage: totalValue > 0 ? ((value / totalValue) * 100).toFixed(1) : '0',
       }))
       .sort((a, b) => b.value - a.value);
   }, [items]);
