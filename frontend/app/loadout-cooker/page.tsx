@@ -7,6 +7,8 @@ import { useUser } from '@/contexts/UserContext';
 import { useInventory } from '@/hooks/useInventory';
 // import { formatCurrency } from '@/lib/utils';
 import AnimatedBanner from '@/app/components/AnimatedBanner';
+import Navbar from '@/app/components/Navbar';
+import SteamLoginButton from '@/app/components/SteamLoginButton';
 import LoadoutHeader from './components/LoadoutHeader';
 import LoadoutGridView from './components/LoadoutGridView';
 import LoadoutSectionsList from './components/LoadoutSectionsList';
@@ -543,6 +545,10 @@ export default function LoadoutCookerPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
+      <Navbar
+        isAuthenticated={!!user}
+        authControl={<SteamLoginButton />}
+      />
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-10">
         <LoadoutHeader
           activeTeam={activeTeam}

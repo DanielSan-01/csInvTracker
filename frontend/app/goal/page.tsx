@@ -8,6 +8,8 @@ import { formatCurrency } from '@/lib/utils';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import { saveGoal, GoalData } from '@/lib/goalStorage';
 import type { InventoryItemDto, SkinDto } from '@/lib/api';
+import Navbar from '@/app/components/Navbar';
+import SteamLoginButton from '@/app/components/SteamLoginButton';
 import GoalTargetSkinSection from './components/GoalTargetSkinSection';
 import GoalInventorySection from './components/GoalInventorySection';
 import GoalBalanceSection from './components/GoalBalanceSection';
@@ -157,6 +159,10 @@ export default function GoalPlannerPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
+      <Navbar
+        isAuthenticated={!!user}
+        authControl={<SteamLoginButton />}
+      />
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 pb-20 pt-16 lg:px-10">
         <GoalPlannerHeader
           userLoading={userLoading}
