@@ -98,78 +98,131 @@ public class LoadoutsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<LoadoutDto>> UpsertLoadout([FromBody] LoadoutDto request)
     {
-        var currentUserId = GetCurrentUserId();
-        if (!currentUserId.HasValue)
+        try
         {
-            return Unauthorized(new { error = "Authentication required" });
-        }
-
-        if (!ModelState.IsValid)
-        {
-            return ValidationProblem(ModelState);
-        }
-
-        // Ensure the userId in the request matches the authenticated user
-        if (request.UserId != currentUserId.Value)
-        {
-            return Forbid(new { error = "Cannot create or modify loadouts for other users" });
-        }
-
-        var now = DateTime.UtcNow;
-        var loadoutId = request.Id == Guid.Empty ? Guid.NewGuid() : request.Id;
-        var isNew = false;
-
-        var loadout = await _context.LoadoutFavorites
-            .Include(l => l.Entries)
-            .FirstOrDefaultAsync(l => l.Id == loadoutId);
-
-        if (loadout == null)
-        {
-            // Check 2-loadout limit when creating a new loadout
-            var existingLoadoutCount = await _context.LoadoutFavorites
-                .CountAsync(l => l.UserId == currentUserId.Value);
-
-            if (existingLoadoutCount >= MaxLoadoutsPerUser)
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
             {
-                return BadRequest(new { error = $"Maximum of {MaxLoadoutsPerUser} loadouts allowed per user" });
+                _logger.LogWarning("UpsertLoadout: No authentication token provided");
+                return Unauthorized(new { error = "Authentication required" });
             }
 
-            loadout = new LoadoutFavorite
+            _logger.LogInformation("UpsertLoadout: User {UserId} attempting to save loadout {LoadoutId}", 
+                currentUserId.Value, request.Id);
+
+            if (!ModelState.IsValid)
             {
-                Id = loadoutId,
-                CreatedAt = request.CreatedAt == default ? now : request.CreatedAt
-            };
-            _context.LoadoutFavorites.Add(loadout);
-            isNew = true;
-        }
-        else
-        {
-            // Verify ownership when updating
-            if (loadout.UserId != currentUserId.Value)
-            {
-                return Forbid();
+                _logger.LogWarning("UpsertLoadout: Model validation failed. Errors: {Errors}", 
+                    string.Join(", ", ModelState.SelectMany(x => x.Value?.Errors ?? Enumerable.Empty<Microsoft.AspNetCore.Mvc.ModelBinding.ModelError>()).Select(e => e.ErrorMessage)));
+                return ValidationProblem(ModelState);
             }
+
+            // Ensure the userId in the request matches the authenticated user
+            if (request.UserId != currentUserId.Value)
+            {
+                _logger.LogWarning("UpsertLoadout: User {UserId} attempted to modify loadout for user {RequestUserId}", 
+                    currentUserId.Value, request.UserId);
+                return Forbid(new { error = "Cannot create or modify loadouts for other users" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+            {
+                _logger.LogWarning("UpsertLoadout: Loadout name is empty");
+                return BadRequest(new { error = "Loadout name is required" });
+            }
+
+            var now = DateTime.UtcNow;
+            var loadoutId = request.Id == Guid.Empty ? Guid.NewGuid() : request.Id;
+            var isNew = false;
+
+            var loadout = await _context.LoadoutFavorites
+                .Include(l => l.Entries)
+                .FirstOrDefaultAsync(l => l.Id == loadoutId);
+
+            if (loadout == null)
+            {
+                // Check 2-loadout limit when creating a new loadout
+                var existingLoadoutCount = await _context.LoadoutFavorites
+                    .CountAsync(l => l.UserId == currentUserId.Value);
+
+                if (existingLoadoutCount >= MaxLoadoutsPerUser)
+                {
+                    _logger.LogWarning("UpsertLoadout: User {UserId} attempted to create more than {Max} loadouts", 
+                        currentUserId.Value, MaxLoadoutsPerUser);
+                    return BadRequest(new { error = $"Maximum of {MaxLoadoutsPerUser} loadouts allowed per user" });
+                }
+
+                loadout = new LoadoutFavorite
+                {
+                    Id = loadoutId,
+                    CreatedAt = request.CreatedAt == default ? now : request.CreatedAt
+                };
+                _context.LoadoutFavorites.Add(loadout);
+                isNew = true;
+                _logger.LogInformation("UpsertLoadout: Creating new loadout {LoadoutId} for user {UserId}", 
+                    loadoutId, currentUserId.Value);
+            }
+            else
+            {
+                // Verify ownership when updating
+                if (loadout.UserId != currentUserId.Value)
+                {
+                    _logger.LogWarning("UpsertLoadout: User {UserId} attempted to modify loadout {LoadoutId} owned by user {OwnerId}", 
+                        currentUserId.Value, loadoutId, loadout.UserId);
+                    return Forbid();
+                }
+                _logger.LogInformation("UpsertLoadout: Updating existing loadout {LoadoutId} for user {UserId}", 
+                    loadoutId, currentUserId.Value);
+            }
+
+            loadout.UserId = currentUserId.Value;
+            loadout.Name = request.Name.Trim();
+            loadout.UpdatedAt = now;
+
+            // Remove old entries
+            _context.LoadoutFavoriteEntries.RemoveRange(loadout.Entries);
+            
+            // Add new entries
+            if (request.Entries != null && request.Entries.Any())
+            {
+                _logger.LogInformation("UpsertLoadout: Adding {Count} entries to loadout {LoadoutId}", 
+                    request.Entries.Count, loadoutId);
+                
+                foreach (var entryDto in request.Entries)
+                {
+                    try
+                    {
+                        var entry = MapToEntryEntity(entryDto, loadout.Id);
+                        loadout.Entries.Add(entry);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "UpsertLoadout: Error mapping entry for loadout {LoadoutId}. Entry: {Entry}", 
+                            loadoutId, System.Text.Json.JsonSerializer.Serialize(entryDto));
+                        throw;
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("UpsertLoadout: Successfully saved loadout {LoadoutId} for user {UserId}", 
+                loadoutId, currentUserId.Value);
+
+            var responseDto = MapToDto(loadout);
+
+            if (isNew)
+            {
+                return CreatedAtAction(nameof(GetLoadout), new { id = loadout.Id }, responseDto);
+            }
+
+            return Ok(responseDto);
         }
-
-        loadout.UserId = currentUserId.Value;
-        loadout.Name = request.Name.Trim();
-        loadout.UpdatedAt = now;
-
-        _context.LoadoutFavoriteEntries.RemoveRange(loadout.Entries);
-        loadout.Entries = request.Entries?
-            .Select(entryDto => MapToEntryEntity(entryDto, loadout.Id))
-            .ToList() ?? new List<LoadoutFavoriteEntry>();
-
-        await _context.SaveChangesAsync();
-
-        var responseDto = MapToDto(loadout);
-
-        if (isNew)
+        catch (Exception ex)
         {
-            return CreatedAtAction(nameof(GetLoadout), new { id = loadout.Id }, responseDto);
+            _logger.LogError(ex, "UpsertLoadout: Unexpected error saving loadout. Request: {Request}", 
+                System.Text.Json.JsonSerializer.Serialize(request));
+            return StatusCode(500, new { error = "An error occurred while saving the loadout", details = ex.Message });
         }
-
-        return Ok(responseDto);
     }
 
     [HttpDelete("{id:guid}")]
@@ -231,18 +284,40 @@ public class LoadoutsController : ControllerBase
 
     private static LoadoutFavoriteEntry MapToEntryEntity(LoadoutEntryDto dto, Guid loadoutId)
     {
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(dto.SlotKey))
+        {
+            throw new ArgumentException("SlotKey is required", nameof(dto));
+        }
+        if (string.IsNullOrWhiteSpace(dto.Team))
+        {
+            throw new ArgumentException("Team is required", nameof(dto));
+        }
+        if (string.IsNullOrWhiteSpace(dto.SkinName))
+        {
+            throw new ArgumentException("SkinName is required", nameof(dto));
+        }
+
+        // Ensure string lengths don't exceed database constraints
+        var slotKey = dto.SlotKey.Length > 100 ? dto.SlotKey.Substring(0, 100) : dto.SlotKey;
+        var team = dto.Team.Length > 8 ? dto.Team.Substring(0, 8) : dto.Team;
+        var skinName = dto.SkinName.Length > 200 ? dto.SkinName.Substring(0, 200) : dto.SkinName;
+        var imageUrl = dto.ImageUrl != null && dto.ImageUrl.Length > 500 ? dto.ImageUrl.Substring(0, 500) : dto.ImageUrl;
+        var weapon = dto.Weapon != null && dto.Weapon.Length > 100 ? dto.Weapon.Substring(0, 100) : dto.Weapon;
+        var type = dto.Type != null && dto.Type.Length > 100 ? dto.Type.Substring(0, 100) : dto.Type;
+
         return new LoadoutFavoriteEntry
         {
             Id = Guid.NewGuid(),
             LoadoutFavoriteId = loadoutId,
-            SlotKey = dto.SlotKey,
-            Team = dto.Team,
+            SlotKey = slotKey,
+            Team = team,
             InventoryItemId = dto.InventoryItemId,
             SkinId = dto.SkinId,
-            SkinName = dto.SkinName,
-            ImageUrl = dto.ImageUrl,
-            Weapon = dto.Weapon,
-            Type = dto.Type
+            SkinName = skinName,
+            ImageUrl = imageUrl,
+            Weapon = weapon,
+            Type = type
         };
     }
 }
