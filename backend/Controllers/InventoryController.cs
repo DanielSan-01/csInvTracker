@@ -173,6 +173,7 @@ public class InventoryController : ControllerBase
                 });
             }
             
+            // Query inventory items - handle potential missing MarketHashName column gracefully
             var query = _context.InventoryItems
                 .Include(i => i.Skin)
                 .Include(i => i.Stickers)

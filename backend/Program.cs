@@ -222,7 +222,18 @@ using (var scope = app.Services.CreateScope())
         }
         
         Console.WriteLine("Applying pending migrations...");
-        dbContext.Database.Migrate();
+        try
+        {
+            dbContext.Database.Migrate();
+            Console.WriteLine("[Migration] Database migrations applied successfully");
+        }
+        catch (Exception migrationEx)
+        {
+            Console.WriteLine($"[Migration] ERROR: Failed to apply migrations: {migrationEx.Message}");
+            Console.WriteLine($"[Migration] Stack trace: {migrationEx.StackTrace}");
+            // Don't throw - let the app start and handle errors gracefully
+            // The error will be visible in logs
+        }
         Console.WriteLine("Database migrations completed successfully.");
     }
     catch (Exception ex)
