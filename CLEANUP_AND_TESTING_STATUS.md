@@ -57,7 +57,7 @@ cd backend/Tests
 ### 3. Integration Tests
 - Test full flow: Add item → Edit item → Delete item
 - Test search functionality
-- Test ByMykel API import
+- Test Steam catalog refresh
 
 ## 📁 Current File Structure
 
@@ -85,7 +85,7 @@ csInvTracker/
 ├── API_CACHING_STRATEGY.md ✅
 ├── PROJECT_PLAN.md ✅
 ├── README.md ✅
-├── import_bymykel.sh ✅
+├── refresh_catalog_from_steam.sh ✅
 └── cleanup.sh ✅
 ```
 
@@ -98,12 +98,12 @@ csInvTracker/
 
 ## 🔥 What We Accomplished Today
 
-- ✅ Integrated ByMykel API with 2,031+ real skins
+- ✅ Integrated Steam API with real inventory data
 - ✅ Cleaned up 7,500+ lines of redundant code
 - ✅ Removed 14 duplicate documentation files
 - ✅ Set up xUnit testing infrastructure
 - ✅ Created comprehensive test templates
 - ✅ Established smart caching strategy (import once, serve forever!)
 
-**From 15+ scattered JSON files → 1 clean ByMykel import! 🚀**
+**From 15+ scattered JSON files → 1 clean Steam API integration! 🚀**
 

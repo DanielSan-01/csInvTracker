@@ -197,7 +197,7 @@ Inventory Filter: "awp" → Shows only YOUR AWP skins
 ### Use Case 2: Checking Market Prices
 1. Type `"m9 tiger"` in global search
 2. Browse all M9 Bayonet Tiger Tooth results
-3. See default prices from ByMykel API
+3. See default prices from Steam market data
 4. If you own one, shows **"✓ In Inventory"**
 5. If not, click **"+ Add"** to add it
 

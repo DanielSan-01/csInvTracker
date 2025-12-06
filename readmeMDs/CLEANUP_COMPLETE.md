@@ -4,7 +4,7 @@
 
 ### Frontend
 - ❌ **CSFloat Test Button** - Removed from `frontend/app/page.tsx`
-- ❌ `frontend/app/api/csfloat/` - Old CSFloat API route (replaced by ByMykel API)
+- ❌ `frontend/app/api/csfloat/` - Old CSFloat API route (replaced by Steam API)
 - ❌ `frontend/app/api/steam-image-test/` - Old test route for Steam images
 
 ### Documentation
@@ -26,7 +26,7 @@
 - ✅ `TEST_RESULTS.md` - Test coverage summary
 
 ### Scripts
-- ✅ `import_bymykel.sh` - Active script for importing skins from ByMykel API
+- ✅ `refresh_catalog_from_steam.sh` - Script for refreshing skin catalog from Steam inventories
 
 ### Backend (`/backend`)
 - ✅ Controllers: Admin, Health, Inventory, Skins
