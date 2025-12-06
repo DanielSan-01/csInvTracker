@@ -35,15 +35,19 @@ public class InventoryControllerTests : IDisposable
         var env = new TestWebHostEnvironment();
         var dopplerService = new DopplerPhaseService(env, dopplerLogger);
         
-        var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
-        var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService);
-
         // Create a simple mock HttpClientFactory for tests
         var httpClientFactory = new TestHttpClientFactory();
         
         var steamApiLogger = NullLogger<SteamApiService>.Instance;
         var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
         var steamApiService = new SteamApiService(httpClientFactory, configuration, steamApiLogger);
+        
+        var stickerCatalogLogger = NullLogger<StickerCatalogService>.Instance;
+        var memoryCache = new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
+        var stickerCatalogService = new StickerCatalogService(httpClientFactory, memoryCache, stickerCatalogLogger);
+        
+        var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
+        var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService, steamApiService, stickerCatalogService);
 
         _controller = new InventoryController(_context, dopplerService, logger, steamImportService, httpClientFactory, steamApiService);
         
