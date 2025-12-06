@@ -182,7 +182,7 @@ export default function LoadoutCookerPage() {
         : `Loadout ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
 
     const payload: LoadoutDto = {
-      id: loadoutId || '',
+      id: loadoutId || '00000000-0000-0000-0000-000000000000', // Empty GUID for new loadouts
       userId: user.id,
       name: finalName,
       entries,
