@@ -557,9 +557,11 @@ export default function LoadoutCookerPage() {
           onToggleViewMode={handleToggleViewMode}
           onTeamChange={setActiveTeam}
           onSave={handleOpenSaveModal}
+          onLoad={() => setIsLoadModalOpen(true)}
           onEquip={handleEquipInventory}
           inventoryLoading={inventoryLoading}
           canEquip={Boolean(user?.id)}
+          savedLoadoutsCount={savedLoadouts.length}
         />
 
         <div className="pointer-events-none fixed right-6 top-6 z-50 flex flex-col gap-3">
