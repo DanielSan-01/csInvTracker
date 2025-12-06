@@ -24,6 +24,7 @@ import InventoryFilterInput from './item-grid/InventoryFilterInput';
 import InventoryStatsGrid from './item-grid/InventoryStatsGrid';
 import InventoryGridList from './item-grid/InventoryGridList';
 import InventoryDetailPanel from './item-grid/InventoryDetailPanel';
+import ExpandableDashboard from './item-grid/ExpandableDashboard';
 import { useToast } from './item-grid/useToast';
 import AnimatedBanner from './AnimatedBanner';
 import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
@@ -695,6 +696,8 @@ export default function ItemGrid() {
           avgProfitPercent={statsSummary.avgProfitPercent}
           isLoading={refreshing}
         />
+
+        <ExpandableDashboard items={sortedItems} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <InventoryGridList
