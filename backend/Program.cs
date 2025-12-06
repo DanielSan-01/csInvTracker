@@ -356,6 +356,34 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowNextJs");
+
+// Global exception handler to ensure CORS headers are included in error responses
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (Exception ex)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Unhandled exception: {Message}", ex.Message);
+        
+        // Ensure CORS headers are added even for errors
+        context.Response.Headers.Append("Access-Control-Allow-Origin", 
+            context.Request.Headers["Origin"].ToString());
+        context.Response.Headers.Append("Access-Control-Allow-Credentials", "true");
+        
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(new 
+        { 
+            error = "An error occurred processing your request", 
+            details = ex.Message 
+        }));
+    }
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
