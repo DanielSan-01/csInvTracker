@@ -620,11 +620,12 @@ public class InventoryController : ControllerBase
             {
                 pageCount++;
                 
-                // Build URL with pagination
-                var steamUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/{appId}/{contextId}?l=english&count=5000";
+                // Build URL - start with base URL without query parameters (works better)
+                // Only add start_assetid for pagination if we have one
+                var steamUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/{appId}/{contextId}";
                 if (!string.IsNullOrEmpty(startAssetId))
                 {
-                    steamUrl += $"&start_assetid={startAssetId}";
+                    steamUrl += $"?start_assetid={startAssetId}";
                 }
                 
                 // Log full URL (safe to log - no API keys or sensitive data)
@@ -679,6 +680,27 @@ public class InventoryController : ControllerBase
                     }
 
                     var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    
+                    // Handle null response from Steam (can happen with certain query parameters)
+                    if (string.IsNullOrWhiteSpace(json) || json.Trim().Equals("null", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogWarning("Steam API returned null response (page {PageCount}). This may indicate the inventory is empty or private.", pageCount);
+                        
+                        // If this is the first page and we got null, it might mean private inventory
+                        if (pageCount == 1)
+                        {
+                            return BadRequest(new { 
+                                error = "Steam inventory is not accessible",
+                                details = "Steam returned null response. This usually means your inventory privacy is set to private. Please make your inventory public in Steam privacy settings.",
+                                steamId = user.SteamId,
+                                suggestion = "Go to Steam > Settings > Privacy > Inventory Privacy and set it to Public"
+                            });
+                        }
+                        
+                        // Otherwise, break and return what we have
+                        break;
+                    }
+                    
                     var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
@@ -686,7 +708,7 @@ public class InventoryController : ControllerBase
 
                     if (data == null)
                     {
-                        _logger.LogError("Failed to parse Steam API response (page {PageCount})", pageCount);
+                        _logger.LogError("Failed to parse Steam API response (page {PageCount}). JSON: {Json}", pageCount, json.Length > 200 ? json.Substring(0, 200) : json);
                         return StatusCode(500, new { error = "Failed to parse Steam API response" });
                     }
 

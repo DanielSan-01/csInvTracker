@@ -55,10 +55,11 @@ export async function GET(request: NextRequest) {
     while (hasMore && pageCount < maxPages) {
       pageCount++;
       
-      // Build URL with pagination
-      let steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}?l=english&count=5000`;
+      // Build URL - start with base URL without query parameters (works better)
+      // Only add start_assetid for pagination if we have one
+      let steamUrl = `https://steamcommunity.com/inventory/${steamId}/${appId}/${contextId}`;
       if (startAssetId) {
-        steamUrl += `&start_assetid=${startAssetId}`;
+        steamUrl += `?start_assetid=${startAssetId}`;
       }
       
       console.log(`Fetching Steam inventory page ${pageCount} from:`, steamUrl);
@@ -120,7 +121,28 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      const data = await response.json();
+      // Handle null response from Steam (can happen with certain query parameters)
+      const responseText = await response.text();
+      if (!responseText || responseText.trim() === 'null' || responseText.trim() === '') {
+        console.warn(`Steam API returned null response (page ${pageCount}). This may indicate the inventory is empty or private.`);
+        
+        // If this is the first page and we got null, it might mean private inventory
+        if (pageCount === 1) {
+          return NextResponse.json(
+            { 
+              error: 'Steam inventory is not accessible',
+              details: 'Steam returned null response. This usually means your inventory privacy is set to private. Please make your inventory public in Steam privacy settings.',
+              suggestion: 'Go to Steam > Settings > Privacy > Inventory Privacy and set it to Public'
+            },
+            { status: 400 }
+          );
+        }
+        
+        // Otherwise, break and return what we have
+        break;
+      }
+      
+      const data = JSON.parse(responseText);
       
       // Check if request was successful
       if (data.success !== 1) {

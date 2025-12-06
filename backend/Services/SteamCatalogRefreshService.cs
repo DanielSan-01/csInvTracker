@@ -71,7 +71,8 @@ public class SteamCatalogRefreshService
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    var inventoryUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/730/2?l=english&count=5000";
+                    // Use base URL without query parameters (works better)
+                    var inventoryUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/730/2";
                     _logger.LogDebug("Fetching inventory for user {UserId} (SteamId: {SteamId})", user.Id, user.SteamId);
 
                     var response = await httpClient.GetAsync(inventoryUrl, cancellationToken);
@@ -82,6 +83,14 @@ public class SteamCatalogRefreshService
                     }
 
                     var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                    
+                    // Handle null response from Steam
+                    if (string.IsNullOrWhiteSpace(json) || json.Trim().Equals("null", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _logger.LogDebug("Steam returned null response for user {UserId} (inventory may be empty or private)", user.Id);
+                        continue;
+                    }
+                    
                     var inventoryData = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
