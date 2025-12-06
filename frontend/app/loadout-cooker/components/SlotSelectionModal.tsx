@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { SkinDto } from '@/lib/api';
 import { determineTeamForSkin, getFallbackImageForSkin } from '../loadoutUtils';
 import TeamIcon from './TeamIcon';
@@ -38,6 +39,7 @@ export default function SlotSelectionModal({
   onClose,
   onSelectSkin,
 }: SlotSelectionModalProps) {
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const groupedSlot = slot.key === 'knife' || slot.key === 'gloves';
 
   const teamSkins = groupedSlot ? filteredSkins : activeTeam === 'CT' ? ctSkins : tSkins;
@@ -100,7 +102,7 @@ export default function SlotSelectionModal({
         onClick={() => onSelectSkin(variant)}
         className="flex flex-col gap-2 rounded-2xl border border-gray-800 bg-gray-950/70 p-3 text-left transition hover:border-purple-400/60 hover:bg-gray-900"
       >
-        <div className="relative h-32 w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-purple-900/10">
+        <div className="relative h-48 w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-purple-900/10">
           {variantImage ? (
             <img src={variantImage} alt={variant.name} className="h-full w-full object-contain" />
           ) : (
@@ -130,7 +132,7 @@ export default function SlotSelectionModal({
           onClick={() => onToggleExpandedWeapon(isExpanded ? null : entry.key)}
           className="flex w-full items-center gap-4 text-left"
         >
-          <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-purple-500/40 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
+          <div className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl border border-purple-500/40 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
             {representativeImage ? (
               <img src={representativeImage} alt={entry.label} className="h-full w-full object-contain" />
             ) : (
@@ -169,10 +171,37 @@ export default function SlotSelectionModal({
     );
   };
 
-  const renderStandardEntry = (entry: DisplayEntry) => {
+  const renderStandardEntry = (entry: DisplayEntry, isGrid: boolean = false) => {
     const skin = entry.representative;
     // Prioritize actual skin image from catalog, fallback to default weapon image if missing
     const skinImage = skin.imageUrl ?? getFallbackImageForSkin(skin) ?? null;
+    
+    if (isGrid) {
+      return (
+        <button
+          key={entry.key}
+          onClick={() => onSelectSkin(skin)}
+          className="flex flex-col gap-2 rounded-2xl border border-gray-800 bg-gray-900/60 p-3 text-left transition hover:border-purple-400/60 hover:bg-gray-900"
+        >
+          <div className="relative h-48 w-full overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
+            {skinImage ? (
+              <img src={skinImage} alt={skin.name} className="h-full w-full object-contain" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs text-purple-200">
+                No Image
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-semibold text-white line-clamp-2">{skin.name}</p>
+            {skin.collection && (
+              <p className="text-xs text-gray-400 line-clamp-1">Collection: {skin.collection}</p>
+            )}
+          </div>
+        </button>
+      );
+    }
+    
     return (
       <button
         key={entry.key}
@@ -180,11 +209,11 @@ export default function SlotSelectionModal({
         className="w-full rounded-2xl border border-gray-800 bg-gray-900/60 p-4 text-left transition hover:border-purple-400/60 hover:bg-gray-900"
       >
         <div className="flex items-center gap-4">
-          <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
+          <div className="h-32 w-32 flex-shrink-0 overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/20 to-purple-800/20">
             {skinImage ? (
               <img src={skinImage} alt={skin.name} className="h-full w-full object-contain" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-[10px] text-purple-200">
+              <div className="flex h-full w-full items-center justify-center text-xs text-purple-200">
                 No Image
               </div>
             )}
@@ -247,11 +276,39 @@ export default function SlotSelectionModal({
               )}
               <h4 className="text-sm font-semibold text-purple-200">{teamLabel}</h4>
             </div>
-            <span className="text-xs text-gray-400">
-              {totalItems} {totalItems === 1 ? 'item' : 'items'}
-            </span>
+            <div className="flex items-center gap-3">
+              {!groupedSlot && (
+                <div className="flex rounded-lg border border-purple-500/40 bg-purple-500/10 p-1">
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                      viewMode === 'grid'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Grid
+                  </button>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`rounded px-3 py-1 text-xs font-medium transition-colors ${
+                      viewMode === 'list'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    List
+                  </button>
+                </div>
+              )}
+              <span className="text-xs text-gray-400">
+                {totalItems} {totalItems === 1 ? 'item' : 'items'}
+              </span>
+            </div>
           </div>
-          <div className="max-h-[460px] space-y-3 overflow-y-auto pr-1">
+          <div className={`max-h-[460px] overflow-y-auto pr-1 ${
+            !groupedSlot && viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 gap-3' : 'space-y-3'
+          }`}>
             {displayEntries.length === 0 ? (
               <p className="rounded-lg border border-gray-800 bg-gray-900/60 p-4 text-sm text-gray-500">
                 {groupedSlot
@@ -260,7 +317,7 @@ export default function SlotSelectionModal({
               </p>
             ) : (
               displayEntries.map((entry) =>
-                entry.grouped ? renderGroupedEntry(entry) : renderStandardEntry(entry)
+                entry.grouped ? renderGroupedEntry(entry) : renderStandardEntry(entry, viewMode === 'grid')
               )
             )}
           </div>
