@@ -10,15 +10,19 @@ type ExpandableDashboardProps = {
   items: CSItem[];
 };
 
-// Color palette for pie chart
-const COLORS = [
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#3B82F6', // Blue
-  '#10B981', // Green
-  '#F59E0B', // Amber
-  '#EF4444', // Red
-  '#06B6D4', // Cyan
+// Color palette for pie chart - consistent colors for each category
+const CATEGORY_COLORS: Record<string, string> = {
+  'Knives': '#3B82F6',      // Blue
+  'Gloves': '#8B5CF6',      // Purple
+  'Weapon Skins': '#EC4899', // Pink
+  'Agents': '#10B981',      // Green
+  'Stickers': '#F59E0B',    // Amber
+  'Cases': '#EF4444',       // Red
+  'Other': '#06B6D4',       // Cyan
+};
+
+// Fallback colors for any categories not in the map
+const FALLBACK_COLORS = [
   '#6366F1', // Indigo
   '#F97316', // Orange
   '#14B8A6', // Teal
