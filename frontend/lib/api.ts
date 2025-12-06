@@ -604,7 +604,16 @@ export const loadoutsApi = {
       url.searchParams.append('userId', userId.toString());
     }
 
-    const response = await fetch(url.toString());
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {};
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
       throw new Error('Failed to fetch loadouts');
     }
@@ -612,11 +621,20 @@ export const loadoutsApi = {
   },
 
   upsertLoadout: async (loadout: LoadoutDto): Promise<LoadoutDto> => {
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
     const response = await fetch(`${API_BASE_URL}/loadouts`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(loadout),
     });
 
@@ -629,8 +647,18 @@ export const loadoutsApi = {
   },
 
   deleteLoadout: async (id: string): Promise<void> => {
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {};
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
     const response = await fetch(`${API_BASE_URL}/loadouts/${id}`, {
       method: 'DELETE',
+      headers,
     });
 
     if (!response.ok) {
