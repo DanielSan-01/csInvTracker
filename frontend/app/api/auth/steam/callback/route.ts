@@ -4,12 +4,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Get API base URL - computed at runtime to ensure env var is available
-const getApiBaseUrl = () => {
+const getApiBaseUrl = (): string | null => {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!apiUrl) {
     console.error('NEXT_PUBLIC_API_URL is not set!');
-    // Don't use localhost fallback in production - it will fail
-    throw new Error('NEXT_PUBLIC_API_URL environment variable is not configured');
+    // Return null instead of throwing - will be handled in the route handler
+    return null;
   }
   return apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
 };
@@ -29,14 +29,12 @@ export async function GET(request: NextRequest) {
     const baseUrl = `${origin}${returnUrl.startsWith('/') ? returnUrl : `/${returnUrl}`}`;
 
     // Get API base URL at runtime
-    let API_BASE_URL: string;
-    try {
-      API_BASE_URL = getApiBaseUrl();
-    } catch (envError) {
-      console.error('Failed to get API base URL:', envError);
+    const API_BASE_URL = getApiBaseUrl();
+    if (!API_BASE_URL) {
+      console.error('NEXT_PUBLIC_API_URL environment variable is not configured');
       const errorUrl = new URL(baseUrl);
       errorUrl.searchParams.set('error', 'config_error');
-      errorUrl.searchParams.set('msg', 'API URL not configured');
+      errorUrl.searchParams.set('msg', 'API URL not configured. Please set NEXT_PUBLIC_API_URL in Vercel environment variables.');
       return NextResponse.redirect(errorUrl.toString());
     }
 
