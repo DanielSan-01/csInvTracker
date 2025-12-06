@@ -26,8 +26,6 @@ public class AdminDashboardService
     public async Task<List<AdminUserDto>> GetAllUsersAsync()
     {
         var users = await _context.Users
-            .Include(u => u.InventoryItems)
-            .ThenInclude(i => i.Skin)
             .Select(u => new AdminUserDto
             {
                 Id = u.Id,
@@ -37,13 +35,9 @@ public class AdminDashboardService
                 LastLoginAt = u.LastLoginAt,
                 ItemCount = u.InventoryItems.Count,
                 TotalValue = u.InventoryItems
-                    .Select(i => i.Price)
-                    .DefaultIfEmpty(0m)
-                    .Sum(),
+                    .Sum(i => (decimal?)i.Price) ?? 0m,
                 TotalCost = u.InventoryItems
-                    .Select(i => i.Cost ?? 0m)
-                    .DefaultIfEmpty(0m)
-                    .Sum()
+                    .Sum(i => (decimal?)i.Cost) ?? 0m
             })
             .OrderByDescending(u => u.LastLoginAt)
             .ToListAsync();
