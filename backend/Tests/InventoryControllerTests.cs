@@ -43,8 +43,7 @@ public class InventoryControllerTests : IDisposable
         var steamApiService = new SteamApiService(httpClientFactory, configuration, steamApiLogger);
         
         var stickerCatalogLogger = NullLogger<StickerCatalogService>.Instance;
-        var memoryCache = new Microsoft.Extensions.Caching.Memory.MemoryCache(new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions());
-        var stickerCatalogService = new StickerCatalogService(httpClientFactory, memoryCache, stickerCatalogLogger);
+        var stickerCatalogService = new StickerCatalogService(httpClientFactory, _context, stickerCatalogLogger);
         
         var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
         var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService, steamApiService, stickerCatalogService);
