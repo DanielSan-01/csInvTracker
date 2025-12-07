@@ -76,7 +76,7 @@ export default function GlobalSearchBar({
       {searchTerm.length === 0 && <SearchTips />}
 
       {showResults && searchTerm.length >= 2 && (
-        <div className="absolute z-50 mt-2 max-h-[500px] w-full overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl">
+        <div className="absolute z-[9999] mt-2 max-h-[500px] w-full overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl">
           <SearchResultsDropdown
             skins={skins}
             isLoading={loading}
