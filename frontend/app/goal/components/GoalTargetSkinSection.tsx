@@ -83,8 +83,8 @@ const GoalTargetSkinSection = ({
       title="Pick the skin you're aiming for"
       description="Search the full catalog and we'll fill in the details for you."
     >
-      <div className="grid gap-6 lg:grid-cols-[1fr,400px]">
-        <div className="space-y-4 order-1">
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2 order-1">
           <GlobalSearchBar
             userInventory={inventoryItems}
             onAddSkin={onSkinSelect}
@@ -148,9 +148,9 @@ const GoalTargetSkinSection = ({
           </p>
         </div>
 
-        {/* Preview Panel - matches main page style */}
-        <aside className="order-2 lg:order-none lg:sticky lg:top-8">
-          <div className="space-y-4">
+        {/* Preview Panel - matches main page style exactly */}
+        <div className="lg:col-span-1 order-2 lg:order-none">
+          <div className="space-y-6 lg:sticky lg:top-8">
             {previewItem ? (
               <>
                 <ItemCard item={previewItem} variant="detailed" />
@@ -210,7 +210,7 @@ const GoalTargetSkinSection = ({
               </div>
             )}
           </div>
-        </aside>
+        </div>
       </div>
     </GoalStepSection>
   );
