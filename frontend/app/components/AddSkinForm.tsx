@@ -66,18 +66,12 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     return state;
   }, [item, effectiveSkin]);
 
-  // Helper function to check if item type should have float
-  const shouldHaveFloat = (type: ItemType): boolean => {
-    const noFloatTypes: ItemType[] = ['Case', 'Agent', 'Sticker'];
-    return !noFloatTypes.includes(type);
-  };
-
   const [formData, setFormData] = useState<NewSkinData>(baseFormState);
   const updateFormData = (updates: Partial<NewSkinData>) => {
     setFormData((prev) => {
       const newData = { ...prev, ...updates };
       // If type changed to a non-float type, clear float value
-      if (updates.type && !shouldHaveFloat(updates.type)) {
+      if (updates.type && !shouldShowFloat(updates.type)) {
         newData.float = undefined;
       }
       return newData;
@@ -225,7 +219,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
     setSelectedCatalogName(getSkinDopplerDisplayName(skin));
     
     const newType = skin.type as ItemType;
-    const hasFloat = shouldHaveFloat(newType);
+    const hasFloat = shouldShowFloat(newType);
     
     setFormData((prev) => ({
       ...prev,

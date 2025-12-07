@@ -7,6 +7,7 @@ import {
   formatPrice,
   getFloatColor,
   rarityGradients,
+  shouldShowFloat,
 } from '@/lib/mockData';
 import type { ItemCardAnimation } from './ItemCardShared';
 
@@ -166,15 +167,17 @@ export default function ItemCardGrid({
           );
         })()}
 
-        {/* Float bar */}
-        <div className="flex items-center gap-1">
-          <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
-            <div
-              className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
-              style={{ left: `${Math.min(item.float * 100, 100)}%` }}
-            />
+        {/* Float bar - only show for items that have float */}
+        {shouldShowFloat(item.type) && (
+          <div className="flex items-center gap-1">
+            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
+              <div
+                className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
+                style={{ left: `${Math.min(item.float * 100, 100)}%` }}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

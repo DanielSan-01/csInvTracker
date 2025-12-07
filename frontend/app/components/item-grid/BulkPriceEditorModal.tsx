@@ -2,13 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { InventoryItemDto, UpdateInventoryItemDto } from '@/lib/api';
-import { CSItem, ItemType } from '@/lib/mockData';
-
-// Helper function to check if item type should have float
-function shouldHaveFloat(type: ItemType): boolean {
-  const noFloatTypes: ItemType[] = ['Case', 'Agent', 'Sticker'];
-  return !noFloatTypes.includes(type);
-}
+import { CSItem, shouldShowFloat } from '@/lib/mockData';
 
 type BulkPriceEditorModalProps = {
   items: CSItem[];
@@ -256,7 +250,7 @@ export default function BulkPriceEditorModal({
                       </div>
 
                       {/* Input Fields */}
-                      <div className={`flex-1 grid gap-4 ${shouldHaveFloat(item.type) ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                      <div className={`flex-1 grid gap-4 ${shouldShowFloat(item.type) ? 'grid-cols-3' : 'grid-cols-2'}`}>
                         {/* Price */}
                         <div>
                           <label className="block text-xs font-medium text-gray-300 mb-1.5">
@@ -290,7 +284,7 @@ export default function BulkPriceEditorModal({
                         </div>
 
                         {/* Float - only show for items that should have float */}
-                        {shouldHaveFloat(item.type) && (
+                        {shouldShowFloat(item.type) && (
                           <div>
                             <label className="block text-xs font-medium text-gray-300 mb-1.5">
                               Float Value (0.0 - 1.0)

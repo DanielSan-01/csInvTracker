@@ -1,23 +1,17 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import type { CSItem, ItemType } from '@/lib/mockData';
-import { formatFloat, getFloatColor } from '@/lib/mockData';
+import type { CSItem } from '@/lib/mockData';
+import { formatFloat, getFloatColor, shouldShowFloat } from '@/lib/mockData';
 
 type DetailFloatProps = {
   item: CSItem;
   onUpdate?: (value: number) => void;
 };
 
-// Helper function to check if item type should have float
-function shouldHaveFloat(type: ItemType): boolean {
-  const noFloatTypes: ItemType[] = ['Case', 'Agent', 'Sticker'];
-  return !noFloatTypes.includes(type);
-}
-
 export default function DetailFloat({ item, onUpdate }: DetailFloatProps) {
-  // Don't show float for cases, agents, or stickers
-  if (!shouldHaveFloat(item.type)) {
+  // Don't show float for cases, agents, stickers, patches, or keys
+  if (!shouldShowFloat(item.type)) {
     return null;
   }
   const [isEditing, setIsEditing] = useState(false);

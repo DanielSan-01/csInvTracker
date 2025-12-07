@@ -1,5 +1,5 @@
 import type { NewSkinData } from './types';
-import type { ItemType } from '@/lib/mockData';
+import { shouldShowFloat } from '@/lib/mockData';
 
 type AdvancedFieldsSectionProps = {
   formData: NewSkinData;
@@ -7,18 +7,12 @@ type AdvancedFieldsSectionProps = {
   onChange: (updates: Partial<NewSkinData>) => void;
 };
 
-// Helper function to check if item type should have float
-function shouldHaveFloat(type: ItemType): boolean {
-  const noFloatTypes: ItemType[] = ['Case', 'Agent', 'Sticker'];
-  return !noFloatTypes.includes(type);
-}
-
 export default function AdvancedFieldsSection({
   formData,
   errors,
   onChange,
 }: AdvancedFieldsSectionProps) {
-  const hasFloat = shouldHaveFloat(formData.type);
+  const hasFloat = shouldShowFloat(formData.type);
 
   return (
     <div className="animate-fadeIn space-y-4 border-t border-gray-700 pt-4">

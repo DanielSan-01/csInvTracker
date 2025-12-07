@@ -22,6 +22,15 @@ export type ItemType =
   | 'Tool'
   | 'Other';
 
+/**
+ * Checks if an item type should display float values.
+ * Agents, Cases, Keys, Stickers, and Patches do not have float values.
+ */
+export function shouldShowFloat(type: ItemType): boolean {
+  const noFloatTypes: ItemType[] = ['Agent', 'Case', 'Key', 'Sticker', 'Patch'];
+  return !noFloatTypes.includes(type);
+}
+
 export interface CSSticker {
   id?: number;
   name: string;
