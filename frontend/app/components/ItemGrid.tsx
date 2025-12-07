@@ -647,7 +647,7 @@ export default function ItemGrid() {
               onSortChange={setSortOption} 
             />
             {user && (
-            <div className="flex items-center gap-2">
+              <>
               <button
                 onClick={handleLoadFromSteam}
                 disabled={isLoadingSteam}
@@ -690,8 +690,9 @@ export default function ItemGrid() {
                 </svg>
                 Add Skin
               </button>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
 
         <InventoryStatsGrid
