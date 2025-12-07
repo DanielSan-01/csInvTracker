@@ -148,75 +148,68 @@ const GoalTargetSkinSection = ({
           </p>
         </div>
 
-        {/* Preview Panel */}
-        <aside className="order-2 lg:order-none lg:sticky lg:top-24 lg:self-start lg:h-fit">
-          {previewItem ? (
-            <div className="space-y-3">
-              <ItemCard item={previewItem} variant="detailed" />
-              
-              {/* Cost Breakdown */}
-              {parseFloat(targetSkinPrice) > 0 && (
-                <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
-                    Affordability Breakdown
-                  </p>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-300">Target Skin Cost</span>
-                      <span className="font-semibold text-white">{formatCurrency(parseFloat(targetSkinPrice) || 0)}</span>
-                    </div>
+        {/* Preview Panel - matches main page style */}
+        <aside className="order-2 lg:order-none lg:sticky lg:top-8">
+          <div className="space-y-4">
+            {previewItem ? (
+              <>
+                <ItemCard item={previewItem} variant="detailed" />
+                
+                {/* Compact Cost Breakdown */}
+                {parseFloat(targetSkinPrice) > 0 && (
+                  <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-400">
+                      Affordability
+                    </p>
                     
-                    {selectedTotal > 0 && (
-                      <div className="flex items-center justify-between text-red-300">
-                        <span>− From Planned Sales</span>
-                        <span className="font-semibold">{formatCurrency(selectedTotal)}</span>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-300">Target Cost</span>
+                        <span className="font-semibold text-white">{formatCurrency(parseFloat(targetSkinPrice) || 0)}</span>
                       </div>
-                    )}
-                    
-                    {parsedBalance > 0 && (
-                      <div className="flex items-center justify-between text-red-300">
-                        <span>− Existing Balance</span>
-                        <span className="font-semibold">{formatCurrency(parsedBalance)}</span>
-                      </div>
-                    )}
-                    
-                    <div className="pt-2 border-t border-gray-800">
-                      {remainingAmount > 0 ? (
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-300">Still Needed</span>
-                          <span className="font-bold text-red-400">{formatCurrency(remainingAmount)}</span>
-                        </div>
-                      ) : surplusAmount > 0 ? (
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-300">Surplus</span>
-                          <span className="font-bold text-emerald-400">+{formatCurrency(surplusAmount)}</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-300">Status</span>
-                          <span className="font-bold text-emerald-400">Fully Covered</span>
+                      
+                      {selectedTotal > 0 && (
+                        <div className="flex items-center justify-between text-red-300">
+                          <span>− Sales</span>
+                          <span className="font-semibold">{formatCurrency(selectedTotal)}</span>
                         </div>
                       )}
+                      
+                      {parsedBalance > 0 && (
+                        <div className="flex items-center justify-between text-red-300">
+                          <span>− Balance</span>
+                          <span className="font-semibold">{formatCurrency(parsedBalance)}</span>
+                        </div>
+                      )}
+                      
+                      <div className="pt-2 border-t border-gray-800">
+                        {remainingAmount > 0 ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-300">Still Needed</span>
+                            <span className="font-bold text-red-400">{formatCurrency(remainingAmount)}</span>
+                          </div>
+                        ) : surplusAmount > 0 ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-300">Surplus</span>
+                            <span className="font-bold text-emerald-400">+{formatCurrency(surplusAmount)}</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-300">Status</span>
+                            <span className="font-bold text-emerald-400">Covered</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-              
-              <p className="text-xs text-gray-500">
-                Preview of your target skin
-              </p>
-            </div>
-          ) : (
-            <div className="flex h-full min-h-[400px] items-center justify-center rounded-2xl border border-dashed border-gray-800 bg-gray-900/50">
-              <div className="text-center">
-                <p className="text-sm text-gray-400">No skin selected</p>
-                <p className="mt-2 text-xs text-gray-500">
-                  Search and select a skin to see preview
-                </p>
+                )}
+              </>
+            ) : (
+              <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-700 bg-gray-900/60 p-10 text-center text-sm text-gray-400">
+                Select a skin to view preview
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </aside>
       </div>
     </GoalStepSection>
