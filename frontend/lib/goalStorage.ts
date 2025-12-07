@@ -81,7 +81,7 @@ export async function fetchGoals(userId?: number): Promise<GoalData[]> {
       const apiGoals = await goalsApi.getGoals(userId);
       // Convert API DTOs to GoalData format
       return apiGoals.map(goal => ({
-        id: goal.id,
+        id: goal.id ?? '', // Convert null/undefined to empty string for GoalData
         createdAt: goal.createdAt,
         updatedAt: goal.updatedAt ?? undefined,
         userId: goal.userId ?? undefined,
