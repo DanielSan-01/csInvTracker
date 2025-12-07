@@ -549,7 +549,16 @@ export const goalsApi = {
       url.searchParams.append('userId', userId.toString());
     }
 
-    const response = await fetch(url.toString());
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {};
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    const response = await fetch(url.toString(), { headers });
     if (!response.ok) {
       throw new Error('Failed to fetch goals');
     }
@@ -557,7 +566,16 @@ export const goalsApi = {
   },
 
   getGoalById: async (id: string): Promise<GoalDto> => {
-    const response = await fetch(`${API_BASE_URL}/goals/${id}`);
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {};
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    const response = await fetch(`${API_BASE_URL}/goals/${id}`, { headers });
     if (!response.ok) {
       throw new Error('Failed to fetch goal');
     }
@@ -565,27 +583,43 @@ export const goalsApi = {
   },
 
   upsertGoal: async (goal: GoalDto): Promise<GoalDto> => {
-    const response = await fetch(`${API_BASE_URL}/goals`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(goal),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error?.message || 'Failed to save goal');
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
 
+    const response = await fetch(`${API_BASE_URL}/goals`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(goal),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to save goal: ${errorText}`);
+    }
     return response.json();
   },
 
   deleteGoal: async (id: string): Promise<void> => {
+    // Try to get token from localStorage for Authorization header (cross-domain support)
+    const headers: HeadersInit = {};
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
     const response = await fetch(`${API_BASE_URL}/goals/${id}`, {
       method: 'DELETE',
+      headers,
     });
-
     if (!response.ok) {
       throw new Error('Failed to delete goal');
     }
