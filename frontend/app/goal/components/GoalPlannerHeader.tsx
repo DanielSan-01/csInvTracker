@@ -24,18 +24,6 @@ export default function GoalPlannerHeader({ userLoading, username, steamId }: Go
             </svg>
             Back to dashboard
           </Link>
-          <div className="rounded-lg border border-gray-800 bg-gray-900/80 px-4 py-2 text-xs text-gray-300">
-            {userLoading ? (
-              'Checking Steam account...'
-            ) : username || steamId ? (
-              <>
-                Planning for{' '}
-                <span className="font-medium text-purple-300">{username ?? steamId}</span>
-              </>
-            ) : (
-              'You are browsing as a guest. Log in to use your inventory.'
-            )}
-          </div>
         </div>
       </div>
 
