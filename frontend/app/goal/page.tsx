@@ -6,7 +6,7 @@ import { useUser } from '@/contexts/UserContext';
 import { useInventory } from '@/hooks/useInventory';
 import { formatCurrency } from '@/lib/utils';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
-import { saveGoal, GoalData } from '@/lib/goalStorage';
+import { goalsApi, GoalDto } from '@/lib/api';
 import type { InventoryItemDto, SkinDto } from '@/lib/api';
 import Navbar from '@/app/components/Navbar';
 import SteamLoginButton from '@/app/components/SteamLoginButton';
@@ -96,6 +96,11 @@ export default function GoalPlannerPage() {
   const handleAddGoal = async () => {
     if (isSavingGoal) return;
 
+    if (!user?.id) {
+      setFormError('Please log in to save your goal.');
+      return;
+    }
+
     if (!targetSkinName.trim()) {
       setFormError('Please select or enter the skin you want.');
       return;
@@ -109,20 +114,13 @@ export default function GoalPlannerPage() {
     setFormError(null);
     setIsSavingGoal(true);
 
-    const id =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `goal-${Date.now()}`;
-
-    const timestamp = new Date().toISOString();
-
-    const goalData: GoalData = {
-      id,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      userId: user?.id,
+    const goalData: GoalDto = {
+      id: '', // Empty string will be converted to Guid.Empty on backend
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      userId: user.id,
       skinName: targetSkinName.trim(),
-      skinId: selectedSkin?.id,
+      skinId: selectedSkin?.id ?? null,
       skinImageUrl: selectedSkin?.dopplerPhaseImageUrl ?? selectedSkin?.imageUrl ?? null,
       skinAltImageUrl: selectedSkin?.imageUrl ?? null,
       skinRarity: selectedSkin?.rarity ?? null,
@@ -135,23 +133,22 @@ export default function GoalPlannerPage() {
       remainingAmount,
       surplusAmount,
       selectedItems: selectedItems.map((item) => ({
-        id: item.id,
         inventoryItemId: item.id,
         skinName: item.skinName,
         price: item.price ?? 0,
         tradeProtected: item.tradeProtected,
-        imageUrl: item.imageUrl,
-        weapon: item.weapon,
-        type: item.type,
+        imageUrl: item.imageUrl ?? null,
+        weapon: item.weapon ?? null,
+        type: item.type ?? null,
       })),
     };
 
     try {
-      await saveGoal(goalData);
-      router.push(`/goal/summary?goalId=${id}`);
+      const savedGoal = await goalsApi.upsertGoal(goalData);
+      router.push(`/goal/summary?goalId=${savedGoal.id}`);
     } catch (error) {
       console.error('Failed to save goal', error);
-      setFormError('Failed to save goal. Please try again.');
+      setFormError(error instanceof Error ? error.message : 'Failed to save goal. Please try again.');
     } finally {
       setIsSavingGoal(false);
     }

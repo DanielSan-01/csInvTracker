@@ -1,6 +1,7 @@
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,23 +13,52 @@ public class GoalsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<GoalsController> _logger;
+    private readonly AuthService _authService;
+    private const int MaxGoalsPerUser = 1;
 
-    public GoalsController(ApplicationDbContext context, ILogger<GoalsController> logger)
+    public GoalsController(
+        ApplicationDbContext context,
+        ILogger<GoalsController> logger,
+        AuthService authService)
     {
         _context = context;
         _logger = logger;
+        _authService = authService;
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var authHeader = Request.Headers["Authorization"].ToString();
+        var token = !string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ")
+            ? authHeader.Substring(7).Trim()
+            : Request.Cookies["auth_token"];
+
+        if (string.IsNullOrEmpty(token))
+        {
+            return null;
+        }
+
+        return _authService.GetUserIdFromToken(token);
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<GoalDto>>> GetGoals([FromQuery] int? userId)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
+        // Users can only see their own goals
         var query = _context.Goals
             .Include(g => g.SelectedItems)
-            .AsQueryable();
+            .Where(g => g.UserId == currentUserId.Value);
 
-        if (userId.HasValue)
+        // If userId is provided, verify it matches the authenticated user
+        if (userId.HasValue && userId.Value != currentUserId.Value)
         {
-            query = query.Where(g => g.UserId == userId.Value);
+            return StatusCode(403, new { error = "Access denied" });
         }
 
         var goals = await query
@@ -41,6 +71,12 @@ public class GoalsController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<GoalDto>> GetGoal(Guid id)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
         var goal = await _context.Goals
             .Include(g => g.SelectedItems)
             .FirstOrDefaultAsync(g => g.Id == id);
@@ -50,19 +86,31 @@ public class GoalsController : ControllerBase
             return NotFound();
         }
 
+        // Verify the goal belongs to the authenticated user
+        if (goal.UserId != currentUserId.Value)
+        {
+            return StatusCode(403, new { error = "Access denied" });
+        }
+
         return Ok(MapToDto(goal));
     }
 
     [HttpPost]
     public async Task<ActionResult<GoalDto>> UpsertGoal([FromBody] GoalDto request)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
         var now = DateTime.UtcNow;
-        var goalId = request.Id == Guid.Empty ? Guid.NewGuid() : request.Id;
+        var goalId = request.Id == Guid.Empty || request.Id == default ? Guid.NewGuid() : request.Id;
         var isNew = false;
 
         var goal = await _context.Goals
@@ -71,13 +119,48 @@ public class GoalsController : ControllerBase
 
         if (goal == null)
         {
-            goal = new Goal { Id = goalId, CreatedAt = request.CreatedAt == default ? now : request.CreatedAt };
+            // Check if user already has a goal (limit to 1 per user)
+            var existingGoalCount = await _context.Goals
+                .CountAsync(g => g.UserId == currentUserId.Value);
+            
+            if (existingGoalCount >= MaxGoalsPerUser)
+            {
+                // Delete the oldest goal to make room
+                var oldestGoal = await _context.Goals
+                    .Where(g => g.UserId == currentUserId.Value)
+                    .OrderBy(g => g.CreatedAt)
+                    .FirstOrDefaultAsync();
+                
+                if (oldestGoal != null)
+                {
+                    _context.Goals.Remove(oldestGoal);
+                    _logger.LogInformation("Removed oldest goal {GoalId} for user {UserId} to make room for new goal", oldestGoal.Id, currentUserId.Value);
+                }
+            }
+
+            goal = new Goal 
+            { 
+                Id = goalId, 
+                CreatedAt = request.CreatedAt == default ? now : request.CreatedAt,
+                UserId = currentUserId.Value
+            };
             _context.Goals.Add(goal);
             isNew = true;
+        }
+        else
+        {
+            // Verify the goal belongs to the authenticated user
+            if (goal.UserId != currentUserId.Value)
+            {
+                return StatusCode(403, new { error = "Access denied" });
+            }
         }
 
         goal.UpdatedAt = now;
         UpdateGoalFromDto(goal, request);
+        
+        // Ensure UserId is set
+        goal.UserId = currentUserId.Value;
 
         // replace selected items
         _context.GoalSelectedItems.RemoveRange(goal.SelectedItems);
@@ -100,6 +183,12 @@ public class GoalsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteGoal(Guid id)
     {
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
+        {
+            return Unauthorized(new { error = "Authentication required" });
+        }
+
         var goal = await _context.Goals
             .Include(g => g.SelectedItems)
             .FirstOrDefaultAsync(g => g.Id == id);
@@ -107,6 +196,12 @@ public class GoalsController : ControllerBase
         if (goal == null)
         {
             return NotFound();
+        }
+
+        // Verify the goal belongs to the authenticated user
+        if (goal.UserId != currentUserId.Value)
+        {
+            return StatusCode(403, new { error = "Access denied" });
         }
 
         _context.Goals.Remove(goal);

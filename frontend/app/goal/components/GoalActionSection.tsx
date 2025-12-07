@@ -18,7 +18,7 @@ const GoalActionSection = ({ formError, onSubmit, isSaving, canSubmit }: GoalAct
 
       <div className="flex flex-col items-stretch justify-between gap-4 sm:flex-row sm:items-center">
         <div className="text-xs text-gray-500">
-          We’ll store your goal locally on this device so you can revisit it later.
+          Your goal will be saved to your account so you can revisit it later.
         </div>
         <button
           type="button"
