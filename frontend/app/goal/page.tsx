@@ -15,7 +15,6 @@ import GoalInventorySection from './components/GoalInventorySection';
 import GoalBalanceSection from './components/GoalBalanceSection';
 import GoalSummarySection from './components/GoalSummarySection';
 import GoalActionSection from './components/GoalActionSection';
-import GoalPlannerHeader from './components/GoalPlannerHeader';
 
 export default function GoalPlannerPage() {
   const router = useRouter();
@@ -175,6 +174,10 @@ export default function GoalPlannerPage() {
           targetSkinPrice={targetSkinPrice}
           onTargetSkinPriceChange={setTargetSkinPrice}
           formatCurrency={formatCurrency}
+          selectedTotal={selectedTotal}
+          parsedBalance={parsedBalance}
+          remainingAmount={remainingAmount}
+          surplusAmount={surplusAmount}
         />
 
         <GoalInventorySection
