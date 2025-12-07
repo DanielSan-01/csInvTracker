@@ -164,12 +164,6 @@ export default function GoalPlannerPage() {
         authControl={<SteamLoginButton />}
       />
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 pb-20 pt-16 lg:px-10">
-        <GoalPlannerHeader
-          userLoading={userLoading}
-          username={user?.username ?? null}
-          steamId={user?.steamId ?? null}
-        />
-
         <GoalTargetSkinSection
           step={1}
           selectedSkin={selectedSkin}
