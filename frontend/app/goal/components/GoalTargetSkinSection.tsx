@@ -8,7 +8,6 @@ import type { SkinDto } from '@/lib/api';
 import type { CSItem, Rarity, ItemType } from '@/lib/mockData';
 
 import GoalStepSection from './GoalStepSection';
-import GoalAffordabilityPanel from './GoalAffordabilityPanel';
 
 type GoalTargetSkinSectionProps = {
   step: number;
@@ -21,10 +20,6 @@ type GoalTargetSkinSectionProps = {
   targetSkinPrice: string;
   onTargetSkinPriceChange: (value: string) => void;
   formatCurrency: (value: number) => string;
-  selectedTotal: number;
-  parsedBalance: number;
-  remainingAmount: number;
-  surplusAmount: number;
 };
 
 const GoalTargetSkinSection = ({
@@ -38,10 +33,6 @@ const GoalTargetSkinSection = ({
   targetSkinPrice,
   onTargetSkinPriceChange,
   formatCurrency,
-  selectedTotal,
-  parsedBalance,
-  remainingAmount,
-  surplusAmount,
 }: GoalTargetSkinSectionProps) => {
   // Create preview item from selected skin or manual input
   const previewItem = useMemo<CSItem | null>(() => {
