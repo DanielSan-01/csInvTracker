@@ -15,6 +15,7 @@ import GoalInventorySection from './components/GoalInventorySection';
 import GoalBalanceSection from './components/GoalBalanceSection';
 import GoalSummarySection from './components/GoalSummarySection';
 import GoalActionSection from './components/GoalActionSection';
+import GoalAffordabilityPanel from './components/GoalAffordabilityPanel';
 
 export default function GoalPlannerPage() {
   const router = useRouter();
@@ -223,6 +224,22 @@ export default function GoalPlannerPage() {
           isSaving={isSavingGoal}
           canSubmit={Boolean(targetSkinName.trim()) && parsedTargetPrice > 0}
         />
+          </div>
+
+          {/* Affordability Panel - Sticky on the right */}
+          <aside className="lg:col-span-1">
+            <div className="lg:sticky lg:top-8">
+              <GoalAffordabilityPanel
+                targetPrice={parsedTargetPrice}
+                selectedTotal={selectedTotal}
+                parsedBalance={parsedBalance}
+                remainingAmount={remainingAmount}
+                surplusAmount={surplusAmount}
+                formatCurrency={formatCurrency}
+              />
+            </div>
+          </aside>
+        </div>
       </div>
     </div>
   );
