@@ -167,21 +167,17 @@ export default function GoalPlannerPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-8">
             <GoalTargetSkinSection
-          step={1}
-          selectedSkin={selectedSkin}
-          inventoryItems={inventoryAsCsItems}
-          onSkinSelect={handleSkinSelection}
-          onClearSkin={handleClearSelectedSkin}
-          targetSkinName={targetSkinName}
-          onTargetSkinNameChange={setTargetSkinName}
-          targetSkinPrice={targetSkinPrice}
-          onTargetSkinPriceChange={setTargetSkinPrice}
-          formatCurrency={formatCurrency}
-          selectedTotal={selectedTotal}
-          parsedBalance={parsedBalance}
-          remainingAmount={remainingAmount}
-          surplusAmount={surplusAmount}
-        />
+              step={1}
+              selectedSkin={selectedSkin}
+              inventoryItems={inventoryAsCsItems}
+              onSkinSelect={handleSkinSelection}
+              onClearSkin={handleClearSelectedSkin}
+              targetSkinName={targetSkinName}
+              onTargetSkinNameChange={setTargetSkinName}
+              targetSkinPrice={targetSkinPrice}
+              onTargetSkinPriceChange={setTargetSkinPrice}
+              formatCurrency={formatCurrency}
+            />
 
         <GoalInventorySection
           step={2}
