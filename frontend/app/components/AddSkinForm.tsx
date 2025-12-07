@@ -6,6 +6,7 @@ import { calculateTradeProtectionDate, calculateValveTradeLockDate } from '@/lib
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import type { SkinDto } from '@/lib/api';
 import type { CSItem, Rarity, ItemType } from '@/lib/mockData';
+import { shouldShowFloat } from '@/lib/mockData';
 import { getSkinDopplerDisplayName } from '@/lib/dopplerPhases';
 import SkinCatalogSearch from './add-skin/SkinCatalogSearch';
 import RequiredFieldsSection from './add-skin/RequiredFieldsSection';
