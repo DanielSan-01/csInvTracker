@@ -95,7 +95,7 @@ export interface GoalSelectedItemDto {
 }
 
 export interface GoalDto {
-  id: string;
+  id?: string | null;
   createdAt: string;
   updatedAt?: string;
   userId?: number | null;

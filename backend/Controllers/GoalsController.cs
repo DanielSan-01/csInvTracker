@@ -110,7 +110,7 @@ public class GoalsController : ControllerBase
         }
 
         var now = DateTime.UtcNow;
-        var goalId = request.Id == Guid.Empty || request.Id == default ? Guid.NewGuid() : request.Id;
+        var goalId = !request.Id.HasValue || request.Id.Value == Guid.Empty ? Guid.NewGuid() : request.Id.Value;
         var isNew = false;
 
         var goal = await _context.Goals

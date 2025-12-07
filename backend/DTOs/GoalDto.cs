@@ -4,7 +4,7 @@ namespace backend.DTOs;
 
 public class GoalDto
 {
-    public Guid Id { get; set; }
+    public Guid? Id { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

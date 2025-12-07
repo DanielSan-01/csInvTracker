@@ -115,7 +115,7 @@ export default function GoalPlannerPage() {
     setIsSavingGoal(true);
 
     const goalData: GoalDto = {
-      id: '00000000-0000-0000-0000-000000000000', // Guid.Empty for new goals
+      // id is omitted for new goals - backend will generate it
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       userId: user.id,
