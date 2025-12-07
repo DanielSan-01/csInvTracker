@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import { CSItem } from '@/lib/mockData';
 import type { SkinDto } from '@/lib/api';
@@ -27,7 +27,30 @@ export default function GlobalSearchBar({
   const [showResults, setShowResults] = useState(false);
   const { skins, loading } = useSkinCatalog(searchTerm);
   const searchRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   useOutsideClick(searchRef, () => setShowResults(false));
+
+  // Update dropdown position when it's shown or window is resized/scrolled
+  useEffect(() => {
+    if (!showResults || !searchRef.current || !dropdownRef.current) return;
+
+    const updatePosition = () => {
+      if (!searchRef.current || !dropdownRef.current) return;
+      const rect = searchRef.current.getBoundingClientRect();
+      dropdownRef.current.style.top = `${rect.bottom + 8}px`;
+      dropdownRef.current.style.left = `${rect.left}px`;
+      dropdownRef.current.style.width = `${rect.width}px`;
+    };
+
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [showResults]);
 
   const isInInventory = useCallback(
     (skinId: number) => userInventory.some((item) => parseInt(item.id) === skinId),
@@ -76,7 +99,10 @@ export default function GlobalSearchBar({
       {searchTerm.length === 0 && <SearchTips />}
 
       {showResults && searchTerm.length >= 2 && (
-        <div className="absolute z-[99999] mt-2 max-h-[500px] w-full overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl" style={{ position: 'absolute', isolation: 'isolate' }}>
+        <div 
+          ref={dropdownRef}
+          className="fixed z-[99999] max-h-[500px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl"
+        >
           <SearchResultsDropdown
             skins={skins}
             isLoading={loading}
