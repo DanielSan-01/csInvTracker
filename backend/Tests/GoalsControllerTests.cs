@@ -5,8 +5,10 @@ using backend.Controllers;
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
+using backend.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -16,6 +18,7 @@ public class GoalsControllerTests : IDisposable
 {
     private readonly ApplicationDbContext _context;
     private readonly GoalsController _controller;
+    private readonly AuthService _authService;
 
     public GoalsControllerTests()
     {
@@ -24,7 +27,19 @@ public class GoalsControllerTests : IDisposable
             .Options;
 
         _context = new ApplicationDbContext(options);
-        _controller = new GoalsController(_context, NullLogger<GoalsController>.Instance);
+        
+        // Create a real AuthService instance for testing
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "JWT:Secret", "test-secret-key-for-testing-purposes-only" },
+                { "JWT:Issuer", "test-issuer" },
+                { "JWT:Audience", "test-audience" }
+            })
+            .Build();
+        
+        _authService = new AuthService(configuration, NullLogger<AuthService>.Instance);
+        _controller = new GoalsController(_context, NullLogger<GoalsController>.Instance, _authService);
 
         _context.Users.AddRange(
             new User { Id = 1, SteamId = "user-1", Username = "User 1" },
