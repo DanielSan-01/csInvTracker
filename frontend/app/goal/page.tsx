@@ -234,6 +234,9 @@ export default function GoalPlannerPage() {
                 remainingAmount={remainingAmount}
                 surplusAmount={surplusAmount}
                 formatCurrency={formatCurrency}
+                onTargetPriceChange={(newPrice) => {
+                  setTargetSkinPrice(newPrice.toFixed(2));
+                }}
               />
             </div>
           </aside>
