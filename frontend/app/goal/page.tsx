@@ -226,6 +226,8 @@ export default function GoalPlannerPage() {
           <aside className="lg:col-span-1">
             <div className="lg:sticky lg:top-8">
               <GoalAffordabilityPanel
+                targetSkinName={targetSkinName}
+                targetSkinImageUrl={selectedSkin?.dopplerPhaseImageUrl ?? selectedSkin?.imageUrl ?? null}
                 targetPrice={parsedTargetPrice}
                 selectedTotal={selectedTotal}
                 parsedBalance={parsedBalance}
