@@ -162,8 +162,10 @@ export default function GoalPlannerPage() {
         isAuthenticated={!!user}
         authControl={<SteamLoginButton />}
       />
-      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 px-6 pb-20 pt-16 lg:px-10">
-        <GoalTargetSkinSection
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 pb-20 pt-16 lg:px-10">
+        <div className="grid gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-8">
+            <GoalTargetSkinSection
           step={1}
           selectedSkin={selectedSkin}
           inventoryItems={inventoryAsCsItems}
