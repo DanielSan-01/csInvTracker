@@ -84,7 +84,7 @@ const GoalTargetSkinSection = ({
       description="Search the full catalog and we'll fill in the details for you."
     >
       <div className="grid gap-6 lg:grid-cols-[1fr,400px]">
-        <div className="space-y-4">
+        <div className="space-y-4 order-1">
           <GlobalSearchBar
             userInventory={inventoryItems}
             onAddSkin={onSkinSelect}
@@ -149,7 +149,7 @@ const GoalTargetSkinSection = ({
         </div>
 
         {/* Preview Panel */}
-        <aside className="order-2 lg:order-none lg:sticky lg:top-6 lg:self-start">
+        <aside className="order-2 lg:order-none lg:sticky lg:top-24 lg:self-start lg:h-fit">
           {previewItem ? (
             <div className="space-y-3">
               <ItemCard item={previewItem} variant="detailed" />
