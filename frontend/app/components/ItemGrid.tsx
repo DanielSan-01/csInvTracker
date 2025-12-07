@@ -28,14 +28,16 @@ import ExpandableDashboard from './item-grid/ExpandableDashboard';
 import { useToast } from './item-grid/useToast';
 import AnimatedBanner from './AnimatedBanner';
 import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
+import InventorySortSelector, { sortItems, type SortOption } from './item-grid/InventorySortSelector';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
   const { items: backendItems, stats, loading, refreshing, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
   const items = inventoryItemsToCSItems(backendItems);
+  const [sortOption, setSortOption] = useState<SortOption>('price-high-low');
   const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
-  }, [items]);
+    return sortItems(items, sortOption);
+  }, [items, sortOption]);
   
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -635,11 +637,16 @@ export default function ItemGrid() {
       )}
 
       <div className="mx-auto mt-8 w-full max-w-7xl px-4 md:px-6">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex-1 max-w-md">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex-1 min-w-[200px] max-w-md">
             <InventoryFilterInput value={searchTerm} onChange={setSearchTerm} />
           </div>
-          {user && (
+          <div className="flex items-center gap-2">
+            <InventorySortSelector 
+              currentSort={sortOption} 
+              onSortChange={setSortOption} 
+            />
+            {user && (
             <div className="flex items-center gap-2">
               <button
                 onClick={handleLoadFromSteam}
