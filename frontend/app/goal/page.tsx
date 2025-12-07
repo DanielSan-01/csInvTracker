@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/contexts/UserContext';
 import { useInventory } from '@/hooks/useInventory';
 import { formatCurrency } from '@/lib/utils';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import { goalsApi, GoalDto } from '@/lib/api';
+import { fetchGoals, GoalData } from '@/lib/goalStorage';
 import type { InventoryItemDto, SkinDto } from '@/lib/api';
 import Navbar from '@/app/components/Navbar';
 import SteamLoginButton from '@/app/components/SteamLoginButton';
@@ -16,11 +17,18 @@ import GoalBalanceSection from './components/GoalBalanceSection';
 import GoalSummarySection from './components/GoalSummarySection';
 import GoalActionSection from './components/GoalActionSection';
 import GoalAffordabilityPanel from './components/GoalAffordabilityPanel';
+import TargetSkinCard from '@/app/components/TargetSkinCard';
+import StatCard from '@/app/components/StatCard';
+import InventoryListCard from '@/app/components/InventoryListCard';
+import Link from 'next/link';
 
 export default function GoalPlannerPage() {
   const router = useRouter();
   const { user, loading: userLoading } = useUser();
   const { items, loading: inventoryLoading, error } = useInventory(user?.id);
+  
+  const [savedGoal, setSavedGoal] = useState<GoalData | null>(null);
+  const [loadingGoal, setLoadingGoal] = useState(true);
 
   const [targetSkinName, setTargetSkinName] = useState('');
   const [targetSkinPrice, setTargetSkinPrice] = useState('');
@@ -30,6 +38,34 @@ export default function GoalPlannerPage() {
   const [selectedSkin, setSelectedSkin] = useState<SkinDto | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
+  const [showNewGoalForm, setShowNewGoalForm] = useState(false);
+
+  // Load saved goal on mount
+  useEffect(() => {
+    const loadSavedGoal = async () => {
+      if (!user?.id) {
+        setLoadingGoal(false);
+        return;
+      }
+
+      try {
+        setLoadingGoal(true);
+        const goals = await fetchGoals(user.id);
+        if (goals.length > 0) {
+          setSavedGoal(goals[0]); // Show the most recent goal
+        } else {
+          setSavedGoal(null);
+        }
+      } catch (error) {
+        console.error('Failed to load saved goal', error);
+        setSavedGoal(null);
+      } finally {
+        setLoadingGoal(false);
+      }
+    };
+
+    loadSavedGoal();
+  }, [user?.id]);
 
   const parsedTargetPrice = useMemo(() => {
     const value = parseFloat(targetSkinPrice.replace(',', '.'));
@@ -145,7 +181,18 @@ export default function GoalPlannerPage() {
 
     try {
       const savedGoal = await goalsApi.upsertGoal(goalData);
-      router.push(`/goal/summary?goalId=${savedGoal.id}`);
+      // Reload the saved goal to show the summary
+      const goals = await fetchGoals(user.id);
+      if (goals.length > 0) {
+        setSavedGoal(goals[0]);
+        setShowNewGoalForm(false);
+        // Reset form
+        setTargetSkinName('');
+        setTargetSkinPrice('');
+        setSelectedItemIds([]);
+        setExistingBalance('');
+        setSelectedSkin(null);
+      }
     } catch (error) {
       console.error('Failed to save goal', error);
       setFormError(error instanceof Error ? error.message : 'Failed to save goal. Please try again.');
