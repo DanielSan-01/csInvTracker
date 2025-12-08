@@ -48,3 +48,4 @@ export default function DetailInfoPills({ item }: DetailInfoPillsProps) {
 
 
 
+

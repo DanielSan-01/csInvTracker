@@ -195,3 +195,4 @@ Steam Web API has a limit of **100,000 calls per day** per API key. The current 
 5. ⏳ Handle edge cases (private profiles, empty inventories, etc.)
 
 
+
