@@ -41,7 +41,7 @@ export default function InventoryGridList({ items, selectedId, onSelect }: Inven
   };
 
   return (
-    <div className="lg:col-span-2">
+    <div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
         {paginatedItems.map((item) => (
           <div key={item.id} data-item-id={item.id}>
