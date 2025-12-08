@@ -133,12 +133,17 @@ public class SteamInventoryImportService
                     existingItem.PaintSeed = updatedPaintSeed;
                     existingItem.TradeProtected = !steamItem.Tradable;
                     
-                    // Update price if it's currently 0 and we have a market price
-                    if (existingItem.Price == 0 && marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) && existingPrice.HasValue)
+                    // Always update price with latest market price during import
+                    if (marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) && existingPrice.HasValue)
                     {
                         existingItem.Price = existingPrice.Value;
                         _logger.LogDebug("Updated price for existing item {MarketHashName}: ${Price}", 
                             steamItem.MarketHashName, existingPrice.Value);
+                    }
+                    else if (existingItem.Price == 0)
+                    {
+                        _logger.LogDebug("No market price available for existing item {MarketHashName}, keeping price at 0", 
+                            steamItem.MarketHashName);
                     }
                     
                     // Update stickers if any
@@ -252,17 +257,16 @@ public class SteamInventoryImportService
         if (string.IsNullOrWhiteSpace(marketHashName))
             return null;
 
-        // TODO: Re-enable after migration is applied
         // Strategy 1: EXACT match on MarketHashName field (most accurate - Steam's exact identifier)
-        // var exactMarketHashMatch = skins.FirstOrDefault(s =>
-        //     !string.IsNullOrEmpty(s.MarketHashName) &&
-        //     s.MarketHashName.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
-        // if (exactMarketHashMatch != null)
-        // {
-        //     _logger.LogDebug("Exact MarketHashName match found: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
-        //         marketHashName, exactMarketHashMatch.Name, exactMarketHashMatch.Id);
-        //     return exactMarketHashMatch;
-        // }
+        var exactMarketHashMatch = skins.FirstOrDefault(s =>
+            !string.IsNullOrEmpty(s.MarketHashName) &&
+            s.MarketHashName.Equals(marketHashName, StringComparison.OrdinalIgnoreCase));
+        if (exactMarketHashMatch != null)
+        {
+            _logger.LogDebug("Exact MarketHashName match found: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
+                marketHashName, exactMarketHashMatch.Name, exactMarketHashMatch.Id);
+            return exactMarketHashMatch;
+        }
 
         var normalizedSearch = NormalizeSkinName(marketHashName);
         if (string.IsNullOrWhiteSpace(normalizedSearch))

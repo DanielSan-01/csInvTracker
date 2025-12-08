@@ -45,6 +45,7 @@ export default function ItemGrid() {
   const [quickAddSkin, setQuickAddSkin] = useState<SkinDto | null>(null);
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
+  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
   // CSV import temporarily disabled; keep state commented for future use.
   // const [isImportingCsv, setIsImportingCsv] = useState(false);
@@ -495,6 +496,50 @@ export default function ItemGrid() {
     }
   };
 
+  const handleRefreshPrices = async () => {
+    if (!user) {
+      showToast('Please log in first!', 'error');
+      return;
+    }
+
+    setIsRefreshingPrices(true);
+    try {
+      console.log('Refreshing prices for user:', user.id);
+      
+      const { steamInventoryApi } = await import('@/lib/api');
+      const result = await steamInventoryApi.refreshPrices(user.id);
+
+      // Refresh inventory display
+      await refresh();
+
+      // Show results
+      if (result.updated > 0) {
+        showToast(
+          `Successfully updated prices for ${result.updated} item${result.updated !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
+          'success'
+        );
+      } else if (result.skipped > 0) {
+        showToast(
+          `No prices updated. ${result.skipped} item${result.skipped !== 1 ? 's' : ''} skipped (no market data available)`,
+          'info'
+        );
+      } else {
+        showToast('No items found to refresh prices for.', 'info');
+      }
+
+      if (result.errors > 0 && result.errorMessages.length > 0) {
+        console.error('Price refresh errors:', result.errorMessages);
+        showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred. Check console for details.`, 'error');
+      }
+    } catch (error) {
+      console.error('Error refreshing prices:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`Failed to refresh prices: ${errorMessage}`, 'error');
+    } finally {
+      setIsRefreshingPrices(false);
+    }
+  };
+
   const filteredItems = sortedItems.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -642,10 +687,6 @@ export default function ItemGrid() {
             <InventoryFilterInput value={searchTerm} onChange={setSearchTerm} />
           </div>
           <div className="flex items-center gap-2">
-            <InventorySortSelector 
-              currentSort={sortOption} 
-              onSortChange={setSortOption} 
-            />
             {user && (
               <>
               <button
@@ -667,6 +708,28 @@ export default function ItemGrid() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     Refresh from Steam
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleRefreshPrices}
+                disabled={isRefreshingPrices || sortedItems.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh market prices for all items in your inventory"
+              >
+                {isRefreshingPrices ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refreshing...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Refresh Prices
                   </>
                 )}
               </button>
@@ -708,11 +771,20 @@ export default function ItemGrid() {
         <ExpandableDashboard items={sortedItems} />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <InventoryGridList
-            items={filteredItems}
-            selectedId={selectedItemId}
-            onSelect={(id) => setSelectedItemId(id)}
-          />
+          <div className="lg:col-span-2">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-white">Your Inventory</h2>
+              <InventorySortSelector 
+                currentSort={sortOption} 
+                onSortChange={setSortOption} 
+              />
+            </div>
+            <InventoryGridList
+              items={filteredItems}
+              selectedId={selectedItemId}
+              onSelect={(id) => setSelectedItemId(id)}
+            />
+          </div>
           <InventoryDetailPanel
             item={selectedItem}
             onEdit={

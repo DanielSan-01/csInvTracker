@@ -166,13 +166,12 @@ public class SteamCatalogRefreshService
                         // Update existing skin with Steam's latest data
                         var wasUpdated = false;
 
-                        // TODO: Re-enable after migration is applied
                         // Always update market_hash_name if it's missing or different
-                        // if (!string.IsNullOrEmpty(item.MarketHashName) && existingSkin.MarketHashName != item.MarketHashName)
-                        // {
-                        //     existingSkin.MarketHashName = item.MarketHashName;
-                        //     wasUpdated = true;
-                        // }
+                        if (!string.IsNullOrEmpty(item.MarketHashName) && existingSkin.MarketHashName != item.MarketHashName)
+                        {
+                            existingSkin.MarketHashName = item.MarketHashName;
+                            wasUpdated = true;
+                        }
 
                         // Always update image URL from Steam (Steam has the latest images)
                         if (!string.IsNullOrEmpty(item.ImageUrl) && existingSkin.ImageUrl != item.ImageUrl)
@@ -216,7 +215,7 @@ public class SteamCatalogRefreshService
                         var newSkin = new Skin
                         {
                             Name = item.MarketHashName,
-                            // MarketHashName = item.MarketHashName, // TODO: Re-enable after migration is applied
+                            MarketHashName = item.MarketHashName,
                             Rarity = rarity ?? "Unknown",
                             Type = type ?? "Unknown",
                             Weapon = weapon,

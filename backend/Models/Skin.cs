@@ -32,6 +32,13 @@ public class Skin
     
     public int? PaintIndex { get; set; }
     
+    /// <summary>
+    /// Steam's exact market hash name for precise matching
+    /// Used to match Steam inventory items to catalog skins
+    /// </summary>
+    [MaxLength(200)]
+    public string? MarketHashName { get; set; }
+    
     // Navigation property
     public ICollection<InventoryItem> InventoryItems { get; set; } = new List<InventoryItem>();
 }

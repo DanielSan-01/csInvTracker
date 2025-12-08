@@ -404,7 +404,47 @@ export const steamInventoryApi = {
 
     return response.json();
   },
+
+  // Refresh market prices for existing inventory items
+  refreshPrices: async (
+    userId?: number
+  ): Promise<RefreshPricesResult> => {
+    const url = new URL(`${API_BASE_URL}/inventory/refresh-prices`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      // Try to parse as JSON first
+      let errorMessage = `Failed to refresh prices: `;
+      try {
+        const errorData = await response.json();
+        errorMessage += errorData.error || errorData.details || JSON.stringify(errorData);
+      } catch {
+        errorMessage += await response.text();
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
 };
+
+export interface RefreshPricesResult {
+  totalItems: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  errorMessages: string[];
+}
 
 export interface BulkImportInventoryResult {
   userId: number;

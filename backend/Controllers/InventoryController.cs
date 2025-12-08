@@ -993,6 +993,160 @@ public class InventoryController : ControllerBase
             return StatusCode(500, new { error = "An error occurred while refreshing inventory from Steam", message = ex.Message });
         }
     }
+
+    // POST: api/inventory/refresh-prices
+    // Refreshes market prices for all items in a user's inventory
+    [HttpPost("refresh-prices")]
+    public async Task<ActionResult<RefreshPricesResult>> RefreshPrices(
+        [FromQuery] int? userId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Get userId from query param or from authenticated user
+            int targetUserId;
+            if (userId.HasValue)
+            {
+                targetUserId = userId.Value;
+            }
+            else
+            {
+                // Try to get from authenticated user
+                var userIdClaim = User.FindFirst("userId")?.Value 
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out targetUserId))
+                {
+                    return Unauthorized(new { error = "User ID is required. Please provide userId query parameter or authenticate." });
+                }
+            }
+
+            // Verify user exists
+            var user = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
+            if (user == null)
+            {
+                return BadRequest(new { error = "User not found" });
+            }
+
+            _logger.LogInformation("Starting price refresh for user {UserId}", targetUserId);
+
+            // Get all inventory items for this user with their skins
+            var inventoryItems = await _context.InventoryItems
+                .Include(i => i.Skin)
+                .Where(i => i.UserId == targetUserId)
+                .ToListAsync(cancellationToken);
+
+            if (inventoryItems.Count == 0)
+            {
+                return Ok(new RefreshPricesResult
+                {
+                    TotalItems = 0,
+                    Updated = 0,
+                    Skipped = 0,
+                    Errors = 0,
+                    ErrorMessages = new List<string>()
+                });
+            }
+
+            // Get unique market hash names from items that have skins with MarketHashName
+            var marketHashNames = inventoryItems
+                .Where(i => i.Skin != null && !string.IsNullOrWhiteSpace(i.Skin.MarketHashName))
+                .Select(i => i.Skin!.MarketHashName!)
+                .Distinct()
+                .ToList();
+
+            if (marketHashNames.Count == 0)
+            {
+                _logger.LogWarning("No items with MarketHashName found for user {UserId}. Cannot refresh prices.", targetUserId);
+                return Ok(new RefreshPricesResult
+                {
+                    TotalItems = inventoryItems.Count,
+                    Updated = 0,
+                    Skipped = inventoryItems.Count,
+                    Errors = 0,
+                    ErrorMessages = new List<string> { "No items with market hash names found. Prices cannot be refreshed." }
+                });
+            }
+
+            _logger.LogInformation("Fetching market prices for {Count} unique items...", marketHashNames.Count);
+
+            // Fetch market prices with rate limiting
+            var marketPrices = await _steamApiService.GetMarketPricesAsync(
+                marketHashNames,
+                appId: 730,
+                delayMs: 200, // 200ms delay between requests to avoid rate limiting
+                cancellationToken);
+
+            var pricesFound = marketPrices.Values.Count(p => p.HasValue);
+            _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
+
+            // Update prices for all items
+            var result = new RefreshPricesResult
+            {
+                TotalItems = inventoryItems.Count,
+                Updated = 0,
+                Skipped = 0,
+                Errors = 0,
+                ErrorMessages = new List<string>()
+            };
+
+            foreach (var item in inventoryItems)
+            {
+                try
+                {
+                    if (item.Skin == null || string.IsNullOrWhiteSpace(item.Skin.MarketHashName))
+                    {
+                        result.Skipped++;
+                        continue;
+                    }
+
+                    if (marketPrices.TryGetValue(item.Skin.MarketHashName, out var price) && price.HasValue)
+                    {
+                        var oldPrice = item.Price;
+                        item.Price = price.Value;
+                        result.Updated++;
+                        
+                        _logger.LogDebug("Updated price for item {ItemId} ({MarketHashName}): ${OldPrice} -> ${NewPrice}",
+                            item.Id, item.Skin.MarketHashName, oldPrice, price.Value);
+                    }
+                    else
+                    {
+                        result.Skipped++;
+                        _logger.LogDebug("No market price available for item {ItemId} ({MarketHashName})",
+                            item.Id, item.Skin.MarketHashName);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error updating price for item {ItemId}", item.Id);
+                    result.Errors++;
+                    result.ErrorMessages.Add($"Error updating item {item.Id}: {ex.Message}");
+                }
+            }
+
+            // Save all changes
+            await _context.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "Price refresh completed for user {UserId}: {Updated} updated, {Skipped} skipped, {Errors} errors",
+                targetUserId, result.Updated, result.Skipped, result.Errors);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing prices");
+            return StatusCode(500, new { error = "An error occurred while refreshing prices", message = ex.Message });
+        }
+    }
+}
+
+public class RefreshPricesResult
+{
+    public int TotalItems { get; set; }
+    public int Updated { get; set; }
+    public int Skipped { get; set; }
+    public int Errors { get; set; }
+    public List<string> ErrorMessages { get; set; } = new();
 }
 
 public class ImportSteamInventoryRequest
