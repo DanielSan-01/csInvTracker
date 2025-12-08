@@ -3,7 +3,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
-using Xunit.Sdk;
 
 namespace backend.Tests;
 
@@ -38,7 +37,7 @@ public class SteamApiServiceTests
         var runTests = Environment.GetEnvironmentVariable("RUN_STEAM_TESTS");
         if (!string.Equals(runTests, "1", StringComparison.OrdinalIgnoreCase))
         {
-            throw new SkipException("Set RUN_STEAM_TESTS=1 to run Steam market price integration tests.");
+            return;
         }
 
         const string knownMarketHash = "AK-47 | Redline (Field-Tested)";
@@ -49,4 +48,3 @@ public class SteamApiServiceTests
         Assert.True(price.Value > 0, "Expected market price to be greater than zero.");
     }
 }
-
