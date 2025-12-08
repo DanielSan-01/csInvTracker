@@ -269,35 +269,16 @@ export const authApi = {
 
   logout: async (): Promise<void> => {
     try {
-      // Try to get token for Authorization header
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      if (typeof document !== 'undefined') {
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-      }
-      
-      await fetch(`${API_BASE_URL}/auth/logout`, {
+      await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
-        headers,
       });
-      
-      // Clear localStorage after successful logout
-      if (typeof localStorage !== 'undefined') {
-        localStorage.removeItem('auth_token');
-      }
     } catch (error) {
-      // Even if the request fails, clear localStorage
+      console.warn('Logout route request failed, falling back to local cleanup:', error);
+    } finally {
       if (typeof localStorage !== 'undefined') {
         localStorage.removeItem('auth_token');
       }
-      // Don't throw - we've cleared local state
-      console.warn('Logout request failed, but local state cleared:', error);
     }
   },
 };

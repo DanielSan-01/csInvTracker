@@ -27,6 +27,10 @@ Here's what I'll do:
 This approach will [benefit/outcome]. Should I proceed?
 ```
 
+## Response Style
+- Begin every reply with a concise, plain-language overview.
+- Follow with the detailed technical explanation while keeping the relaxed tone.
+
 ## Code Style
 - Follow existing code patterns in the repository
 - Maintain consistency with current architecture
