@@ -282,6 +282,36 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine("AssetId column already exists.");
         }
         
+        // Workaround: Add MarketHashName column if migration did not run
+        Console.WriteLine("Checking for MarketHashName column on Skins...");
+        await connection.OpenAsync();
+        using (var checkMarketHashCommand = connection.CreateCommand())
+        {
+            checkMarketHashCommand.CommandText = @"
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'Skins'
+                    AND column_name = 'MarketHashName'
+                );
+            ";
+            var marketHashExists = (bool)(await checkMarketHashCommand.ExecuteScalarAsync() ?? false);
+            if (!marketHashExists)
+            {
+                Console.WriteLine("MarketHashName column missing. Adding it manually...");
+                await dbContext.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""Skins""
+                    ADD COLUMN ""MarketHashName"" character varying(200) NULL;
+                ");
+                Console.WriteLine("MarketHashName column added.");
+            }
+            else
+            {
+                Console.WriteLine("MarketHashName column already exists.");
+            }
+        }
+        await connection.CloseAsync();
+        
         // Workaround: Manually create Stickers table if it doesn't exist
         Console.WriteLine("Checking for Stickers table...");
         await connection.OpenAsync();
