@@ -533,6 +533,11 @@ public class InventoryController : ControllerBase
 
     private InventoryItemDto MapToDto(InventoryItem item)
     {
+        if (item == null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+
         // Handle null Skin gracefully (in case skin was deleted)
         if (item.Skin == null)
         {
@@ -576,8 +581,8 @@ public class InventoryController : ControllerBase
             SkinName = item.Skin.Name ?? "Unknown",
             Rarity = item.Skin.Rarity ?? "Unknown",
             Type = item.Skin.Type ?? "Unknown",
-                Collection = item.Skin.Collection,
-                Weapon = item.Skin.Weapon,
+            Collection = item.Skin.Collection,
+            Weapon = item.Skin.Weapon,
             Float = item.Float,
             Exterior = item.Exterior,
             PaintSeed = item.PaintSeed,
@@ -590,22 +595,43 @@ public class InventoryController : ControllerBase
             PaintIndex = item.Skin.PaintIndex
         };
 
-        var phaseInfo = _dopplerPhaseService.GetPhaseInfo(item.Skin.PaintIndex);
-        if (phaseInfo != null)
+        // Safely get Doppler phase info
+        try
         {
-            dto.DopplerPhase = phaseInfo.Phase;
-            dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
+            if (_dopplerPhaseService != null)
+            {
+                var phaseInfo = _dopplerPhaseService.GetPhaseInfo(item.Skin.PaintIndex);
+                if (phaseInfo != null)
+                {
+                    dto.DopplerPhase = phaseInfo.Phase;
+                    dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting Doppler phase info for inventory item {ItemId} (PaintIndex: {PaintIndex})", 
+                item.Id, item.Skin.PaintIndex);
+            // Continue without phase info rather than failing completely
         }
 
         // Map stickers
-        dto.Stickers = item.Stickers?.Select(s => new StickerDto
+        try
         {
-            Id = s.Id,
-            Name = s.Name,
-            Price = s.Price,
-            Slot = s.Slot,
-            ImageUrl = s.ImageUrl
-        }).ToList() ?? new List<StickerDto>();
+            dto.Stickers = item.Stickers?.Select(s => new StickerDto
+            {
+                Id = s.Id,
+                Name = s.Name ?? string.Empty,
+                Price = s.Price,
+                Slot = s.Slot,
+                ImageUrl = s.ImageUrl
+            }).ToList() ?? new List<StickerDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error mapping stickers for inventory item {ItemId}", item.Id);
+            dto.Stickers = new List<StickerDto>();
+        }
 
         return dto;
     }

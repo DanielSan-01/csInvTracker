@@ -27,13 +27,26 @@ public class SkinsController : ControllerBase
     {
         try
         {
+            _logger.LogInformation("Fetching skins from database...");
             var skins = await _context.Skins
                 .OrderBy(s => s.Name)
                 .ToListAsync();
 
-            var allSkins = skins
-                .Select(MapToDto)
-                .ToList();
+            _logger.LogInformation($"Retrieved {skins.Count} skins from database");
+
+            var allSkins = new List<SkinDto>();
+            foreach (var skin in skins)
+            {
+                try
+                {
+                    allSkins.Add(MapToDto(skin));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error mapping skin {SkinId} ({SkinName}) to DTO", skin.Id, skin.Name);
+                    // Continue processing other skins even if one fails
+                }
+            }
 
             // Apply case-insensitive search in memory if search term provided
             if (!string.IsNullOrWhiteSpace(search))
@@ -62,8 +75,8 @@ public class SkinsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching skins");
-            return StatusCode(500, "An error occurred while fetching skins");
+            _logger.LogError(ex, "Error fetching skins: {Message}\n{StackTrace}", ex.Message, ex.StackTrace);
+            return StatusCode(500, new { error = "An error occurred while fetching skins", details = ex.Message });
         }
     }
 
@@ -85,19 +98,24 @@ public class SkinsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error fetching skin {SkinId}", id);
-            return StatusCode(500, "An error occurred while fetching the skin");
+            _logger.LogError(ex, "Error fetching skin {SkinId}: {Message}\n{StackTrace}", id, ex.Message, ex.StackTrace);
+            return StatusCode(500, new { error = "An error occurred while fetching the skin", details = ex.Message });
         }
     }
 
     private SkinDto MapToDto(backend.Models.Skin skin)
     {
+        if (skin == null)
+        {
+            throw new ArgumentNullException(nameof(skin));
+        }
+
         var dto = new SkinDto
         {
             Id = skin.Id,
-            Name = skin.Name,
-            Rarity = skin.Rarity,
-            Type = skin.Type,
+            Name = skin.Name ?? string.Empty,
+            Rarity = skin.Rarity ?? string.Empty,
+            Type = skin.Type ?? string.Empty,
             Collection = skin.Collection,
             Weapon = skin.Weapon,
             ImageUrl = skin.ImageUrl,
@@ -105,11 +123,23 @@ public class SkinsController : ControllerBase
             PaintIndex = skin.PaintIndex
         };
 
-        var phaseInfo = _dopplerPhaseService.GetPhaseInfo(skin.PaintIndex);
-        if (phaseInfo != null)
+        try
         {
-            dto.DopplerPhase = phaseInfo.Phase;
-            dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
+            if (_dopplerPhaseService != null)
+            {
+                var phaseInfo = _dopplerPhaseService.GetPhaseInfo(skin.PaintIndex);
+                if (phaseInfo != null)
+                {
+                    dto.DopplerPhase = phaseInfo.Phase;
+                    dto.DopplerPhaseImageUrl = phaseInfo.ImageUrl;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error getting Doppler phase info for skin {SkinId} (PaintIndex: {PaintIndex})", 
+                skin.Id, skin.PaintIndex);
+            // Continue without phase info rather than failing completely
         }
 
         return dto;
