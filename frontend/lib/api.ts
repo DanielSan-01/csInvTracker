@@ -32,6 +32,8 @@ export interface SkinDto {
   paintIndex?: number;
   dopplerPhase?: string;
   dopplerPhaseImageUrl?: string;
+  marketHashName?: string;
+  priceExceedsSteamLimit?: boolean;
 }
 
 export interface StickerDto {
@@ -69,6 +71,7 @@ export interface InventoryItemDto {
   dopplerPhase?: string;
   dopplerPhaseImageUrl?: string;
   stickers?: StickerDto[];
+  priceExceedsSteamLimit: boolean;
 }
 
 export interface InventoryStatsDto {

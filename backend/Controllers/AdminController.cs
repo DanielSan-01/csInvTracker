@@ -105,6 +105,25 @@ public class AdminController : ControllerBase
         }
     }
 
+    [HttpDelete("inventory")]
+    public async Task<ActionResult> ClearAllInventory()
+    {
+        try
+        {
+            var deletedCount = await _adminService.ClearAllInventoryAsync();
+            return Ok(new
+            {
+                Message = $"Deleted {deletedCount} inventory items. Users will need to re-import.",
+                Deleted = deletedCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error clearing inventory items");
+            return StatusCode(500, new { Message = $"Failed to clear inventory items: {ex.Message}" });
+        }
+    }
+
     [HttpPost("import-from-bymykel")]
     public async Task<IActionResult> ImportFromByMykel(CancellationToken cancellationToken)
     {

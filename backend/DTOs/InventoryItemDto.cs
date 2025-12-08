@@ -14,6 +14,7 @@ public class InventoryItemDto
     public int? PaintSeed { get; set; }
     public decimal Price { get; set; }
     public decimal? Cost { get; set; }
+    public bool PriceExceedsSteamLimit { get; set; }
     public string? ImageUrl { get; set; }
     public bool TradeProtected { get; set; }
     public DateTime? TradableAfter { get; set; }

@@ -13,6 +13,7 @@ public class SteamInventoryImportService
     private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly SteamApiService _steamApiService;
     private readonly StickerCatalogService? _stickerCatalogService;
+    private const decimal SteamWalletLimit = 2000m;
 
     public SteamInventoryImportService(
         ApplicationDbContext context,
@@ -103,6 +104,11 @@ public class SteamInventoryImportService
                 _logger.LogDebug("Found matching skin: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
                     steamItem.MarketHashName, matchingSkin.Name, matchingSkin.Id);
 
+                if (string.IsNullOrWhiteSpace(matchingSkin.MarketHashName) && !string.IsNullOrWhiteSpace(steamItem.MarketHashName))
+                {
+                    matchingSkin.MarketHashName = steamItem.MarketHashName;
+                }
+
                 // Check if item already exists by AssetId (unique Steam identifier)
                 // If it exists, update it with latest Steam data (especially image URL)
                 InventoryItem? existingItem = null;
@@ -139,6 +145,17 @@ public class SteamInventoryImportService
                         existingItem.Price = existingPrice.Value;
                         _logger.LogDebug("Updated price for existing item {MarketHashName}: ${Price}", 
                             steamItem.MarketHashName, existingPrice.Value);
+
+                        if (existingPrice.Value > SteamWalletLimit)
+                        {
+                            _logger.LogInformation("Price for {MarketHashName} exceeds Steam balance limit (${Limit}). Value: ${Price}", 
+                                steamItem.MarketHashName, SteamWalletLimit, existingPrice.Value);
+                        }
+
+                        if (existingPrice.Value > 0)
+                        {
+                            matchingSkin.DefaultPrice = existingPrice.Value;
+                        }
                     }
                     else if (existingItem.Price == 0)
                     {
@@ -192,6 +209,14 @@ public class SteamInventoryImportService
                 {
                     _logger.LogDebug("Using market price for {MarketHashName}: ${Price}", 
                         steamItem.MarketHashName, marketPrice);
+
+                    if (marketPrice > SteamWalletLimit)
+                    {
+                        _logger.LogInformation("Market price for {MarketHashName} exceeds Steam balance limit (${Limit}). Value: ${Price}", 
+                            steamItem.MarketHashName, SteamWalletLimit, marketPrice);
+                    }
+
+                    matchingSkin.DefaultPrice = marketPrice;
                 }
                 else
                 {

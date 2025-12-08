@@ -1,0 +1,35 @@
+name: backend-tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      RUN_STEAM_TESTS: "1"
+      STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore backend/backend.csproj
+
+      - name: Run backend tests (Steam integration gated by secret)
+        run: |
+          if [ -z "$STEAM_API_KEY" ]; then
+            echo "STEAM_API_KEY secret missing; skipping Steam market integration test."
+            dotnet test backend/backend.csproj --filter FullyQualifiedName\!~SteamApiServiceTests
+          else
+            dotnet test backend/backend.csproj
+          fi
+

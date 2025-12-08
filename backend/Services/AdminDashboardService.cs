@@ -147,6 +147,28 @@ public class AdminDashboardService
         return skinsToDelete.Count;
     }
 
+    public async Task<int> ClearAllInventoryAsync()
+    {
+        var stickerCount = await _context.Stickers.CountAsync();
+        if (stickerCount > 0)
+        {
+            _context.Stickers.RemoveRange(_context.Stickers);
+        }
+
+        var inventoryItems = await _context.InventoryItems.ToListAsync();
+        if (inventoryItems.Count == 0)
+        {
+            return 0;
+        }
+
+        _context.InventoryItems.RemoveRange(inventoryItems);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Cleared {ItemCount} inventory items and {StickerCount} stickers", inventoryItems.Count, stickerCount);
+
+        return inventoryItems.Count;
+    }
+
     public async Task<BulkImportInventoryResult> BulkImportInventoryAsync(BulkImportInventoryRequest request)
     {
         var user = await _context.Users.FindAsync(request.UserId);

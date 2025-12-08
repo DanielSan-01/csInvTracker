@@ -19,6 +19,7 @@ public class InventoryController : ControllerBase
     private readonly SteamInventoryImportService _steamImportService;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly SteamApiService _steamApiService;
+    private const decimal SteamWalletLimit = 2000m;
 
     public InventoryController(
         ApplicationDbContext context,
@@ -558,6 +559,7 @@ public class InventoryController : ControllerBase
                 PaintSeed = item.PaintSeed,
                 Price = item.Price,
                 Cost = item.Cost,
+                PriceExceedsSteamLimit = item.Price > SteamWalletLimit,
                 ImageUrl = item.ImageUrl,
                 TradeProtected = item.TradeProtected,
                 TradableAfter = item.TradableAfter,
@@ -588,6 +590,7 @@ public class InventoryController : ControllerBase
             PaintSeed = item.PaintSeed,
             Price = item.Price,
             Cost = item.Cost,
+            PriceExceedsSteamLimit = item.Price > SteamWalletLimit,
             ImageUrl = item.ImageUrl ?? item.Skin.ImageUrl,
             TradeProtected = item.TradeProtected,
             TradableAfter = item.TradableAfter,

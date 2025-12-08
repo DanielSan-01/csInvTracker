@@ -44,11 +44,11 @@ export default function BulkPriceEditorModal({
           float: item.float ?? 0.5,
         });
         
-        // Auto-select items with price=0 or cost=0 or cost=null
         const hasNoPrice = !item.price || item.price === 0;
         const hasNoCost = item.cost == null || item.cost === 0;
+        const exceedsSteamLimit = item.priceExceedsSteamLimit ?? false;
         
-        if (hasNoPrice || hasNoCost) {
+        if (hasNoPrice || hasNoCost || exceedsSteamLimit) {
           autoSelectedIds.add(item.id);
         }
       });
@@ -57,6 +57,14 @@ export default function BulkPriceEditorModal({
       setSelectedItemIds(autoSelectedIds);
       setError(null);
       setShowSelectedOnly(false);
+      return;
+    }
+
+    if (!isOpen) {
+      setItemUpdates(new Map());
+      setSelectedItemIds(new Set());
+      setShowSelectedOnly(false);
+      setError(null);
     }
   }, [isOpen, items]);
 
@@ -204,8 +212,11 @@ export default function BulkPriceEditorModal({
               </button>
             )}
           </div>
-          <div className="text-sm text-gray-400">
-            Click items to select them for editing
+          <div className="text-sm text-gray-400 space-y-1">
+            <p>Click items to select them for editing.</p>
+            <p className="text-xs text-amber-200">
+              Items flagged with the $2000 cap badge exceeded Steam’s wallet limit and need manual pricing.
+            </p>
           </div>
         </div>
 
@@ -364,8 +375,13 @@ export default function BulkPriceEditorModal({
                       <div className="text-sm font-medium text-white line-clamp-2 mb-2">
                         {item.name}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        Price: ${update?.price?.toFixed(2) || '0.00'}
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <span>Price: ${update?.price?.toFixed(2) || '0.00'}</span>
+                        {item.priceExceedsSteamLimit && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200">
+                            $2000 cap
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

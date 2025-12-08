@@ -13,5 +13,7 @@ public class SkinDto
     public int? PaintIndex { get; set; }
     public string? DopplerPhase { get; set; }
     public string? DopplerPhaseImageUrl { get; set; }
+    public string? MarketHashName { get; set; }
+    public bool PriceExceedsSteamLimit { get; set; }
 }
 

@@ -13,6 +13,7 @@ public class SkinsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SkinsController> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
+    private const decimal SteamWalletLimit = 2000m;
 
     public SkinsController(ApplicationDbContext context, DopplerPhaseService dopplerPhaseService, ILogger<SkinsController> logger)
     {
@@ -120,7 +121,9 @@ public class SkinsController : ControllerBase
             Weapon = skin.Weapon,
             ImageUrl = skin.ImageUrl,
             DefaultPrice = skin.DefaultPrice,
-            PaintIndex = skin.PaintIndex
+            PaintIndex = skin.PaintIndex,
+            MarketHashName = skin.MarketHashName,
+            PriceExceedsSteamLimit = skin.DefaultPrice.HasValue && skin.DefaultPrice.Value > SteamWalletLimit
         };
 
         try

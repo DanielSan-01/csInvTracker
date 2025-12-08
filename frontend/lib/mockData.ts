@@ -59,6 +59,7 @@ export interface CSItem {
   dopplerPhase?: string;
   dopplerPhaseImageUrl?: string;
   stickers?: CSSticker[];
+  priceExceedsSteamLimit?: boolean;
 }
 
 export type Rarity = 

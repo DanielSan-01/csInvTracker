@@ -54,7 +54,28 @@ export default function ItemGrid() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
   const [showBulkPriceEditor, setShowBulkPriceEditor] = useState(false);
+  const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
   const { toast, showToast } = useToast();
+
+  const manualPricingItems = useMemo(() => {
+    return sortedItems.filter(item => item.price <= 0 || item.priceExceedsSteamLimit);
+  }, [sortedItems]);
+
+  const hasHighValueItems = manualPricingItems.some(item => item.priceExceedsSteamLimit);
+  const requiresManualPricing = manualPricingItems.length > 0;
+  const manualPricingBannerMessage = useMemo(() => {
+    if (!requiresManualPricing) {
+      return '';
+    }
+
+    const countLabel = `Manual overrides needed for ${manualPricingItems.length} item${manualPricingItems.length !== 1 ? 's' : ''}.`;
+
+    if (hasHighValueItems) {
+      return `${countLabel} Anything above Steam’s $2,000 Steam Wallet limit must be entered manually.`;
+    }
+
+    return `${countLabel} These items are missing a price or cost value. Use manual overrides to fill them in so totals stay accurate.`;
+  }, [requiresManualPricing, hasHighValueItems, manualPricingItems.length]);
 
   // Auto-import Steam inventory when user first logs in and has no items
   useEffect(() => {
@@ -645,6 +666,17 @@ export default function ItemGrid() {
         </div>
       )}
 
+      {user && requiresManualPricing && !dismissedManualPricingBanner && (
+        <div className="mx-auto mt-4 w-full max-w-7xl px-4 md:px-6">
+          <AnimatedBanner
+            message={manualPricingBannerMessage}
+            intent="warning"
+            autoClose={false}
+            onDismiss={() => setDismissedManualPricingBanner(true)}
+          />
+        </div>
+      )}
+
       {deleteCandidate && (
         <DeleteConfirmationModal
           item={deleteCandidate}
@@ -656,16 +688,17 @@ export default function ItemGrid() {
 
       {/* Bulk Price Editor Modal */}
       <BulkPriceEditorModal
-        items={sortedItems}
+        items={manualPricingItems}
         isOpen={showBulkPriceEditor}
         onClose={() => setShowBulkPriceEditor(false)}
         onSave={handleBulkPriceSave}
       />
 
-      {/* Consolidated Loading State - Show single overlay for any loading state */}
-      {(userLoading || loading || isLoadingSteam) && (
-        <InventoryLoadingOverlay 
-          username={user?.username} 
+      {/* Loading overlays */}
+      {isLoadingSteam && <SteamLoadingOverlay />}
+      {!isLoadingSteam && (userLoading || loading) && (
+        <InventoryLoadingOverlay
+          username={user?.username}
           displayName={user?.displayName}
         />
       )}
@@ -735,14 +768,14 @@ export default function ItemGrid() {
               </button>
               <button
                 onClick={() => setShowBulkPriceEditor(true)}
-                disabled={isUpdating || sortedItems.length === 0}
+                disabled={isUpdating || manualPricingItems.length === 0}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Add price, cost, and float values to your items"
+                title="Manually override prices or costs that Steam cannot provide"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Add Price to Items
+                Manual Price Overrides{manualPricingItems.length > 0 ? ` (${manualPricingItems.length})` : ''}
               </button>
               <button
                 onClick={() => setShowAddForm(true)}

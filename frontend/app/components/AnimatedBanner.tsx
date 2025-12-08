@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, ReactElement } from 'react';
 import { gsap } from 'gsap';
 
-type BannerIntent = 'success' | 'error' | 'info';
+type BannerIntent = 'success' | 'error' | 'info' | 'warning';
 
 type AnimatedBannerProps = {
   message: string;
@@ -18,6 +18,7 @@ const intentStyles: Record<BannerIntent, string> = {
     'border-emerald-400/40 bg-emerald-500/15 text-emerald-100 shadow-emerald-500/20',
   error: 'border-red-400/40 bg-red-500/15 text-red-100 shadow-red-500/20',
   info: 'border-purple-400/40 bg-purple-500/15 text-purple-100 shadow-purple-500/20',
+  warning: 'border-amber-400/40 bg-amber-500/15 text-amber-100 shadow-amber-500/20',
 };
 
 const intentIcons: Record<BannerIntent, ReactElement> = {
@@ -42,6 +43,11 @@ const intentIcons: Record<BannerIntent, ReactElement> = {
   info: (
     <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
       <path d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm9-4a1 1 0 10-2 0 1 1 0 002 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 000-2v-3a1 1 0 00-1-1H9z" />
+    </svg>
+  ),
+  warning: (
+    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.604c.75 1.335-.213 3.006-1.742 3.006H3.48c-1.53 0-2.492-1.67-1.742-3.006L8.257 3.1zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-2a1 1 0 01-1-1V7a1 1 0 112 0v3a1 1 0 01-1 1z" />
     </svg>
   ),
 };

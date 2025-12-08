@@ -35,6 +35,7 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
       slot: s.slot,
       imageUrl: s.imageUrl,
     })),
+    priceExceedsSteamLimit: dto.priceExceedsSteamLimit,
   };
   
   // Debug logging for stickers
