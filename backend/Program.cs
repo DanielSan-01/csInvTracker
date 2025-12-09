@@ -68,12 +68,13 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();
-    builder.Services.AddScoped<SteamApiService>();
-    builder.Services.AddScoped<AuthService>();
-    builder.Services.AddScoped<OpenIdVerificationService>();
-    builder.Services.AddScoped<StickerCatalogService>();
-    builder.Services.AddScoped<SteamInventoryImportService>();
-    builder.Services.AddScoped<SteamCatalogRefreshService>();
+builder.Services.AddScoped<SteamApiService>();
+builder.Services.AddScoped<CsMarketApiService>();
+builder.Services.AddScoped<AuthService>();
+builder.Services.AddScoped<OpenIdVerificationService>();
+builder.Services.AddScoped<StickerCatalogService>();
+builder.Services.AddScoped<SteamInventoryImportService>();
+builder.Services.AddScoped<SteamCatalogRefreshService>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection

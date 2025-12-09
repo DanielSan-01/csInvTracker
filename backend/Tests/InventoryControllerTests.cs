@@ -39,16 +39,26 @@ public class InventoryControllerTests : IDisposable
         var httpClientFactory = new TestHttpClientFactory();
         
         var steamApiLogger = NullLogger<SteamApiService>.Instance;
-        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                { "CsMarket:ApiKey", "test-key" },
+                { "CsMarket:Currency", "USD" }
+            })
+            .Build();
+
+        var csMarketLogger = NullLogger<CsMarketApiService>.Instance;
+        var csMarketService = new CsMarketApiService(httpClientFactory, configuration, csMarketLogger);
+
         var steamApiService = new SteamApiService(httpClientFactory, configuration, steamApiLogger);
         
         var stickerCatalogLogger = NullLogger<StickerCatalogService>.Instance;
         var stickerCatalogService = new StickerCatalogService(_context, stickerCatalogLogger);
         
         var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
-        var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService, steamApiService, stickerCatalogService);
+        var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService, csMarketService, stickerCatalogService);
 
-        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, httpClientFactory, steamApiService);
+        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, steamApiService, csMarketService);
         
         // Create test user
         var testUser = new User

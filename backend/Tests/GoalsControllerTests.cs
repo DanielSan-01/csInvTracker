@@ -6,6 +6,7 @@ using backend.Data;
 using backend.DTOs;
 using backend.Models;
 using backend.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -46,6 +47,16 @@ public class GoalsControllerTests : IDisposable
             new User { Id = 2, SteamId = "user-2", Username = "User 2" }
         );
         _context.SaveChanges();
+
+        // Seed authenticated user context (required by controller methods)
+        var authUser = _context.Users.First(u => u.Id == 1);
+        var token = _authService.GenerateToken(authUser);
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.Headers["Authorization"] = $"Bearer {token}";
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = httpContext
+        };
     }
 
     [Fact]

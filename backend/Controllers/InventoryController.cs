@@ -17,8 +17,8 @@ public class InventoryController : ControllerBase
     private readonly ILogger<InventoryController> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly SteamInventoryImportService _steamImportService;
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly SteamApiService _steamApiService;
+    private readonly CsMarketApiService _csMarketApiService;
     private const decimal SteamWalletLimit = 2000m;
 
     public InventoryController(
@@ -26,15 +26,15 @@ public class InventoryController : ControllerBase
         DopplerPhaseService dopplerPhaseService,
         ILogger<InventoryController> logger,
         SteamInventoryImportService steamImportService,
-        IHttpClientFactory httpClientFactory,
-        SteamApiService steamApiService)
+        SteamApiService steamApiService,
+        CsMarketApiService csMarketApiService)
     {
         _context = context;
         _dopplerPhaseService = dopplerPhaseService;
         _logger = logger;
         _steamImportService = steamImportService;
-        _httpClientFactory = httpClientFactory;
         _steamApiService = steamApiService;
+        _csMarketApiService = csMarketApiService;
     }
 
     // Helper method to determine exterior from float
@@ -1108,17 +1108,15 @@ public class InventoryController : ControllerBase
                 });
             }
 
-            _logger.LogInformation("Fetching market prices for {Count} unique items...", marketHashNames.Count);
+            _logger.LogInformation("Fetching CSMarket prices for {Count} unique items...", marketHashNames.Count);
 
-            // Fetch market prices with rate limiting
-            var marketPrices = await _steamApiService.GetMarketPricesAsync(
+            var marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
                 marketHashNames,
-                appId: 730,
-                delayMs: 200, // 200ms delay between requests to avoid rate limiting
-                cancellationToken);
+                delayMs: 200,
+                cancellationToken: cancellationToken);
 
             var pricesFound = marketPrices.Values.Count(p => p.HasValue);
-            _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
+            _logger.LogInformation("Fetched CSMarket prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
 
             // Update prices for all items
             var result = new RefreshPricesResult

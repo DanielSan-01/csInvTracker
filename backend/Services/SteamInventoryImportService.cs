@@ -12,7 +12,7 @@ public class SteamInventoryImportService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<SteamInventoryImportService> _logger;
     private readonly DopplerPhaseService _dopplerPhaseService;
-    private readonly SteamApiService _steamApiService;
+    private readonly CsMarketApiService _csMarketApiService;
     private readonly StickerCatalogService? _stickerCatalogService;
     private const decimal SteamWalletLimit = 2000m;
 
@@ -20,13 +20,13 @@ public class SteamInventoryImportService
         ApplicationDbContext context,
         ILogger<SteamInventoryImportService> logger,
         DopplerPhaseService dopplerPhaseService,
-        SteamApiService steamApiService,
+        CsMarketApiService csMarketApiService,
         StickerCatalogService? stickerCatalogService = null)
     {
         _context = context;
         _logger = logger;
         _dopplerPhaseService = dopplerPhaseService;
-        _steamApiService = steamApiService;
+        _csMarketApiService = csMarketApiService;
         _stickerCatalogService = stickerCatalogService;
     }
 
@@ -58,18 +58,17 @@ public class SteamInventoryImportService
         _logger.LogInformation("Loaded {Count} skins from catalog for matching", allSkins.Count);
 
         // Fetch market prices for all items (batch fetch with rate limiting)
-        _logger.LogInformation("Fetching Steam market prices for {Count} items...", steamItems.Count);
+        _logger.LogInformation("Fetching CSMarket prices for {Count} items...", steamItems.Count);
         var marketHashNames = steamItems
             .Where(item => !string.IsNullOrWhiteSpace(item.MarketHashName))
             .Select(item => item.MarketHashName)
             .Distinct()
             .ToList();
         
-        var marketPrices = await _steamApiService.GetMarketPricesAsync(
-            marketHashNames, 
-            appId: 730, 
-            delayMs: 200, // 200ms delay between requests to avoid rate limiting
-            cancellationToken);
+        var marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
+            marketHashNames,
+            delayMs: 200,
+            cancellationToken: cancellationToken);
         
         var pricesFound = marketPrices.Values.Count(p => p.HasValue);
         _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
