@@ -9,10 +9,12 @@ import { CSItem, Rarity, Exterior, ItemType } from './mockData';
  * Convert backend InventoryItemDto to frontend CSItem format
  */
 export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
+  const marketHashName = dto.marketHashName ?? undefined;
   const converted = {
     id: dto.id.toString(),
     skinId: dto.skinId,
     name: dto.skinName,
+    marketHashName,
     rarity: dto.rarity as Rarity,
     float: dto.float,
     exterior: dto.exterior as Exterior,
@@ -36,6 +38,9 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
       imageUrl: s.imageUrl,
     })),
     priceExceedsSteamLimit: dto.priceExceedsSteamLimit,
+    steamListingUrl: marketHashName
+      ? `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`
+      : undefined,
   };
   
   // Debug logging for stickers

@@ -42,9 +42,23 @@ export default function DetailInfoPills({ item }: DetailInfoPillsProps) {
           Paint seed: {item.paintSeed}
         </div>
       )}
+      {item.steamListingUrl && (
+        <a
+          href={item.steamListingUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${infoPillBase} group transition-colors duration-150 hover:border-purple-400 hover:bg-purple-400/10`}
+        >
+          <svg className="h-4 w-4 text-purple-300 group-hover:text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M12.293 2.293a1 1 0 011.414 0l3.999 3.999a1 1 0 010 1.414l-6.999 6.999a1 1 0 01-.343.219l-5 2a1 1 0 01-1.316-1.316l2-5a1 1 0 01.219-.343l6.999-6.999zM13 4.414L6.707 10.707l-.646 1.616 1.616-.646L14.586 5.414 13 3.828l-.707.586z" />
+          </svg>
+          View on Steam
+        </a>
+      )}
     </div>
   );
 }
+
 
 
 

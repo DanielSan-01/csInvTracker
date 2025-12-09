@@ -47,4 +47,22 @@ public class SteamApiServiceTests
         Assert.True(price.HasValue, "Expected a price value from Steam Market API.");
         Assert.True(price.Value > 0, "Expected market price to be greater than zero.");
     }
+
+    [Fact]
+    public async Task GetMarketDataAsync_ReturnsDetailedData_ForKnownMarketHashName()
+    {
+        var runTests = Environment.GetEnvironmentVariable("RUN_STEAM_TESTS");
+        if (!string.Equals(runTests, "1", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        const string knownMarketHash = "AK-47 | Redline (Field-Tested)";
+
+        var data = await _steamApiService.GetMarketDataAsync(knownMarketHash);
+
+        Assert.NotNull(data);
+        Assert.True(data!.LowestPrice.HasValue && data.LowestPrice.Value > 0, "Expected a lowest price from Steam Market API.");
+        Assert.False(string.IsNullOrWhiteSpace(data.RawLowestPrice), "Expected raw lowest price string to be populated.");
+    }
 }

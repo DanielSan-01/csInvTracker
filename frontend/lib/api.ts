@@ -54,6 +54,7 @@ export interface InventoryItemDto {
   id: number;
   skinId: number;
   skinName: string;
+  marketHashName?: string | null;
   rarity: string;
   type: string;
   collection?: string | null;

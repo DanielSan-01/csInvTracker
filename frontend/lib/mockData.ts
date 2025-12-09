@@ -43,6 +43,7 @@ export interface CSItem {
   id: string;
   skinId?: number;
   name: string;
+  marketHashName?: string;
   rarity: Rarity;
   float: number;
   exterior: Exterior;
@@ -60,6 +61,7 @@ export interface CSItem {
   dopplerPhaseImageUrl?: string;
   stickers?: CSSticker[];
   priceExceedsSteamLimit?: boolean;
+  steamListingUrl?: string;
 }
 
 export type Rarity = 

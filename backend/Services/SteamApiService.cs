@@ -1,4 +1,8 @@
+using System.Globalization;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace backend.Services;
 
@@ -93,73 +97,8 @@ public class SteamApiService
     /// </summary>
     public async Task<decimal?> GetMarketPriceAsync(string marketHashName, int appId = 730, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(marketHashName))
-        {
-            return null;
-        }
-
-        try
-        {
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(10);
-            
-            // Steam Market API endpoint
-            // appid=730 is CS:GO/CS2
-            // currency=1 is USD
-            var encodedName = Uri.EscapeDataString(marketHashName);
-            var url = $"https://steamcommunity.com/market/priceoverview/?appid={appId}&currency=1&market_hash_name={encodedName}";
-            
-            _logger.LogDebug("Fetching Steam market price for: {MarketHashName}", marketHashName);
-            
-            var response = await httpClient.GetAsync(url, cancellationToken);
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Steam Market API returned {StatusCode} for {MarketHashName}", 
-                    response.StatusCode, marketHashName);
-                return null;
-            }
-            
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-            var result = JsonSerializer.Deserialize<SteamMarketPriceResponse>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
-
-            if (result?.Success != true || string.IsNullOrWhiteSpace(result.LowestPrice))
-            {
-                _logger.LogDebug("No price data available for {MarketHashName}", marketHashName);
-                return null;
-            }
-
-            // Parse price string (format: "$1,234.56" or "$1234.56")
-            var priceString = result.LowestPrice
-                .Replace("$", "")
-                .Replace(",", "")
-                .Trim();
-
-            if (decimal.TryParse(priceString, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var price))
-            {
-                // Log warning if price exceeds Steam's $2000 limit
-                if (price > 2000)
-                {
-                    _logger.LogInformation("Market price for {MarketHashName} exceeds Steam balance limit ($2000): ${Price}", 
-                        marketHashName, price);
-                }
-                
-                _logger.LogDebug("Fetched market price for {MarketHashName}: ${Price}", marketHashName, price);
-                return price;
-            }
-
-            _logger.LogWarning("Failed to parse price '{PriceString}' for {MarketHashName}", 
-                result.LowestPrice, marketHashName);
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error fetching Steam market price for {MarketHashName}", marketHashName);
-            return null;
-        }
+        var data = await GetMarketDataAsync(marketHashName, appId, cancellationToken);
+        return data?.LowestPrice;
     }
 
     /// <summary>
@@ -179,8 +118,8 @@ public class SteamApiService
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            var price = await GetMarketPriceAsync(marketHashName, appId, cancellationToken);
-            results[marketHashName] = price;
+            var data = await GetMarketDataAsync(marketHashName, appId, cancellationToken);
+            results[marketHashName] = data?.LowestPrice;
 
             // Add delay between requests to avoid rate limiting (except for last item)
             if (delayMs > 0)
@@ -198,6 +137,215 @@ public class SteamApiService
         public string? LowestPrice { get; set; }
         public string? Volume { get; set; }
         public string? MedianPrice { get; set; }
+    }
+
+    public class SteamMarketData
+    {
+        public decimal? LowestPrice { get; init; }
+        public decimal? MedianPrice { get; init; }
+        public int? Volume { get; init; }
+        public string? RawLowestPrice { get; init; }
+        public string? RawMedianPrice { get; init; }
+        public string? CurrencyCode { get; init; }
+    }
+
+    private static decimal? ParsePriceString(string? priceString, out string? currencyCode)
+    {
+        currencyCode = null;
+
+        if (string.IsNullOrWhiteSpace(priceString))
+        {
+            return null;
+        }
+
+        var trimmed = priceString.Trim();
+
+        try
+        {
+            // Attempt to extract currency symbol/code by stripping all numeric characters
+            var currencyMatch = Regex.Replace(trimmed, @"[-\d\s.,]", string.Empty);
+            if (!string.IsNullOrWhiteSpace(currencyMatch))
+            {
+                currencyCode = currencyMatch switch
+                {
+                    "$" => "USD",
+                    "€" => "EUR",
+                    "£" => "GBP",
+                    "¥" => "JPY",
+                    "C$" or "CA$" => "CAD",
+                    "A$" => "AUD",
+                    "R$" => "BRL",
+                    "₽" => "RUB",
+                    "₹" => "INR",
+                    "kr" or "KR" => "SEK",
+                    "zł" => "PLN",
+                    "₩" => "KRW",
+                    _ => currencyMatch
+                };
+            }
+
+            // Extract numeric portion
+            var match = Regex.Match(trimmed, @"-?[\d\s.,]+");
+            if (!match.Success)
+            {
+                return null;
+            }
+
+            var numericPart = match.Value.Replace(" ", string.Empty);
+
+            if (numericPart.Contains(',') && numericPart.Contains('.'))
+            {
+                // Determine decimal separator based on last occurrence
+                var lastComma = numericPart.LastIndexOf(',');
+                var lastDot = numericPart.LastIndexOf('.');
+                if (lastComma > lastDot)
+                {
+                    // Comma is decimal separator, dot is thousands separator
+                    numericPart = numericPart.Replace(".", string.Empty)
+                                             .Replace(',', '.');
+                }
+                else
+                {
+                    // Dot is decimal separator
+                    numericPart = numericPart.Replace(",", string.Empty);
+                }
+            }
+            else if (numericPart.Contains(',') && !numericPart.Contains('.'))
+            {
+                // Treat comma as decimal separator
+                numericPart = numericPart.Replace(',', '.');
+            }
+            else
+            {
+                // Remove thousands separators (commas) if any remain
+                numericPart = numericPart.Replace(",", string.Empty);
+            }
+
+            if (decimal.TryParse(
+                    numericPart,
+                    NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands | NumberStyles.AllowLeadingSign,
+                    CultureInfo.InvariantCulture,
+                    out var parsed))
+            {
+                return parsed;
+            }
+        }
+        catch
+        {
+            // Intentionally swallow parsing errors here; caller will handle null
+        }
+
+        return null;
+    }
+
+    private static int? ParseVolumeString(string? volumeString)
+    {
+        if (string.IsNullOrWhiteSpace(volumeString))
+        {
+            return null;
+        }
+
+        var match = Regex.Match(volumeString, @"\d[\d\s,.]*");
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var numericPart = match.Value.Replace(" ", string.Empty);
+        numericPart = numericPart.Replace(",", string.Empty).Replace(".", string.Empty);
+
+        if (int.TryParse(numericPart, NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    public async Task<SteamMarketData?> GetMarketDataAsync(string marketHashName, int appId = 730, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(marketHashName))
+        {
+            return null;
+        }
+
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(10);
+
+            var encodedName = Uri.EscapeDataString(marketHashName);
+            var url = $"https://steamcommunity.com/market/priceoverview/?appid={appId}&currency=1&market_hash_name={encodedName}";
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Accept.Clear();
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Headers.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
+            request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            request.Headers.TryAddWithoutValidation("Cookie", "Steam_Language=english;steamCountry=US%7C0;timezoneOffset=0,0");
+
+            _logger.LogDebug("Fetching Steam market data for: {MarketHashName}", marketHashName);
+
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Steam Market API returned {StatusCode} for {MarketHashName}", response.StatusCode, marketHashName);
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            var result = JsonSerializer.Deserialize<SteamMarketPriceResponse>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            if (result == null || result.Success != true)
+            {
+                _logger.LogDebug("Steam Market API returned no data for {MarketHashName}. Success flag: {Success}", marketHashName, result?.Success);
+                return new SteamMarketData
+                {
+                    RawLowestPrice = result?.LowestPrice,
+                    RawMedianPrice = result?.MedianPrice
+                };
+            }
+
+            var lowestPrice = ParsePriceString(result.LowestPrice, out var currencyCode);
+            var medianPrice = ParsePriceString(result.MedianPrice, out _);
+            var volume = ParseVolumeString(result.Volume);
+
+            if (lowestPrice.HasValue)
+            {
+                if (lowestPrice.Value > 2000)
+                {
+                    _logger.LogInformation(
+                        "Market price for {MarketHashName} exceeds Steam balance limit ($2000): {Price}",
+                        marketHashName,
+                        lowestPrice.Value);
+                }
+
+                _logger.LogDebug("Fetched market lowest price for {MarketHashName}: {Price}", marketHashName, lowestPrice.Value);
+            }
+            else
+            {
+                _logger.LogDebug("Unable to parse lowest price '{RawPrice}' for {MarketHashName}", result.LowestPrice, marketHashName);
+            }
+
+            return new SteamMarketData
+            {
+                LowestPrice = lowestPrice,
+                MedianPrice = medianPrice,
+                Volume = volume,
+                RawLowestPrice = result.LowestPrice,
+                RawMedianPrice = result.MedianPrice,
+                CurrencyCode = currencyCode
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching Steam market data for {MarketHashName}", marketHashName);
+            return null;
+        }
     }
 }
 

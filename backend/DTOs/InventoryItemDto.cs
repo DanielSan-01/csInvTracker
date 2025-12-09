@@ -5,6 +5,7 @@ public class InventoryItemDto
     public int Id { get; set; }
     public int SkinId { get; set; }
     public string SkinName { get; set; } = string.Empty;
+    public string? MarketHashName { get; set; }
     public string Rarity { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public string? Collection { get; set; }

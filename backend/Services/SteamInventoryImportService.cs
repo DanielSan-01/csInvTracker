@@ -3,6 +3,7 @@ using backend.Data;
 using backend.Models;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Globalization;
 
 namespace backend.Services;
 
@@ -442,11 +443,43 @@ public class SteamInventoryImportService
                 // Extract float value
                 if (desc.Type == "float" || value.Contains("Float:", StringComparison.OrdinalIgnoreCase))
                 {
-                    var floatMatch = Regex.Match(value, @"[\d.]+");
-                    if (floatMatch.Success && double.TryParse(floatMatch.Value, out var parsedFloat))
+                    var floatMatch = Regex.Match(value, @"-?[\d.,]+");
+                    if (floatMatch.Success)
                     {
-                        floatValue = parsedFloat;
-                        exterior = GetExteriorFromFloat(floatValue);
+                        var numericPart = floatMatch.Value.Replace(" ", string.Empty);
+
+                        if (numericPart.Contains(',') && numericPart.Contains('.'))
+                        {
+                            var lastComma = numericPart.LastIndexOf(',');
+                            var lastDot = numericPart.LastIndexOf('.');
+                            if (lastComma > lastDot)
+                            {
+                                numericPart = numericPart.Replace(".", string.Empty)
+                                                         .Replace(',', '.');
+                            }
+                            else
+                            {
+                                numericPart = numericPart.Replace(",", string.Empty);
+                            }
+                        }
+                        else if (numericPart.Contains(',') && !numericPart.Contains('.'))
+                        {
+                            numericPart = numericPart.Replace(',', '.');
+                        }
+                        else
+                        {
+                            numericPart = numericPart.Replace(",", string.Empty);
+                        }
+
+                        if (double.TryParse(
+                                numericPart,
+                                NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
+                                CultureInfo.InvariantCulture,
+                                out var parsedFloat))
+                        {
+                            floatValue = parsedFloat;
+                            exterior = GetExteriorFromFloat(floatValue);
+                        }
                     }
                 }
 
