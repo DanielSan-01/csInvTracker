@@ -36,6 +36,18 @@ public class CsMarketApiService
         if (string.IsNullOrWhiteSpace(configuredKey))
         {
             configuredKey = Environment.GetEnvironmentVariable("CSMARKET_API_KEY");
+            if (string.IsNullOrWhiteSpace(configuredKey))
+            {
+                _logger.LogWarning("CSMarket API key not found in configuration or environment variables.");
+            }
+            else
+            {
+                _logger.LogInformation("CSMarket API key loaded from environment. Length: {Length}", configuredKey.Length);
+            }
+        }
+        else
+        {
+            _logger.LogInformation("CSMarket API key loaded from configuration. Length: {Length}", configuredKey.Length);
         }
 
         _apiKey = configuredKey?.Trim() ?? string.Empty;
