@@ -312,6 +312,36 @@ using (var scope = app.Services.CreateScope())
         }
         await connection.CloseAsync();
         
+        // Workaround: Add SteamMarketHashName column if migration did not run
+        Console.WriteLine("Checking for SteamMarketHashName column on InventoryItems...");
+        await connection.OpenAsync();
+        using (var checkItemMarketHashCommand = connection.CreateCommand())
+        {
+            checkItemMarketHashCommand.CommandText = @"
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'InventoryItems'
+                    AND column_name = 'SteamMarketHashName'
+                );
+            ";
+            var itemMarketHashExists = (bool)(await checkItemMarketHashCommand.ExecuteScalarAsync() ?? false);
+            if (!itemMarketHashExists)
+            {
+                Console.WriteLine("SteamMarketHashName column missing on InventoryItems. Adding it manually...");
+                await dbContext.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""InventoryItems""
+                    ADD COLUMN ""SteamMarketHashName"" character varying(200) NULL;
+                ");
+                Console.WriteLine("SteamMarketHashName column added on InventoryItems.");
+            }
+            else
+            {
+                Console.WriteLine("SteamMarketHashName column already exists on InventoryItems.");
+            }
+        }
+        await connection.CloseAsync();
+        
         // Workaround: Manually create Stickers table if it doesn't exist
         Console.WriteLine("Checking for Stickers table...");
         await connection.OpenAsync();
