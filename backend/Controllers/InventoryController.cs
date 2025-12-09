@@ -1080,6 +1080,20 @@ public class InventoryController : ControllerBase
                 });
             }
 
+            if (!_csMarketApiService.IsConfigured)
+            {
+                var message = "CSMarket API key not configured. Set CSMARKET_API_KEY to enable price refresh.";
+                _logger.LogWarning(message);
+                return Ok(new RefreshPricesResult
+                {
+                    TotalItems = inventoryItems.Count,
+                    Updated = 0,
+                    Skipped = inventoryItems.Count,
+                    Errors = 0,
+                    ErrorMessages = new List<string> { message }
+                });
+            }
+
             // Resolve market hash names per item (use the most precise data we have)
             var itemHashPairs = inventoryItems
                 .Select(i => new

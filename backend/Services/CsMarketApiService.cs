@@ -22,6 +22,8 @@ public class CsMarketApiService
     private readonly string[] _defaultMarkets;
     private readonly int? _maxAgeSeconds;
 
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
+
     public CsMarketApiService(
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
@@ -33,11 +35,6 @@ public class CsMarketApiService
         _apiKey = configuration["CsMarket:ApiKey"]
             ?? Environment.GetEnvironmentVariable("CSMARKET_API_KEY")
             ?? string.Empty;
-
-        if (string.IsNullOrWhiteSpace(_apiKey))
-        {
-            _logger.LogWarning("CSMarket API key is not configured. Price refresh will be disabled.");
-        }
 
         _currency = string.IsNullOrWhiteSpace(configuration["CsMarket:Currency"])
             ? "USD"
@@ -126,6 +123,7 @@ public class CsMarketApiService
 
         if (string.IsNullOrWhiteSpace(_apiKey))
         {
+            _logger.LogWarning("CSMarket API key is not configured. Cannot fetch market data for {MarketHashName}.", marketHashName);
             return null;
         }
 
