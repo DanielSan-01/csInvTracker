@@ -111,15 +111,22 @@ public class SteamApiService
         int delayMs = 200, // Delay between requests to avoid rate limiting
         CancellationToken cancellationToken = default)
     {
-        var results = new Dictionary<string, decimal?>();
+        var results = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
         
         foreach (var marketHashName in marketHashNames)
         {
             if (cancellationToken.IsCancellationRequested)
                 break;
 
-            var data = await GetMarketDataAsync(marketHashName, appId, cancellationToken);
-            results[marketHashName] = data?.LowestPrice;
+            if (string.IsNullOrWhiteSpace(marketHashName))
+            {
+                continue;
+            }
+
+            var trimmedHash = marketHashName.Trim();
+
+            var data = await GetMarketDataAsync(trimmedHash, appId, cancellationToken);
+            results[trimmedHash] = data?.LowestPrice;
 
             // Add delay between requests to avoid rate limiting (except for last item)
             if (delayMs > 0)

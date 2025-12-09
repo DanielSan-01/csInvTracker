@@ -163,6 +163,10 @@ namespace backend.Migrations
                     b.Property<int>("SkinId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SteamMarketHashName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<DateTime?>("TradableAfter")
                         .HasColumnType("timestamp with time zone");
 
@@ -173,8 +177,6 @@ namespace backend.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AssetId");
 
                     b.HasIndex("SkinId");
 

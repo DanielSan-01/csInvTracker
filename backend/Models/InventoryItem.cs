@@ -33,6 +33,9 @@ public class InventoryItem
     [Required]
     [Column(TypeName = "decimal(18,2)")]
     public decimal Price { get; set; }
+
+    [MaxLength(200)]
+    public string? SteamMarketHashName { get; set; }
     
     [Column(TypeName = "decimal(18,2)")]
     public decimal? Cost { get; set; }

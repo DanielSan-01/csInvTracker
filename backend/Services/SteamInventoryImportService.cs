@@ -92,6 +92,10 @@ public class SteamInventoryImportService
 
                 // Find matching skin in catalog
                 var matchingSkin = FindMatchingSkin(allSkins, steamItem.MarketHashName);
+                var trimmedMarketHashName = string.IsNullOrWhiteSpace(steamItem.MarketHashName)
+                    ? null
+                    : steamItem.MarketHashName.Trim();
+
                 if (matchingSkin == null)
                 {
                     _logger.LogWarning("No matching skin found in catalog for: {MarketHashName} (AssetId: {AssetId})", 
@@ -105,9 +109,9 @@ public class SteamInventoryImportService
                 _logger.LogDebug("Found matching skin: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
                     steamItem.MarketHashName, matchingSkin.Name, matchingSkin.Id);
 
-                if (string.IsNullOrWhiteSpace(matchingSkin.MarketHashName) && !string.IsNullOrWhiteSpace(steamItem.MarketHashName))
+                if (string.IsNullOrWhiteSpace(matchingSkin.MarketHashName) && !string.IsNullOrWhiteSpace(trimmedMarketHashName))
                 {
-                    matchingSkin.MarketHashName = steamItem.MarketHashName;
+                    matchingSkin.MarketHashName = trimmedMarketHashName;
                 }
 
                 // Check if item already exists by AssetId (unique Steam identifier)
@@ -139,6 +143,7 @@ public class SteamInventoryImportService
                     existingItem.Exterior = updatedExterior;
                     existingItem.PaintSeed = updatedPaintSeed;
                     existingItem.TradeProtected = !steamItem.Tradable;
+                    existingItem.SteamMarketHashName = trimmedMarketHashName;
                     
                     // Always update price with latest market price during import
                     if (marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) && existingPrice.HasValue)
@@ -230,6 +235,7 @@ public class SteamInventoryImportService
                     UserId = userId,
                     SkinId = matchingSkin.Id,
                     AssetId = steamItem.AssetId, // Store Steam asset ID for duplicate detection
+                    SteamMarketHashName = trimmedMarketHashName,
                     Float = floatValue,
                     Exterior = exterior,
                     PaintSeed = paintSeed,

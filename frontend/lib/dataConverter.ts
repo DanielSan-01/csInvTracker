@@ -9,7 +9,7 @@ import { CSItem, Rarity, Exterior, ItemType } from './mockData';
  * Convert backend InventoryItemDto to frontend CSItem format
  */
 export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
-  const marketHashName = dto.marketHashName ?? undefined;
+  const marketHashName = dto.marketHashName?.trim() || undefined;
   const converted = {
     id: dto.id.toString(),
     skinId: dto.skinId,

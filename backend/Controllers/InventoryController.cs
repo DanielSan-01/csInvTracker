@@ -550,7 +550,7 @@ public class InventoryController : ControllerBase
                 Id = item.Id,
                 SkinId = item.SkinId,
                 SkinName = "Unknown Skin",
-                MarketHashName = null,
+                MarketHashName = item.SteamMarketHashName?.Trim(),
                 Rarity = "Unknown",
                 Type = "Unknown",
                 Collection = null,
@@ -582,7 +582,9 @@ public class InventoryController : ControllerBase
             Id = item.Id,
             SkinId = item.SkinId,
             SkinName = item.Skin.Name ?? "Unknown",
-            MarketHashName = item.Skin.MarketHashName ?? item.Skin.Name,
+            MarketHashName = item.SteamMarketHashName?.Trim()
+                ?? item.Skin.MarketHashName?.Trim()
+                ?? item.Skin.Name,
             Rarity = item.Skin.Rarity ?? "Unknown",
             Type = item.Skin.Type ?? "Unknown",
             Collection = item.Skin.Collection,
@@ -1078,16 +1080,24 @@ public class InventoryController : ControllerBase
                 });
             }
 
-            // Get unique market hash names from items that have skins with MarketHashName
-            var marketHashNames = inventoryItems
-                .Where(i => i.Skin != null && !string.IsNullOrWhiteSpace(i.Skin.MarketHashName))
-                .Select(i => i.Skin!.MarketHashName!)
-                .Distinct()
+            // Resolve market hash names per item (use the most precise data we have)
+            var itemHashPairs = inventoryItems
+                .Select(i => new
+                {
+                    Item = i,
+                    Hash = (i.SteamMarketHashName ?? i.Skin?.MarketHashName)?.Trim()
+                })
+                .Where(x => !string.IsNullOrWhiteSpace(x.Hash))
+                .ToList();
+
+            var marketHashNames = itemHashPairs
+                .Select(x => x.Hash!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             if (marketHashNames.Count == 0)
             {
-                _logger.LogWarning("No items with MarketHashName found for user {UserId}. Cannot refresh prices.", targetUserId);
+                _logger.LogWarning("No market hash names available for user {UserId}. Cannot refresh prices.", targetUserId);
                 return Ok(new RefreshPricesResult
                 {
                     TotalItems = inventoryItems.Count,
@@ -1124,26 +1134,29 @@ public class InventoryController : ControllerBase
             {
                 try
                 {
-                    if (item.Skin == null || string.IsNullOrWhiteSpace(item.Skin.MarketHashName))
+                    var effectiveHash = (item.SteamMarketHashName ?? item.Skin?.MarketHashName)?.Trim();
+                    if (string.IsNullOrWhiteSpace(effectiveHash))
                     {
                         result.Skipped++;
+                        _logger.LogDebug("Skipping item {ItemId} because no market hash name is available.", item.Id);
                         continue;
                     }
 
-                    if (marketPrices.TryGetValue(item.Skin.MarketHashName, out var price) && price.HasValue)
+                    if (marketPrices.TryGetValue(effectiveHash, out var price) && price.HasValue)
                     {
                         var oldPrice = item.Price;
                         item.Price = price.Value;
+                        item.SteamMarketHashName = effectiveHash;
                         result.Updated++;
                         
                         _logger.LogDebug("Updated price for item {ItemId} ({MarketHashName}): ${OldPrice} -> ${NewPrice}",
-                            item.Id, item.Skin.MarketHashName, oldPrice, price.Value);
+                            item.Id, effectiveHash, oldPrice, price.Value);
                     }
                     else
                     {
                         result.Skipped++;
                         _logger.LogDebug("No market price available for item {ItemId} ({MarketHashName})",
-                            item.Id, item.Skin.MarketHashName);
+                            item.Id, effectiveHash);
                     }
                 }
                 catch (Exception ex)
