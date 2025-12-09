@@ -32,9 +32,13 @@ public class CsMarketApiService
         _httpClientFactory = httpClientFactory;
         _logger = logger;
 
-        _apiKey = configuration["CsMarket:ApiKey"]
-            ?? Environment.GetEnvironmentVariable("CSMARKET_API_KEY")
-            ?? string.Empty;
+        var configuredKey = configuration["CsMarket:ApiKey"];
+        if (string.IsNullOrWhiteSpace(configuredKey))
+        {
+            configuredKey = Environment.GetEnvironmentVariable("CSMARKET_API_KEY");
+        }
+
+        _apiKey = configuredKey?.Trim() ?? string.Empty;
 
         _currency = string.IsNullOrWhiteSpace(configuration["CsMarket:Currency"])
             ? "USD"
