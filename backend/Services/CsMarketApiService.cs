@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml;
@@ -162,11 +163,21 @@ public class CsMarketApiService
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogWarning(
-                    "CSMarket API returned {StatusCode} for {MarketHashName}. Response: {Body}",
-                    response.StatusCode,
-                    marketHashName,
-                    body.Length > 300 ? body[..300] : body);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _logger.LogDebug(
+                        "CSMarket API returned 404 (no listings) for {MarketHashName}. Response: {Body}",
+                        marketHashName,
+                        body.Length > 300 ? body[..300] : body);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "CSMarket API returned {StatusCode} for {MarketHashName}. Response: {Body}",
+                        response.StatusCode,
+                        marketHashName,
+                        body.Length > 300 ? body[..300] : body);
+                }
                 return null;
             }
 
@@ -283,7 +294,7 @@ public class CsMarketApiService
     private sealed class ListingItem
     {
         [JsonPropertyName("id")]
-        public int Id { get; set; }
+        public long Id { get; set; }
 
         [JsonPropertyName("market")]
         public string Market { get; set; } = string.Empty;
