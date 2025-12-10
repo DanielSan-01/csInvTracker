@@ -89,11 +89,31 @@ public class CsMarketApiService
 
         if (listingPrice.HasValue)
         {
+            _logger.LogInformation(
+                "CSMarket price resolved from live listings for {MarketHashName}: {Price}",
+                marketHashName,
+                listingPrice.Value);
             return listingPrice;
         }
 
         var salesData = await GetSalesLatestAggregatedAsync(marketHashName, markets, cancellationToken);
-        return ExtractBestSalesPrice(salesData);
+        var fallbackPrice = ExtractBestSalesPrice(salesData);
+
+        if (fallbackPrice.HasValue)
+        {
+            _logger.LogInformation(
+                "CSMarket price resolved from sales fallback for {MarketHashName}: {Price}",
+                marketHashName,
+                fallbackPrice.Value);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "CSMarket returned no pricing data for {MarketHashName}",
+                marketHashName);
+        }
+
+        return fallbackPrice;
     }
 
     /// <summary>
