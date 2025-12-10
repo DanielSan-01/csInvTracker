@@ -392,11 +392,19 @@ export const steamInventoryApi = {
 
   // Refresh market prices for existing inventory items
   refreshPrices: async (
-    userId?: number
+    userId?: number,
+    markets?: string[]
   ): Promise<RefreshPricesResult> => {
     const url = new URL(`${API_BASE_URL}/inventory/refresh-prices`);
     if (userId) {
       url.searchParams.append('userId', userId.toString());
+    }
+    if (markets && markets.length > 0) {
+      markets.forEach(market => {
+        if (market && market.trim().length > 0) {
+          url.searchParams.append('markets', market.trim().toUpperCase());
+        }
+      });
     }
 
     const response = await fetch(url.toString(), {

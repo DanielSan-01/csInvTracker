@@ -29,6 +29,7 @@ import { useToast } from './item-grid/useToast';
 import AnimatedBanner from './AnimatedBanner';
 import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
 import InventorySortSelector, { sortItems, type SortOption } from './item-grid/InventorySortSelector';
+import MarketSelector from './item-grid/MarketSelector';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
@@ -47,6 +48,7 @@ export default function ItemGrid() {
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
   // CSV import temporarily disabled; keep state commented for future use.
   // const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<CSItem | null>(null);
@@ -528,20 +530,27 @@ export default function ItemGrid() {
       console.log('Refreshing prices for user:', user.id);
       
       const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.refreshPrices(user.id);
+      const result = await steamInventoryApi.refreshPrices(
+        user.id,
+        selectedMarkets.length > 0 ? selectedMarkets : undefined
+      );
 
       // Refresh inventory display
       await refresh();
 
       // Show results
       if (result.updated > 0) {
+        const marketSuffix =
+          selectedMarkets.length > 0 ? ` (markets: ${selectedMarkets.join(', ')})` : '';
         showToast(
-          `Successfully updated prices for ${result.updated} item${result.updated !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
+          `Successfully updated prices for ${result.updated} item${result.updated !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}${marketSuffix}`,
           'success'
         );
       } else if (result.skipped > 0) {
+        const marketSuffix =
+          selectedMarkets.length > 0 ? ` with markets ${selectedMarkets.join(', ')}` : '';
         showToast(
-          `No prices updated. ${result.skipped} item${result.skipped !== 1 ? 's' : ''} skipped (no market data available)`,
+          `No prices updated. ${result.skipped} item${result.skipped !== 1 ? 's' : ''} skipped (no market data available${marketSuffix ? ` for ${marketSuffix}` : ''})`,
           'info'
         );
       } else {
@@ -722,6 +731,10 @@ export default function ItemGrid() {
           <div className="flex items-center gap-2">
             {user && (
               <>
+              <MarketSelector
+                value={selectedMarkets}
+                onChange={setSelectedMarkets}
+              />
               <button
                 onClick={handleLoadFromSteam}
                 disabled={isLoadingSteam}
