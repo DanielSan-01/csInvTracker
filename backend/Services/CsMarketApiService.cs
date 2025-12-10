@@ -42,12 +42,14 @@ public class CsMarketApiService
             }
             else
             {
-                _logger.LogInformation("CSMarket API key loaded from environment. Length: {Length}", configuredKey.Length);
+                var preview = configuredKey.Length > 4 ? configuredKey[..4] + "****" : "****";
+                _logger.LogInformation("CSMarket API key loaded from environment. Length: {Length}, Preview: {Preview}", configuredKey.Length, preview);
             }
         }
         else
         {
-            _logger.LogInformation("CSMarket API key loaded from configuration. Length: {Length}", configuredKey.Length);
+            var preview = configuredKey.Length > 4 ? configuredKey[..4] + "****" : "****";
+            _logger.LogInformation("CSMarket API key loaded from configuration. Length: {Length}, Preview: {Preview}", configuredKey.Length, preview);
         }
 
         _apiKey = configuredKey?.Trim() ?? string.Empty;
