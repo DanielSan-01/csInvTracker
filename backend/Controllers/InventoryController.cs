@@ -1122,10 +1122,22 @@ public class InventoryController : ControllerBase
                 });
             }
 
-            _logger.LogInformation("Fetching CSMarket prices for {Count} unique items...", marketHashNames.Count);
+            var marketFilters = ParseMarkets(Request);
+            if (marketFilters.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Fetching CSMarket prices for {Count} unique items across markets: {Markets}",
+                    marketHashNames.Count,
+                    string.Join(", ", marketFilters));
+            }
+            else
+            {
+                _logger.LogInformation("Fetching CSMarket prices for {Count} unique items (all markets)...", marketHashNames.Count);
+            }
 
             var marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
                 marketHashNames,
+                marketFilters.Count > 0 ? marketFilters : null,
                 delayMs: 200,
                 cancellationToken: cancellationToken);
 
@@ -1193,6 +1205,34 @@ public class InventoryController : ControllerBase
             _logger.LogError(ex, "Error refreshing prices");
             return StatusCode(500, new { error = "An error occurred while refreshing prices", message = ex.Message });
         }
+    }
+
+    private static IReadOnlyList<string> ParseMarkets(HttpRequest request)
+    {
+        if (request.Query.TryGetValue("markets", out var values) == false || values.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts)
+            {
+                if (!string.IsNullOrWhiteSpace(part))
+                {
+                    set.Add(part.ToUpperInvariant());
+                }
+            }
+        }
+
+        return set.Count == 0 ? Array.Empty<string>() : set.ToList();
     }
 }
 

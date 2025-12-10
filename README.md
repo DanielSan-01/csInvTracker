@@ -69,5 +69,19 @@ npm run dev
 3. Create a migration: `dotnet ef migrations add MigrationName --project backend`
 4. Apply migration: `dotnet ef database update --project backend`
 
+## CSMarket price refresh
 
-'
+The backend uses CSMarket aggregated listings for pricing. Trigger a refresh via:
+
+```bash
+curl -X POST "http://localhost:5000/api/inventory/refresh-prices?userId=1"
+```
+
+To limit pricing to specific marketplaces, pass one or more `markets` query parameters (comma-separated or repeated). Omitting the parameter queries every marketplace supported by CSMarket.
+
+```bash
+curl -X POST \
+  "http://localhost:5000/api/inventory/refresh-prices?userId=1&markets=SKINPORT,BUFFMARKET"
+```
+
+Valid market codes include `STEAMCOMMUNITY`, `BUFFMARKET`, `SKINPORT`, `MARKETCSGO`, `DMARKET`, `GAMERPAYGG`, `CSDEALS`, `SKINBARON`, `CSFLOAT`, `CSMONEY`, and `WHITEMARKET`.
