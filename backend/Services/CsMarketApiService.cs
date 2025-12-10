@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Xml;
 
 namespace backend.Services;
 
@@ -218,9 +219,10 @@ public class CsMarketApiService
             }
         }
 
-        if (_maxAgeSeconds.HasValue)
+        var maxAgeValue = FormatDurationSeconds(_maxAgeSeconds);
+        if (!string.IsNullOrWhiteSpace(maxAgeValue))
         {
-            query.Add(BuildQueryParameter("max_age", _maxAgeSeconds.Value.ToString()));
+            query.Add(BuildQueryParameter("max_age", maxAgeValue));
         }
 
         builder.Query = string.Join("&", query);
@@ -231,6 +233,17 @@ public class CsMarketApiService
     {
         var encoded = Uri.EscapeDataString(value);
         return $"{Uri.EscapeDataString(name)}={encoded}";
+    }
+
+    private static string? FormatDurationSeconds(int? seconds)
+    {
+        if (!seconds.HasValue || seconds.Value <= 0)
+        {
+            return null;
+        }
+
+        var timespan = TimeSpan.FromSeconds(seconds.Value);
+        return XmlConvert.ToString(timespan);
     }
 
     private static decimal? ExtractBestPrice(ListingsLatestAggregatedResponse? data)
