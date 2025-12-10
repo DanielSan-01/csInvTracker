@@ -62,7 +62,6 @@ cd frontend
 npm run dev
 ```
 
-
 ### Adding New Database Models
 
 1. Create a model in `backend/Models/`
