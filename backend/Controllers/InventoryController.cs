@@ -1094,18 +1094,30 @@ public class InventoryController : ControllerBase
                 });
             }
 
-            // Resolve market hash names per item (use the most precise data we have)
-            var itemHashPairs = inventoryItems
-                .Select(i => new
+            var itemCandidates = inventoryItems
+                .Select(item => new
                 {
-                    Item = i,
-                    Hash = (i.SteamMarketHashName ?? i.Skin?.MarketHashName)?.Trim()
+                    Item = item,
+                    Candidates = BuildMarketHashCandidates(item)
                 })
-                .Where(x => !string.IsNullOrWhiteSpace(x.Hash))
                 .ToList();
 
-            var marketHashNames = itemHashPairs
-                .Select(x => x.Hash!)
+            foreach (var entry in itemCandidates)
+            {
+                var item = entry.Item;
+                var candidates = string.Join(", ", entry.Candidates);
+                _logger.LogDebug(
+                    "Price refresh item {ItemId}: candidates [{Candidates}], steamHash={SteamHash}, skinHash={SkinHash}, exterior={Exterior}, float={Float}",
+                    item.Id,
+                    candidates,
+                    item.SteamMarketHashName?.Trim(),
+                    item.Skin?.MarketHashName?.Trim(),
+                    item.Exterior,
+                    item.Float);
+            }
+
+            var marketHashNames = itemCandidates
+                .SelectMany(x => x.Candidates)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -1154,34 +1166,45 @@ public class InventoryController : ControllerBase
                 ErrorMessages = new List<string>()
             };
 
-            foreach (var item in inventoryItems)
+            foreach (var entry in itemCandidates)
             {
+                var item = entry.Item;
                 try
                 {
-                    var effectiveHash = (item.SteamMarketHashName ?? item.Skin?.MarketHashName)?.Trim();
-                    if (string.IsNullOrWhiteSpace(effectiveHash))
+                    string? matchedHash = null;
+                    decimal? matchedPrice = null;
+
+                    foreach (var candidate in entry.Candidates)
+                    {
+                        if (marketPrices.TryGetValue(candidate, out var price) && price.HasValue)
+                        {
+                            matchedHash = candidate;
+                            matchedPrice = price.Value;
+                            break;
+                        }
+                    }
+
+                    if (!matchedPrice.HasValue)
                     {
                         result.Skipped++;
-                        _logger.LogDebug("Skipping item {ItemId} because no market hash name is available.", item.Id);
+                        _logger.LogDebug(
+                            "No market price available for item {ItemId}. Candidates tried: {Candidates}",
+                            item.Id,
+                            string.Join(", ", entry.Candidates));
                         continue;
                     }
 
-                    if (marketPrices.TryGetValue(effectiveHash, out var price) && price.HasValue)
-                    {
-                        var oldPrice = item.Price;
-                        item.Price = price.Value;
-                        item.SteamMarketHashName = effectiveHash;
-                        result.Updated++;
-                        
-                        _logger.LogDebug("Updated price for item {ItemId} ({MarketHashName}): ${OldPrice} -> ${NewPrice}",
-                            item.Id, effectiveHash, oldPrice, price.Value);
-                    }
-                    else
-                    {
-                        result.Skipped++;
-                        _logger.LogDebug("No market price available for item {ItemId} ({MarketHashName})",
-                            item.Id, effectiveHash);
-                    }
+                    var oldPrice = item.Price;
+                    item.Price = matchedPrice.Value;
+                    item.SteamMarketHashName = matchedHash;
+                    result.Updated++;
+
+                    _logger.LogDebug(
+                        "Updated price for item {ItemId} using {MarketHashName}: ${OldPrice} -> ${NewPrice}",
+                        item.Id,
+                        matchedHash,
+                        oldPrice,
+                        matchedPrice.Value);
                 }
                 catch (Exception ex)
                 {
@@ -1233,6 +1256,90 @@ public class InventoryController : ControllerBase
         }
 
         return set.Count == 0 ? Array.Empty<string>() : set.ToList();
+    }
+
+    private static IReadOnlyList<string> BuildMarketHashCandidates(InventoryItem item)
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddWithExteriorVariants(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            var trimmed = value.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+            {
+                return;
+            }
+
+            candidates.Add(trimmed);
+
+            if (ShouldAppendExterior(item) && !trimmed.Contains('(') && !string.IsNullOrWhiteSpace(item.Exterior))
+            {
+                var formattedExterior = NormalizeExterior(item.Exterior);
+                candidates.Add($"{trimmed} ({formattedExterior})");
+            }
+        }
+
+        AddWithExteriorVariants(item.SteamMarketHashName);
+        AddWithExteriorVariants(item.Skin?.MarketHashName);
+
+        if (!string.IsNullOrWhiteSpace(item.Skin?.Name))
+        {
+            AddWithExteriorVariants(item.Skin!.Name);
+        }
+
+        // As a last resort, add plain weapon name + exterior (e.g., "AK-47 | Fire Serpent (Field-Tested)")
+        if (ShouldAppendExterior(item) &&
+            !string.IsNullOrWhiteSpace(item.Skin?.Name) &&
+            !string.IsNullOrWhiteSpace(item.Exterior))
+        {
+            var formattedExterior = NormalizeExterior(item.Exterior);
+            candidates.Add($"{item.Skin!.Name.Trim()} ({formattedExterior})");
+        }
+
+        return candidates.ToList();
+    }
+
+    private static bool ShouldAppendExterior(InventoryItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Exterior))
+        {
+            return false;
+        }
+
+        var type = item.Skin?.Type ?? string.Empty;
+        var weapon = item.Skin?.Weapon ?? string.Empty;
+
+        // Items with a weapon or glove/knife types rely on exterior for pricing.
+        if (!string.IsNullOrWhiteSpace(weapon))
+        {
+            return true;
+        }
+
+        if (type.Contains("Glove", StringComparison.OrdinalIgnoreCase) ||
+            type.Contains("Knife", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string NormalizeExterior(string exterior)
+    {
+        return exterior switch
+        {
+            "Factory New" => "Factory New",
+            "Minimal Wear" => "Minimal Wear",
+            "Field-Tested" => "Field-Tested",
+            "Well-Worn" => "Well-Worn",
+            "Battle-Scarred" => "Battle-Scarred",
+            _ => exterior.Trim()
+        };
     }
 }
 
