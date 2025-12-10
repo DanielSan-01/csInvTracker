@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
@@ -443,49 +444,13 @@ public class SteamInventoryImportService
         {
             foreach (var desc in steamItem.Descriptions)
             {
-                var value = desc.Value ?? "";
+                var value = desc.Value ?? string.Empty;
                 
                 // Extract float value
-                if (desc.Type == "float" || value.Contains("Float:", StringComparison.OrdinalIgnoreCase))
+                if (TryExtractFloatValue(value, out var parsedFloat))
                 {
-                    var floatMatch = Regex.Match(value, @"-?[\d.,]+");
-                    if (floatMatch.Success)
-                    {
-                        var numericPart = floatMatch.Value.Replace(" ", string.Empty);
-
-                        if (numericPart.Contains(',') && numericPart.Contains('.'))
-                        {
-                            var lastComma = numericPart.LastIndexOf(',');
-                            var lastDot = numericPart.LastIndexOf('.');
-                            if (lastComma > lastDot)
-                            {
-                                numericPart = numericPart.Replace(".", string.Empty)
-                                                         .Replace(',', '.');
-                            }
-                            else
-                            {
-                                numericPart = numericPart.Replace(",", string.Empty);
-                            }
-                        }
-                        else if (numericPart.Contains(',') && !numericPart.Contains('.'))
-                        {
-                            numericPart = numericPart.Replace(',', '.');
-                        }
-                        else
-                        {
-                            numericPart = numericPart.Replace(",", string.Empty);
-                        }
-
-                        if (double.TryParse(
-                                numericPart,
-                                NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign,
-                                CultureInfo.InvariantCulture,
-                                out var parsedFloat))
-                        {
-                            floatValue = parsedFloat;
-                            exterior = GetExteriorFromFloat(floatValue);
-                        }
-                    }
+                    floatValue = parsedFloat;
+                    exterior = GetExteriorFromFloat(floatValue);
                 }
 
                 // Extract paint seed
@@ -518,6 +483,13 @@ public class SteamInventoryImportService
             var stickerTags = steamItem.Tags
                 .Where(t => t.Category == "Sticker")
                 .ToList();
+
+            var exteriorTag = steamItem.Tags
+                .FirstOrDefault(t => t.Category.Equals("Exterior", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(exteriorTag?.LocalizedTagName))
+            {
+                exterior = exteriorTag.LocalizedTagName.Trim();
+            }
             
             if (stickerTags.Count > 0)
             {
@@ -577,6 +549,65 @@ public class SteamInventoryImportService
         }
 
         return (floatValue, exterior, paintSeed, paintIndex, stickers);
+    }
+
+    private static bool TryExtractFloatValue(string rawValue, out double parsedFloat)
+    {
+        parsedFloat = 0.5;
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return false;
+        }
+
+        var decoded = WebUtility.HtmlDecode(rawValue);
+        var normalized = Regex.Replace(decoded, "<.*?>", " ");
+        normalized = normalized.Replace("\n", " ").Replace("\\n", " ");
+
+        if (!normalized.Contains("float", StringComparison.OrdinalIgnoreCase) &&
+            !normalized.Contains("wear", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var numberMatches = Regex.Matches(normalized, @"-?\d+[.,]?\d*");
+        foreach (Match match in numberMatches)
+        {
+            var numericPart = match.Value.Replace(" ", string.Empty);
+
+            if (numericPart.Contains(',') && numericPart.Contains('.'))
+            {
+                var lastComma = numericPart.LastIndexOf(',');
+                var lastDot = numericPart.LastIndexOf('.');
+                if (lastComma > lastDot)
+                {
+                    numericPart = numericPart.Replace(".", string.Empty)
+                                             .Replace(',', '.');
+                }
+                else
+                {
+                    numericPart = numericPart.Replace(",", string.Empty);
+                }
+            }
+            else if (numericPart.Contains(',') && !numericPart.Contains('.'))
+            {
+                numericPart = numericPart.Replace(',', '.');
+            }
+            else
+            {
+                numericPart = numericPart.Replace(",", string.Empty);
+            }
+
+            if (double.TryParse(numericPart, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var candidate))
+            {
+                if (candidate >= 0 && candidate <= 1)
+                {
+                    parsedFloat = candidate;
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static string GetExteriorFromFloat(double floatValue)
