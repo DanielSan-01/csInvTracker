@@ -451,6 +451,11 @@ public class SteamInventoryImportService
                 {
                     floatValue = parsedFloat;
                     exterior = GetExteriorFromFloat(floatValue);
+                    _logger.LogDebug(
+                        "Parsed float {Float} from Steam description for {MarketHashName} ({AssetId})",
+                        floatValue,
+                        steamItem.MarketHashName,
+                        steamItem.AssetId);
                 }
 
                 // Extract paint seed
@@ -489,6 +494,11 @@ public class SteamInventoryImportService
             if (!string.IsNullOrWhiteSpace(exteriorTag?.LocalizedTagName))
             {
                 exterior = exteriorTag.LocalizedTagName.Trim();
+                _logger.LogDebug(
+                    "Using Steam exterior tag '{Exterior}' for {MarketHashName} ({AssetId})",
+                    exterior,
+                    steamItem.MarketHashName,
+                    steamItem.AssetId);
             }
             
             if (stickerTags.Count > 0)
