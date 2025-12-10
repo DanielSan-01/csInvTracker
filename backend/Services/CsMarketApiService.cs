@@ -84,8 +84,16 @@ public class CsMarketApiService
         IEnumerable<string>? markets = null,
         CancellationToken cancellationToken = default)
     {
-        var data = await GetListingsLatestAggregatedAsync(marketHashName, markets, cancellationToken);
-        return ExtractBestPrice(data);
+        var listingData = await GetListingsLatestAggregatedAsync(marketHashName, markets, cancellationToken);
+        var listingPrice = ExtractBestPrice(listingData);
+
+        if (listingPrice.HasValue)
+        {
+            return listingPrice;
+        }
+
+        var salesData = await GetSalesLatestAggregatedAsync(marketHashName, markets, cancellationToken);
+        return ExtractBestSalesPrice(salesData);
     }
 
     /// <summary>
@@ -201,6 +209,73 @@ public class CsMarketApiService
         }
     }
 
+    private async Task<SalesLatestAggregatedResponse?> GetSalesLatestAggregatedAsync(
+        string marketHashName,
+        IEnumerable<string>? markets,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(marketHashName))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(_apiKey))
+        {
+            return null;
+        }
+
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(15);
+
+            var requestUri = BuildRequestUri(
+                "/v1/sales/latest/aggregate",
+                marketHashName,
+                markets);
+
+            using var response = await httpClient.GetAsync(requestUri, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    _logger.LogDebug(
+                        "CSMarket sales API returned 404 (no sales) for {MarketHashName}. Response: {Body}",
+                        marketHashName,
+                        body.Length > 300 ? body[..300] : body);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "CSMarket sales API returned {StatusCode} for {MarketHashName}. Response: {Body}",
+                        response.StatusCode,
+                        marketHashName,
+                        body.Length > 300 ? body[..300] : body);
+                }
+                return null;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var result = await JsonSerializer.DeserializeAsync<SalesLatestAggregatedResponse>(
+                stream,
+                JsonOptions,
+                cancellationToken);
+
+            return result;
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(ex, "CSMarket sales request timed out for {MarketHashName}", marketHashName);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch CSMarket sales data for {MarketHashName}", marketHashName);
+            return null;
+        }
+    }
+
     private Uri BuildRequestUri(string path, string marketHashName, IEnumerable<string>? markets)
     {
         var uri = new Uri(BaseUri, path);
@@ -255,6 +330,31 @@ public class CsMarketApiService
 
         var timespan = TimeSpan.FromSeconds(seconds.Value);
         return XmlConvert.ToString(timespan);
+    }
+
+    private static decimal? ExtractBestSalesPrice(SalesLatestAggregatedResponse? data)
+    {
+        if (data?.Sales == null || data.Sales.Count == 0)
+        {
+            return null;
+        }
+
+        var candidates = data.Sales
+            .Select(sale =>
+                sale.MedianPrice
+                ?? sale.MeanPrice
+                ?? sale.MinPrice
+                ?? sale.MaxPrice)
+            .Where(price => price.HasValue && price.Value > 0)
+            .Select(price => price!.Value)
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        return candidates.Min();
     }
 
     private static decimal? ExtractBestPrice(ListingsLatestAggregatedResponse? data)
@@ -319,6 +419,42 @@ public class CsMarketApiService
 
         [JsonPropertyName("timestamp")]
         public DateTime Timestamp { get; set; }
+    }
+
+    private sealed class SalesLatestAggregatedResponse
+    {
+        [JsonPropertyName("market_hash_name")]
+        public string MarketHashName { get; set; } = string.Empty;
+
+        [JsonPropertyName("sales")]
+        public List<SaleItem> Sales { get; set; } = new();
+    }
+
+    private sealed class SaleItem
+    {
+        [JsonPropertyName("id")]
+        public long Id { get; set; }
+
+        [JsonPropertyName("market")]
+        public string Market { get; set; } = string.Empty;
+
+        [JsonPropertyName("mean_price")]
+        public decimal? MeanPrice { get; set; }
+
+        [JsonPropertyName("min_price")]
+        public decimal? MinPrice { get; set; }
+
+        [JsonPropertyName("max_price")]
+        public decimal? MaxPrice { get; set; }
+
+        [JsonPropertyName("median_price")]
+        public decimal? MedianPrice { get; set; }
+
+        [JsonPropertyName("volume")]
+        public int? Volume { get; set; }
+
+        [JsonPropertyName("day")]
+        public DateTime Day { get; set; }
     }
 }
 
