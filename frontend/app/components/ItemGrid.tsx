@@ -559,7 +559,7 @@ export default function ItemGrid() {
             ? result.infoMessages[0]
             : 'CSMarket rate limit reached. Some items may not have updated yet. Please try again shortly.';
         console.warn('CSMarket rate limit details:', result.infoMessages ?? [warningMessage]);
-        showToast(warningMessage, 'warning');
+        showToast(warningMessage, 'info');
       } else if (result.infoMessages && result.infoMessages.length > 0) {
         console.info('CSMarket info:', result.infoMessages);
         showToast(result.infoMessages[0], 'info');
