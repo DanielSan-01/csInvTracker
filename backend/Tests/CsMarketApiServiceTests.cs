@@ -3,8 +3,10 @@ using System.Net.Http;
 using System.Text;
 using backend.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using System.Net.Http.Headers;
 
 namespace backend.Tests;
 
@@ -51,7 +53,8 @@ public class CsMarketApiServiceTests
 
         var httpClientFactory = new StubHttpClientFactory(handler);
         var configuration = BuildConfiguration();
-        var service = new CsMarketApiService(httpClientFactory, configuration, NullLogger<CsMarketApiService>.Instance);
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var service = new CsMarketApiService(httpClientFactory, configuration, memoryCache, NullLogger<CsMarketApiService>.Instance);
 
         // Act
         var price = await service.GetBestListingPriceAsync("AK-47 | Redline (Field-Tested)");
@@ -68,7 +71,8 @@ public class CsMarketApiServiceTests
         var handler = new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
         var httpClientFactory = new StubHttpClientFactory(handler);
         var configuration = BuildConfiguration();
-        var service = new CsMarketApiService(httpClientFactory, configuration, NullLogger<CsMarketApiService>.Instance);
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var service = new CsMarketApiService(httpClientFactory, configuration, memoryCache, NullLogger<CsMarketApiService>.Instance);
 
         // Act
         var prices = await service.GetBestListingPricesAsync(new[] { "  Item A  " }, delayMs: 0);
@@ -76,6 +80,100 @@ public class CsMarketApiServiceTests
         // Assert
         Assert.True(prices.ContainsKey("Item A"));
         Assert.Null(prices["Item A"]);
+    }
+
+    [Fact]
+    public async Task GetBestListingPriceAsync_RetriesOnRateLimit()
+    {
+        // Arrange
+        var callCount = 0;
+        var handler = new StubHttpMessageHandler(_ =>
+        {
+            callCount++;
+            if (callCount == 1)
+            {
+                var rateLimited = new HttpResponseMessage((HttpStatusCode)429);
+                rateLimited.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromMilliseconds(10));
+                rateLimited.Content = new StringContent("{\"detail\":\"Quota limit reached\"}", Encoding.UTF8, "application/json");
+                return rateLimited;
+            }
+
+            var json = """
+            {
+              "market_hash_name": "AK-47 | Redline (Field-Tested)",
+              "listings": [
+                {
+                  "id": 1,
+                  "market": "SKINPORT",
+                  "min_price": 100.0,
+                  "timestamp": "2025-01-01T00:00:00.000Z"
+                }
+              ]
+            }
+            """;
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+        });
+
+        var httpClientFactory = new StubHttpClientFactory(handler);
+        var configuration = BuildConfiguration();
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var service = new CsMarketApiService(httpClientFactory, configuration, memoryCache, NullLogger<CsMarketApiService>.Instance);
+
+        // Act
+        var price = await service.GetBestListingPriceAsync("AK-47 | Redline (Field-Tested)");
+
+        // Assert
+        Assert.Equal(100.0m, price);
+        Assert.True(service.EncounteredRateLimit);
+        Assert.NotEmpty(service.RateLimitMessages);
+        Assert.Equal(2, callCount);
+    }
+
+    [Fact]
+    public async Task GetBestListingPriceAsync_UsesCacheOnSubsequentCalls()
+    {
+        // Arrange
+        var callCount = 0;
+        var handler = new StubHttpMessageHandler(_ =>
+        {
+            callCount++;
+            var json = """
+            {
+              "market_hash_name": "AK-47 | Redline (Field-Tested)",
+              "listings": [
+                {
+                  "id": 1,
+                  "market": "SKINPORT",
+                  "min_price": 95.0,
+                  "timestamp": "2025-01-01T00:00:00.000Z"
+                }
+              ]
+            }
+            """;
+
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+        });
+
+        var httpClientFactory = new StubHttpClientFactory(handler);
+        var configuration = BuildConfiguration();
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var service = new CsMarketApiService(httpClientFactory, configuration, memoryCache, NullLogger<CsMarketApiService>.Instance);
+
+        // Act
+        var first = await service.GetBestListingPriceAsync("AK-47 | Redline (Field-Tested)");
+        var second = await service.GetBestListingPriceAsync("AK-47 | Redline (Field-Tested)");
+
+        // Assert
+        Assert.Equal(95.0m, first);
+        Assert.Equal(95.0m, second);
+        Assert.Equal(1, callCount);
     }
 
     private static IConfiguration BuildConfiguration()

@@ -74,6 +74,15 @@ public class SteamInventoryImportService
         var pricesFound = marketPrices.Values.Count(p => p.HasValue);
         _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
 
+        if (_csMarketApiService.EncounteredRateLimit)
+        {
+            _logger.LogWarning("CSMarket rate limit encountered while importing Steam inventory for user {UserId}", userId);
+            foreach (var detail in _csMarketApiService.RateLimitMessages)
+            {
+                _logger.LogDebug("CSMarket rate limit detail: {Detail}", detail);
+            }
+        }
+
         foreach (var steamItem in steamItems)
         {
             try

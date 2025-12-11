@@ -437,6 +437,8 @@ export interface RefreshPricesResult {
   skipped: number;
   errors: number;
   errorMessages: string[];
+  rateLimited?: boolean;
+  infoMessages?: string[];
 }
 
 export interface BulkImportInventoryResult {

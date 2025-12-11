@@ -1,7 +1,10 @@
 using System.Net;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Xml;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 
 namespace backend.Services;
 
@@ -10,6 +13,10 @@ namespace backend.Services;
 /// </summary>
 public class CsMarketApiService
 {
+    private const int MaxRateLimitRetries = 5;
+    private static readonly TimeSpan InitialRateLimitDelay = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan MaxRateLimitDelay = TimeSpan.FromSeconds(15);
+
     private static readonly Uri BaseUri = new("https://api.csmarketapi.com");
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -18,20 +25,29 @@ public class CsMarketApiService
     };
 
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<CsMarketApiService> _logger;
     private readonly string _apiKey;
     private readonly string _currency;
     private readonly string[] _defaultMarkets;
     private readonly int? _maxAgeSeconds;
+    private readonly TimeSpan _cacheDurationSuccess;
+    private readonly TimeSpan _cacheDurationNoData;
+    private bool _encounteredRateLimit;
+    private readonly List<string> _rateLimitMessages = new();
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
+    public bool EncounteredRateLimit => _encounteredRateLimit;
+    public IReadOnlyList<string> RateLimitMessages => _rateLimitMessages;
 
     public CsMarketApiService(
         IHttpClientFactory httpClientFactory,
         IConfiguration configuration,
+        IMemoryCache cache,
         ILogger<CsMarketApiService> logger)
     {
         _httpClientFactory = httpClientFactory;
+        _cache = cache;
         _logger = logger;
 
         var configuredKey = configuration["CsMarket:ApiKey"];
@@ -74,6 +90,17 @@ public class CsMarketApiService
         {
             _maxAgeSeconds = maxAgeSeconds;
         }
+
+        var successCacheSeconds = configuration.GetValue<int?>("CsMarket:CacheSuccessSeconds");
+        var noDataCacheSeconds = configuration.GetValue<int?>("CsMarket:CacheNoDataSeconds");
+
+        _cacheDurationSuccess = successCacheSeconds.HasValue && successCacheSeconds.Value > 0
+            ? TimeSpan.FromSeconds(successCacheSeconds.Value)
+            : TimeSpan.FromMinutes(15);
+
+        _cacheDurationNoData = noDataCacheSeconds.HasValue && noDataCacheSeconds.Value > 0
+            ? TimeSpan.FromSeconds(noDataCacheSeconds.Value)
+            : TimeSpan.FromMinutes(5);
     }
 
     /// <summary>
@@ -82,35 +109,60 @@ public class CsMarketApiService
     public async Task<decimal?> GetBestListingPriceAsync(
         string marketHashName,
         IEnumerable<string>? markets = null,
+        bool preserveRateLimitState = false,
         CancellationToken cancellationToken = default)
     {
-        var listingData = await GetListingsLatestAggregatedAsync(marketHashName, markets, cancellationToken);
+        if (string.IsNullOrWhiteSpace(marketHashName))
+        {
+            return null;
+        }
+
+        var normalizedHash = marketHashName.Trim();
+        var cacheKey = BuildCacheKey(normalizedHash, markets);
+
+        if (!preserveRateLimitState)
+        {
+            _encounteredRateLimit = false;
+            _rateLimitMessages.Clear();
+        }
+
+        if (_cache.TryGetValue<CachedPriceEntry>(cacheKey, out var cached) &&
+            cached is not null)
+        {
+            _logger.LogDebug("CSMarket cache hit for {MarketHashName}", normalizedHash);
+            return cached.Price;
+        }
+
+        var listingData = await GetListingsLatestAggregatedAsync(normalizedHash, markets, cancellationToken);
         var listingPrice = ExtractBestPrice(listingData);
 
         if (listingPrice.HasValue)
         {
             _logger.LogInformation(
                 "CSMarket price resolved from live listings for {MarketHashName}: {Price}",
-                marketHashName,
+                normalizedHash,
                 listingPrice.Value);
+            CachePrice(cacheKey, listingPrice.Value);
             return listingPrice;
         }
 
-        var salesData = await GetSalesLatestAggregatedAsync(marketHashName, markets, cancellationToken);
+        var salesData = await GetSalesLatestAggregatedAsync(normalizedHash, markets, cancellationToken);
         var fallbackPrice = ExtractBestSalesPrice(salesData);
 
         if (fallbackPrice.HasValue)
         {
             _logger.LogInformation(
                 "CSMarket price resolved from sales fallback for {MarketHashName}: {Price}",
-                marketHashName,
+                normalizedHash,
                 fallbackPrice.Value);
+            CachePrice(cacheKey, fallbackPrice.Value);
         }
         else
         {
             _logger.LogInformation(
                 "CSMarket returned no pricing data for {MarketHashName}",
-                marketHashName);
+                normalizedHash);
+            CachePrice(cacheKey, null);
         }
 
         return fallbackPrice;
@@ -125,6 +177,9 @@ public class CsMarketApiService
         int delayMs = 200,
         CancellationToken cancellationToken = default)
     {
+        _encounteredRateLimit = false;
+        _rateLimitMessages.Clear();
+
         var results = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var hash in marketHashNames)
@@ -140,7 +195,11 @@ public class CsMarketApiService
             }
 
             var trimmed = hash.Trim();
-            var price = await GetBestListingPriceAsync(trimmed, markets, cancellationToken);
+            var price = await GetBestListingPriceAsync(
+                trimmed,
+                markets,
+                preserveRateLimitState: true,
+                cancellationToken: cancellationToken);
             results[trimmed] = price;
 
             if (delayMs > 0)
@@ -187,35 +246,48 @@ public class CsMarketApiService
 
             _logger.LogDebug("Fetching CSMarket price for {MarketHashName} using {Uri}", marketHashName, requestUri);
 
-            using var response = await httpClient.GetAsync(requestUri, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var response = await SendWithRetriesAsync(
+                httpClient,
+                requestUri,
+                marketHashName,
+                "listings/latest/aggregate",
+                cancellationToken);
+
+            if (response == null)
             {
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                if (response.StatusCode == HttpStatusCode.NotFound)
-                {
-                    _logger.LogDebug(
-                        "CSMarket API returned 404 (no listings) for {MarketHashName}. Response: {Body}",
-                        marketHashName,
-                        body.Length > 300 ? body[..300] : body);
-                }
-                else
-                {
-                    _logger.LogWarning(
-                        "CSMarket API returned {StatusCode} for {MarketHashName}. Response: {Body}",
-                        response.StatusCode,
-                        marketHashName,
-                        body.Length > 300 ? body[..300] : body);
-                }
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var result = await JsonSerializer.DeserializeAsync<ListingsLatestAggregatedResponse>(
-                stream,
-                JsonOptions,
-                cancellationToken);
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _logger.LogDebug(
+                            "CSMarket API returned 404 (no listings) for {MarketHashName}. Response: {Body}",
+                            marketHashName,
+                            body.Length > 300 ? body[..300] : body);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "CSMarket API returned {StatusCode} for {MarketHashName}. Response: {Body}",
+                            response.StatusCode,
+                            marketHashName,
+                            body.Length > 300 ? body[..300] : body);
+                    }
 
-            return result;
+                    return null;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                return await JsonSerializer.DeserializeAsync<ListingsLatestAggregatedResponse>(
+                    stream,
+                    JsonOptions,
+                    cancellationToken);
+            }
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -254,35 +326,48 @@ public class CsMarketApiService
                 marketHashName,
                 markets);
 
-            using var response = await httpClient.GetAsync(requestUri, cancellationToken);
-            if (!response.IsSuccessStatusCode)
+            var response = await SendWithRetriesAsync(
+                httpClient,
+                requestUri,
+                marketHashName,
+                "sales/latest/aggregate",
+                cancellationToken);
+
+            if (response == null)
             {
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
-                if (response.StatusCode == HttpStatusCode.NotFound)
-                {
-                    _logger.LogDebug(
-                        "CSMarket sales API returned 404 (no sales) for {MarketHashName}. Response: {Body}",
-                        marketHashName,
-                        body.Length > 300 ? body[..300] : body);
-                }
-                else
-                {
-                    _logger.LogWarning(
-                        "CSMarket sales API returned {StatusCode} for {MarketHashName}. Response: {Body}",
-                        response.StatusCode,
-                        marketHashName,
-                        body.Length > 300 ? body[..300] : body);
-                }
                 return null;
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var result = await JsonSerializer.DeserializeAsync<SalesLatestAggregatedResponse>(
-                stream,
-                JsonOptions,
-                cancellationToken);
+            using (response)
+            {
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        _logger.LogDebug(
+                            "CSMarket sales API returned 404 (no sales) for {MarketHashName}. Response: {Body}",
+                            marketHashName,
+                            body.Length > 300 ? body[..300] : body);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "CSMarket sales API returned {StatusCode} for {MarketHashName}. Response: {Body}",
+                            response.StatusCode,
+                            marketHashName,
+                            body.Length > 300 ? body[..300] : body);
+                    }
 
-            return result;
+                    return null;
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                return await JsonSerializer.DeserializeAsync<SalesLatestAggregatedResponse>(
+                    stream,
+                    JsonOptions,
+                    cancellationToken);
+            }
         }
         catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -294,6 +379,39 @@ public class CsMarketApiService
             _logger.LogError(ex, "Failed to fetch CSMarket sales data for {MarketHashName}", marketHashName);
             return null;
         }
+    }
+
+    private string[] ResolveTargetMarkets(IEnumerable<string>? markets)
+    {
+        var providedMarkets = markets?
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Select(m => m.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(m => m, StringComparer.Ordinal)
+            .ToArray();
+
+        return providedMarkets is { Length: > 0 }
+            ? providedMarkets
+            : _defaultMarkets;
+    }
+
+    private string BuildCacheKey(string marketHashName, IEnumerable<string>? markets)
+    {
+        var targetMarkets = ResolveTargetMarkets(markets);
+        var marketsKey = targetMarkets.Length > 0 ? string.Join(',', targetMarkets) : "ALL";
+        var maxAgeKey = _maxAgeSeconds.HasValue ? _maxAgeSeconds.Value.ToString() : "DEFAULT";
+        return $"csmarket::{_currency}::{marketsKey}::{maxAgeKey}::{marketHashName.ToUpperInvariant()}";
+    }
+
+    private void CachePrice(string cacheKey, decimal? price)
+    {
+        var duration = price.HasValue ? _cacheDurationSuccess : _cacheDurationNoData;
+        if (duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        _cache.Set(cacheKey, new CachedPriceEntry { Price = price }, duration);
     }
 
     private Uri BuildRequestUri(string path, string marketHashName, IEnumerable<string>? markets)
@@ -308,14 +426,7 @@ public class CsMarketApiService
             BuildQueryParameter("currency", _currency)
         };
 
-        var providedMarkets = markets?.Where(m => !string.IsNullOrWhiteSpace(m))
-            .Select(m => m.Trim().ToUpperInvariant())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        var targetMarkets = providedMarkets is { Length: > 0 }
-            ? providedMarkets
-            : _defaultMarkets;
+        var targetMarkets = ResolveTargetMarkets(markets);
 
         foreach (var market in targetMarkets)
         {
@@ -402,6 +513,146 @@ public class CsMarketApiService
         return candidates.Min();
     }
 
+    private async Task<HttpResponseMessage?> SendWithRetriesAsync(
+        HttpClient client,
+        Uri requestUri,
+        string marketHashName,
+        string endpointName,
+        CancellationToken cancellationToken)
+    {
+        var backoff = InitialRateLimitDelay;
+
+        for (var attempt = 0; attempt < MaxRateLimitRetries; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var response = await client.GetAsync(requestUri, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return response;
+            }
+
+            if ((int)response.StatusCode == 429)
+            {
+                var retryDelay = await HandleRateLimitAsync(
+                    response,
+                    marketHashName,
+                    endpointName,
+                    backoff,
+                    attempt,
+                    cancellationToken);
+
+                if (retryDelay == null)
+                {
+                    return null;
+                }
+
+                backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, MaxRateLimitDelay.TotalMilliseconds));
+
+                try
+                {
+                    await Task.Delay(retryDelay.Value, cancellationToken);
+                }
+                catch (TaskCanceledException)
+                {
+                    throw;
+                }
+
+                continue;
+            }
+
+            return response;
+        }
+
+        _logger.LogWarning(
+            "CSMarket {Endpoint} rate limit exhausted for {MarketHashName} after {Attempts} retries",
+            endpointName,
+            marketHashName,
+            MaxRateLimitRetries);
+
+        return null;
+    }
+
+    private async Task<TimeSpan?> HandleRateLimitAsync(
+        HttpResponseMessage response,
+        string marketHashName,
+        string endpointName,
+        TimeSpan backoff,
+        int attempt,
+        CancellationToken cancellationToken)
+    {
+        _encounteredRateLimit = true;
+
+        var retryDelay = GetRetryAfterDelay(response) ?? backoff;
+        if (retryDelay <= TimeSpan.Zero)
+        {
+            retryDelay = TimeSpan.FromMilliseconds(250);
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        var truncatedBody = body.Length > 300 ? body[..300] : body;
+
+        if (_rateLimitMessages.Count < 20)
+        {
+            _rateLimitMessages.Add(
+                $"Rate limit hit on {endpointName} for '{marketHashName}'. Retrying in {retryDelay}. Response: {truncatedBody}");
+        }
+
+        _logger.LogWarning(
+            "CSMarket {Endpoint} rate limited for {MarketHashName} (attempt {Attempt}/{Max}). Waiting {Delay} before retry. Response: {Body}",
+            endpointName,
+            marketHashName,
+            attempt + 1,
+            MaxRateLimitRetries,
+            retryDelay,
+            truncatedBody);
+
+        response.Dispose();
+
+        if (attempt >= MaxRateLimitRetries - 1)
+        {
+            return null;
+        }
+
+        return retryDelay;
+    }
+
+    private static TimeSpan? GetRetryAfterDelay(HttpResponseMessage response)
+    {
+        if (response.Headers.RetryAfter != null)
+        {
+            if (response.Headers.RetryAfter.Delta.HasValue)
+            {
+                return response.Headers.RetryAfter.Delta.Value;
+            }
+
+            if (response.Headers.RetryAfter.Date.HasValue)
+            {
+                var delta = response.Headers.RetryAfter.Date.Value - DateTimeOffset.UtcNow;
+                if (delta > TimeSpan.Zero)
+                {
+                    return delta;
+                }
+            }
+        }
+
+        if (response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues))
+        {
+            var first = resetValues.FirstOrDefault();
+            if (first != null && long.TryParse(first, out var unixSeconds))
+            {
+                var epoch = DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
+                var delta = epoch - DateTimeOffset.UtcNow;
+                if (delta > TimeSpan.Zero)
+                {
+                    return delta;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private sealed class ListingsLatestAggregatedResponse
     {
         [JsonPropertyName("market_hash_name")]
@@ -475,6 +726,11 @@ public class CsMarketApiService
 
         [JsonPropertyName("day")]
         public DateTime Day { get; set; }
+    }
+
+    private sealed class CachedPriceEntry
+    {
+        public decimal? Price { get; init; }
     }
 }
 

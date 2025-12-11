@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using backend.Controllers;
 using backend.Data;
 using backend.Models;
@@ -48,7 +49,8 @@ public class InventoryControllerTests : IDisposable
             .Build();
 
         var csMarketLogger = NullLogger<CsMarketApiService>.Instance;
-        var csMarketService = new CsMarketApiService(httpClientFactory, configuration, csMarketLogger);
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var csMarketService = new CsMarketApiService(httpClientFactory, configuration, memoryCache, csMarketLogger);
 
         var steamApiService = new SteamApiService(httpClientFactory, configuration, steamApiLogger);
         

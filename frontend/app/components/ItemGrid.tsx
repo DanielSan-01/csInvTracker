@@ -557,6 +557,18 @@ export default function ItemGrid() {
         showToast('No items found to refresh prices for.', 'info');
       }
 
+      if (result.rateLimited) {
+        const warningMessage =
+          result.infoMessages && result.infoMessages.length > 0
+            ? result.infoMessages[0]
+            : 'CSMarket rate limit reached. Some items may not have updated yet. Please try again shortly.';
+        console.warn('CSMarket rate limit details:', result.infoMessages ?? [warningMessage]);
+        showToast(warningMessage, 'warning');
+      } else if (result.infoMessages && result.infoMessages.length > 0) {
+        console.info('CSMarket info:', result.infoMessages);
+        showToast(result.infoMessages[0], 'info');
+      }
+
       if (result.errors > 0 && result.errorMessages.length > 0) {
         console.error('Price refresh errors:', result.errorMessages);
         showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred. Check console for details.`, 'error');

@@ -65,6 +65,7 @@ if (!string.IsNullOrEmpty(jwtSecret))
 
 builder.Services.AddAuthorization();
 builder.Services.AddHttpClient();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<AdminDashboardService>();
 builder.Services.AddScoped<SkinImportService>();
 builder.Services.AddSingleton<DopplerPhaseService>();

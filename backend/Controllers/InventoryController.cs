@@ -1166,6 +1166,25 @@ public class InventoryController : ControllerBase
                 ErrorMessages = new List<string>()
             };
 
+            if (_csMarketApiService.EncounteredRateLimit)
+            {
+                result.RateLimited = true;
+
+                if (_csMarketApiService.RateLimitMessages.Count > 0)
+                {
+                    foreach (var detail in _csMarketApiService.RateLimitMessages.Distinct().Take(5))
+                    {
+                        result.InfoMessages.Add(detail);
+                    }
+                }
+                else
+                {
+                    result.InfoMessages.Add("CSMarket rate limit reached. Some items may not have updated. Please try again shortly.");
+                }
+
+                _logger.LogWarning("CSMarket rate limit encountered during price refresh for user {UserId}", targetUserId);
+            }
+
             foreach (var entry in itemCandidates)
             {
                 var item = entry.Item;
@@ -1350,6 +1369,8 @@ public class RefreshPricesResult
     public int Skipped { get; set; }
     public int Errors { get; set; }
     public List<string> ErrorMessages { get; set; } = new();
+    public bool RateLimited { get; set; }
+    public List<string> InfoMessages { get; set; } = new();
 }
 
 public class ImportSteamInventoryRequest

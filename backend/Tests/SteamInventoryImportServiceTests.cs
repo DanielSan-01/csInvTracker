@@ -6,6 +6,7 @@ using backend.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -92,9 +93,12 @@ public class SteamInventoryImportServiceTests
             })
             .Build();
 
+        var memoryCache = new MemoryCache(new MemoryCacheOptions());
+
         return new CsMarketApiService(
             httpClientFactory,
             configuration,
+            memoryCache,
             NullLogger<CsMarketApiService>.Instance);
     }
 
