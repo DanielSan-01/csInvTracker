@@ -633,11 +633,25 @@ public class SteamInventoryImportService
 
         if (Math.Abs(floatValue - 0.5) < 0.0001)
         {
+            var descriptionPreview = steamItem.Descriptions?
+                .Where(d => !string.IsNullOrWhiteSpace(d.Value))
+                .Take(3)
+                .Select(d => $"{d.Type}: {d.Value}")
+                .ToList();
+
+            var tagPreview = steamItem.Tags?
+                .Where(t => !string.IsNullOrWhiteSpace(t.LocalizedTagName))
+                .Take(5)
+                .Select(t => $"{t.Category}: {t.LocalizedTagName}")
+                .ToList();
+
             _logger.LogInformation(
-                "Steam data for {MarketHashName} ({AssetId}) did not include a float; keeping default {Float}",
+                "Steam data for {MarketHashName} ({AssetId}) did not include a float; keeping default {Float}. Descriptions: {Descriptions}. Tags: {Tags}",
                 steamItem.MarketHashName,
                 steamItem.AssetId,
-                floatValue);
+                floatValue,
+                descriptionPreview is { Count: > 0 } ? string.Join(" | ", descriptionPreview) : "(none)",
+                tagPreview is { Count: > 0 } ? string.Join(" | ", tagPreview) : "(none)");
         }
 #region agent log
         DebugLog(
