@@ -57,7 +57,7 @@ public class SteamInventoryImportService
             var json = JsonSerializer.Serialize(payload);
             lock (DebugLogLock)
             {
-                File.AppendAllText(DebugLogPath, json + Environment.NewLine);
+                global::System.IO.File.AppendAllText(DebugLogPath, json + Environment.NewLine);
             }
         }
         catch
