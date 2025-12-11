@@ -706,7 +706,8 @@ public class InventoryController : ControllerBase
             var result = await _steamImportService.ImportSteamInventoryAsync(
                 request.UserId,
                 request.Items,
-                cancellationToken);
+                fetchMarketPrices: true,
+                cancellationToken: cancellationToken);
 
             _logger.LogInformation(
                 "Steam inventory import completed for user {UserId}: {Imported} imported, {Skipped} skipped, {Errors} errors",
@@ -748,188 +749,224 @@ public class InventoryController : ControllerBase
                 }
             }
 
-            // Verify user exists and get Steam ID
+            // Verify user exists
             var user = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
             if (user == null)
             {
                 return BadRequest(new { error = "User not found" });
             }
 
+            return await RefreshFromSteamInternal(user, targetUserId, fetchMarketPrices: true, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing Steam inventory");
+            return StatusCode(500, new { error = "An error occurred while refreshing inventory from Steam", message = ex.Message });
+        }
+    }
+
+    // POST: api/inventory/refresh-floats
+    // Refreshes floats and exterior data without re-querying CSMarket
+    [HttpPost("refresh-floats")]
+    public async Task<ActionResult<SteamInventoryImportService.ImportResult>> RefreshFloatsFromSteam(
+        [FromQuery] int? userId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            int targetUserId;
+            if (userId.HasValue)
+            {
+                targetUserId = userId.Value;
+            }
+            else
+            {
+                var userIdClaim = User.FindFirst("userId")?.Value 
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out targetUserId))
+                {
+                    return Unauthorized(new { error = "User ID is required. Please provide userId query parameter or authenticate." });
+                }
+            }
+
+            var user = await _context.Users.FindAsync(new object[] { targetUserId }, cancellationToken);
+            if (user == null)
+            {
+                return BadRequest(new { error = "User not found" });
+            }
+
+            return await RefreshFromSteamInternal(user, targetUserId, fetchMarketPrices: false, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing floats from Steam");
+            return StatusCode(500, new { error = "An error occurred while refreshing floats from Steam", message = ex.Message });
+        }
+    }
+
+    private async Task<ActionResult<SteamInventoryImportService.ImportResult>> RefreshFromSteamInternal(
+        User user,
+        int targetUserId,
+        bool fetchMarketPrices,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
             if (string.IsNullOrEmpty(user.SteamId))
             {
                 return BadRequest(new { error = "User does not have a Steam ID" });
             }
 
-            // Validate SteamID64 format
             if (!IsValidSteamId64(user.SteamId))
             {
                 _logger.LogWarning("Invalid SteamID64 format for user {UserId}: {SteamId}. Expected 17-digit number starting with 7656119", 
                     targetUserId, user.SteamId);
-                return BadRequest(new { 
+                return BadRequest(new
+                {
                     error = "Invalid Steam ID format",
                     details = "Steam ID must be a 17-digit number starting with 7656119...",
                     providedSteamId = user.SteamId
                 });
             }
 
-            _logger.LogInformation("Starting Steam inventory refresh for user {UserId} (SteamId: {SteamId})", targetUserId, user.SteamId);
+            var operationLabel = fetchMarketPrices ? "inventory refresh" : "float refresh";
+            _logger.LogInformation("Starting Steam {Operation} for user {UserId} (SteamId: {SteamId})", operationLabel, targetUserId, user.SteamId);
 
-            // Fetch directly from Steam Community API (inventory endpoint)
-            // Note: Steam inventory is only available via Community API, not Web API
-            // URL format: https://steamcommunity.com/inventory/{steamid}/730/2
-            // 730 = CS:GO/CS2 app ID
-            // 2 = context ID (usually 2 for CS:GO/CS2)
             const int appId = 730;
             const int contextId = 2;
-            
-            // Create HttpClient with automatic decompression enabled
+
             var handler = new System.Net.Http.HttpClientHandler
             {
                 AutomaticDecompression = System.Net.DecompressionMethods.All
             };
             using var httpClient = new System.Net.Http.HttpClient(handler);
-            httpClient.Timeout = TimeSpan.FromMinutes(5); // Allow enough time for large inventories
-            
-            // Add browser-like headers to avoid being blocked
+            httpClient.Timeout = TimeSpan.FromMinutes(5);
+
             httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             httpClient.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
             httpClient.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
             httpClient.DefaultRequestHeaders.Add("Referer", $"https://steamcommunity.com/profiles/{user.SteamId}/inventory/");
             httpClient.DefaultRequestHeaders.Add("Origin", "https://steamcommunity.com");
 
-            // Fetch all pages with pagination
             var allAssets = new List<SteamAsset>();
             var allDescriptions = new List<SteamItemDescription>();
-            var descriptionMap = new Dictionary<string, SteamItemDescription>(); // Track unique descriptions
+            var descriptionMap = new Dictionary<string, SteamItemDescription>();
             string? startAssetId = null;
             var hasMore = true;
             var pageCount = 0;
-            const int maxPages = 50; // Safety limit
+            const int maxPages = 50;
 
             while (hasMore && pageCount < maxPages)
             {
                 pageCount++;
-                
-                // Build URL - start with base URL without query parameters (works better)
-                // Only add start_assetid for pagination if we have one
                 var steamUrl = $"https://steamcommunity.com/inventory/{user.SteamId}/{appId}/{contextId}";
                 if (!string.IsNullOrEmpty(startAssetId))
                 {
                     steamUrl += $"?start_assetid={startAssetId}";
                 }
-                
-                // Log full URL (safe to log - no API keys or sensitive data)
+
                 _logger.LogInformation("Fetching Steam inventory page {PageCount} from: {SteamUrl}", pageCount, steamUrl);
-            
+
                 try
                 {
                     var response = await httpClient.GetAsync(steamUrl, cancellationToken);
-                    
-                    // Log response headers for debugging
+
                     _logger.LogDebug("Steam API response status (page {PageCount}): {StatusCode} {StatusText}", 
                         pageCount, response.StatusCode, response.ReasonPhrase);
                     _logger.LogDebug("Response headers: {Headers}", 
                         string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}")));
-            
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var errorText = await response.Content.ReadAsStringAsync(cancellationToken);
                         _logger.LogError("Steam API error (page {PageCount}): Status={StatusCode}, Url={SteamUrl}, Error={Error}", 
                             pageCount, response.StatusCode, steamUrl, 
                             errorText.Length > 500 ? errorText.Substring(0, 500) : errorText);
-                        
-                        // Check for common error scenarios
+
                         if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
                         {
-                            // 400 Bad Request could mean:
-                            // - Invalid SteamID64 format (we already validated, but double-check)
-                            // - Inventory is private
-                            // - IP blocking
                             if (string.IsNullOrWhiteSpace(errorText))
                             {
-                                return BadRequest(new { 
+                                return BadRequest(new
+                                {
                                     error = "Steam returned 400 Bad Request with empty response",
                                     details = "This usually means your Steam inventory privacy is set to private. Please make your inventory public in Steam privacy settings.",
-                                    steamUrl = steamUrl // Log URL for debugging
+                                    steamUrl = steamUrl
                                 });
                             }
-                            
-                            return BadRequest(new { 
+
+                            return BadRequest(new
+                            {
                                 error = "Steam API returned 400 Bad Request",
                                 details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
                                 steamUrl = steamUrl,
                                 suggestion = "Please verify: 1) Your Steam ID is correct, 2) Your inventory privacy is set to public"
                             });
                         }
-                        
-                return StatusCode((int)response.StatusCode, new { 
+
+                        return StatusCode((int)response.StatusCode, new
+                        {
                             error = $"Steam API error: {response.StatusCode}",
                             details = errorText.Length > 500 ? errorText.Substring(0, 500) : errorText,
                             steamUrl = steamUrl
-                });
-            }
+                        });
+                    }
 
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
-                    
-                    // Handle null response from Steam (can happen with certain query parameters)
+                    var json = await response.Content.ReadAsStringAsync(cancellationToken);
+
                     if (string.IsNullOrWhiteSpace(json) || json.Trim().Equals("null", StringComparison.OrdinalIgnoreCase))
                     {
                         _logger.LogWarning("Steam API returned null response (page {PageCount}). This may indicate the inventory is empty or private.", pageCount);
-                        
-                        // If this is the first page and we got null, it might mean private inventory
+
                         if (pageCount == 1)
                         {
-                            return BadRequest(new { 
+                            return BadRequest(new
+                            {
                                 error = "Steam inventory is not accessible",
                                 details = "Steam returned null response. This usually means your inventory privacy is set to private. Please make your inventory public in Steam privacy settings.",
                                 steamId = user.SteamId,
                                 suggestion = "Go to Steam > Settings > Privacy > Inventory Privacy and set it to Public"
                             });
                         }
-                        
-                        // Otherwise, break and return what we have
+
                         break;
                     }
-                    
-            var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
 
-            if (data == null)
-            {
+                    var data = JsonSerializer.Deserialize<SteamInventoryResponse>(json, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (data == null)
+                    {
                         _logger.LogError("Failed to parse Steam API response (page {PageCount}). JSON: {Json}", pageCount, json.Length > 200 ? json.Substring(0, 200) : json);
                         return StatusCode(500, new { error = "Failed to parse Steam API response" });
-            }
+                    }
 
-            // Check if request was successful
-            if (data.Success != 1)
-            {
+                    if (data.Success != 1)
+                    {
                         _logger.LogWarning("Steam API returned unsuccessful response (page {PageCount}): Success = {Success}", 
                             pageCount, data.Success);
-                        
-                        // If this is the first page and it failed, return error
+
                         if (pageCount == 1)
                         {
-                            return BadRequest(new { 
+                            return BadRequest(new
+                            {
                                 error = "Steam inventory is not accessible",
                                 details = "Steam returned success=0. This usually means your inventory privacy is set to private. Please make your inventory public in Steam privacy settings.",
                                 steamId = user.SteamId,
                                 suggestion = "Go to Steam > Settings > Privacy > Inventory Privacy and set it to Public"
                             });
                         }
-                        
-                        // Otherwise, break and return what we have
+
                         break;
                     }
 
-                    // Collect assets
                     if (data.Assets != null)
                     {
                         allAssets.AddRange(data.Assets);
                     }
 
-                    // Collect unique descriptions (Steam may return duplicates across pages)
                     if (data.Descriptions != null)
                     {
                         foreach (var desc in data.Descriptions)
@@ -946,7 +983,6 @@ public class InventoryController : ControllerBase
                     _logger.LogInformation("Page {PageCount} - Assets: {AssetCount}, Descriptions: {DescCount}, Total so far: {TotalAssets} assets, {TotalDescs} descriptions",
                         pageCount, data.Assets?.Count ?? 0, data.Descriptions?.Count ?? 0, allAssets.Count, allDescriptions.Count);
 
-                    // Check if there are more items to fetch
                     hasMore = data.MoreItems == 1 || (!string.IsNullOrEmpty(data.LastAssetId) && data.LastAssetId != startAssetId);
                     if (hasMore && !string.IsNullOrEmpty(data.LastAssetId))
                     {
@@ -957,7 +993,6 @@ public class InventoryController : ControllerBase
                         hasMore = false;
                     }
 
-                    // Small delay to avoid rate limiting (only if we have more pages)
                     if (hasMore)
                     {
                         await Task.Delay(200, cancellationToken);
@@ -966,7 +1001,8 @@ public class InventoryController : ControllerBase
                 catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
                 {
                     _logger.LogError("Timeout while fetching Steam inventory page {PageCount}", pageCount);
-                    return StatusCode(504, new { 
+                    return StatusCode(504, new
+                    {
                         error = "Request timeout",
                         details = "Steam inventory may be too large. Please try again.",
                         pagesFetched = pageCount - 1
@@ -975,7 +1011,8 @@ public class InventoryController : ControllerBase
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error fetching Steam inventory page {PageCount}", pageCount);
-                return StatusCode(500, new { 
+                    return StatusCode(500, new
+                    {
                         error = "Error fetching Steam inventory",
                         details = ex.Message,
                         pagesFetched = pageCount - 1
@@ -999,7 +1036,6 @@ public class InventoryController : ControllerBase
                 });
             }
 
-            // Map assets to descriptions and convert to import format
             var itemMap = new Dictionary<string, SteamItemDescription>();
             foreach (var desc in allDescriptions)
             {
@@ -1013,7 +1049,6 @@ public class InventoryController : ControllerBase
                 var key = $"{asset.ClassId}_{asset.InstanceId}";
                 if (itemMap.TryGetValue(key, out var description))
                 {
-                    // Convert relative icon URL to full Steam economy image URL
                     var imageUrl = !string.IsNullOrEmpty(description.IconUrl)
                         ? $"https://community.fastly.steamstatic.com/economy/image/{description.IconUrl}/330x192?allow_animated=1"
                         : null;
@@ -1043,22 +1078,23 @@ public class InventoryController : ControllerBase
 
             _logger.LogInformation("Converted {Count} Steam items to import format. Starting import...", importItems.Count);
 
-            // Import the items
             var result = await _steamImportService.ImportSteamInventoryAsync(
                 targetUserId,
                 importItems,
+                fetchMarketPrices,
                 cancellationToken);
 
             _logger.LogInformation(
-                "Steam inventory refresh completed for user {UserId}: {Imported} imported, {Skipped} skipped, {Errors} errors",
-                targetUserId, result.Imported, result.Skipped, result.Errors);
+                "Steam {Operation} completed for user {UserId}: {Imported} imported, {Skipped} skipped, {Errors} errors",
+                operationLabel, targetUserId, result.Imported, result.Skipped, result.Errors);
 
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error refreshing Steam inventory");
-            return StatusCode(500, new { error = "An error occurred while refreshing inventory from Steam", message = ex.Message });
+            var contextMessage = fetchMarketPrices ? "refreshing inventory from Steam" : "refreshing floats from Steam";
+            _logger.LogError(ex, "Error {Context}", contextMessage);
+            return StatusCode(500, new { error = $"An error occurred while {contextMessage}", message = ex.Message });
         }
     }
 

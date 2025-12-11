@@ -390,6 +390,56 @@ export const steamInventoryApi = {
     return response.json();
   },
 
+  refreshFloats: async (
+    userId?: number
+  ): Promise<SteamInventoryImportResult> => {
+    const url = new URL(`${API_BASE_URL}/inventory/refresh-floats`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to refresh floats: ${response.status} ${response.statusText}`;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorJson = await response.json();
+          if (errorJson.error) {
+            errorMessage = errorJson.error;
+            if (errorJson.details) {
+              errorMessage += ` - ${errorJson.details}`;
+            }
+            errorMessage = JSON.stringify(errorJson);
+          } else if (typeof errorJson === 'string') {
+            errorMessage = errorJson;
+          }
+        } else {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+      } catch {
+        const errorText = await response.text().catch(() => '');
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
   // Refresh market prices for existing inventory items
   refreshPrices: async (
     userId?: number,

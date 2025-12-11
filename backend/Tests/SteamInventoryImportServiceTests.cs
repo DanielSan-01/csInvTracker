@@ -80,6 +80,78 @@ public class SteamInventoryImportServiceTests
         Assert.Equal("Minimal Wear", storedItem.Exterior);
     }
 
+    [Fact]
+    public async Task ImportSteamInventoryAsync_WhenSkippingPrices_DoesNotOverwriteExistingPrice()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        using var context = new ApplicationDbContext(options);
+        context.Users.Add(new User { Id = 1, Username = "TestUser" });
+
+        var skin = new Skin
+        {
+            Id = 1,
+            Name = "AWP | Asiimov (Field-Tested)",
+            MarketHashName = "AWP | Asiimov (Field-Tested)",
+            Type = "Rifle",
+            Weapon = "AWP"
+        };
+        context.Skins.Add(skin);
+
+        context.InventoryItems.Add(new InventoryItem
+        {
+            Id = 10,
+            UserId = 1,
+            SkinId = 1,
+            AssetId = "asset_existing",
+            Float = 0.5,
+            Exterior = "Field-Tested",
+            Price = 250.00m,
+            TradeProtected = false,
+            SteamMarketHashName = skin.MarketHashName
+        });
+        await context.SaveChangesAsync();
+
+        var csMarketService = CreateCsMarketService();
+        var dopplerService = new DopplerPhaseService(new TestWebHostEnvironment(), NullLogger<DopplerPhaseService>.Instance);
+
+        var importService = new SteamInventoryImportService(
+            context,
+            NullLogger<SteamInventoryImportService>.Instance,
+            dopplerService,
+            csMarketService);
+
+        var steamItem = new SteamInventoryItemDto
+        {
+            AssetId = "asset_existing",
+            MarketHashName = "AWP | Asiimov (Field-Tested)",
+            Name = "AWP | Asiimov (Field-Tested)",
+            Marketable = true,
+            Tradable = true,
+            Descriptions = new List<SteamDescriptionDto>
+            {
+                new()
+                {
+                    Type = "html",
+                    Value = "Float Value: <span>0.1234</span>"
+                }
+            }
+        };
+
+        await importService.ImportSteamInventoryAsync(
+            1,
+            new List<SteamInventoryItemDto> { steamItem },
+            fetchMarketPrices: false);
+
+        var updatedItem = await context.InventoryItems.SingleAsync(i => i.AssetId == "asset_existing");
+
+        Assert.Equal(0.1234, updatedItem.Float, 4);
+        Assert.Equal("Minimal Wear", updatedItem.Exterior);
+        Assert.Equal(250.00m, updatedItem.Price);
+    }
+
     private static CsMarketApiService CreateCsMarketService()
     {
         var handler = new StubHttpMessageHandler();
@@ -139,4 +211,5 @@ public class SteamInventoryImportServiceTests
         public string EnvironmentName { get; set; } = "Development";
     }
 }
+
 

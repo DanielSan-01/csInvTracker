@@ -82,6 +82,7 @@ public class SteamInventoryImportService
     public async Task<ImportResult> ImportSteamInventoryAsync(
         int userId,
         List<SteamInventoryItemDto> steamItems,
+        bool fetchMarketPrices = true,
         CancellationToken cancellationToken = default)
     {
         var result = new ImportResult
@@ -93,29 +94,37 @@ public class SteamInventoryImportService
         var allSkins = await _context.Skins.ToListAsync(cancellationToken);
         _logger.LogInformation("Loaded {Count} skins from catalog for matching", allSkins.Count);
 
-        // Fetch market prices for all items (batch fetch with rate limiting)
-        _logger.LogInformation("Fetching CSMarket prices for {Count} items...", steamItems.Count);
-        var marketHashNames = steamItems
-            .Where(item => !string.IsNullOrWhiteSpace(item.MarketHashName))
-            .Select(item => item.MarketHashName)
-            .Distinct()
-            .ToList();
-        
-        var marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
-            marketHashNames,
-            delayMs: 200,
-            cancellationToken: cancellationToken);
-        
-        var pricesFound = marketPrices.Values.Count(p => p.HasValue);
-        _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
-
-        if (_csMarketApiService.EncounteredRateLimit)
+        var marketPrices = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
+        if (fetchMarketPrices)
         {
-            _logger.LogWarning("CSMarket rate limit encountered while importing Steam inventory for user {UserId}", userId);
-            foreach (var detail in _csMarketApiService.RateLimitMessages)
+            // Fetch market prices for all items (batch fetch with rate limiting)
+            _logger.LogInformation("Fetching CSMarket prices for {Count} items...", steamItems.Count);
+            var marketHashNames = steamItems
+                .Where(item => !string.IsNullOrWhiteSpace(item.MarketHashName))
+                .Select(item => item.MarketHashName)
+                .Distinct()
+                .ToList();
+            
+            marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
+                marketHashNames,
+                delayMs: 200,
+                cancellationToken: cancellationToken);
+            
+            var pricesFound = marketPrices.Values.Count(p => p.HasValue);
+            _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
+
+            if (_csMarketApiService.EncounteredRateLimit)
             {
-                _logger.LogDebug("CSMarket rate limit detail: {Detail}", detail);
+                _logger.LogWarning("CSMarket rate limit encountered while importing Steam inventory for user {UserId}", userId);
+                foreach (var detail in _csMarketApiService.RateLimitMessages)
+                {
+                    _logger.LogDebug("CSMarket rate limit detail: {Detail}", detail);
+                }
             }
+        }
+        else
+        {
+            _logger.LogInformation("Skipping CSMarket price fetch; updating floats only for {Count} items", steamItems.Count);
         }
 
         foreach (var steamItem in steamItems)
@@ -190,7 +199,9 @@ public class SteamInventoryImportService
                     existingItem.SteamMarketHashName = trimmedMarketHashName;
                     
                     // Always update price with latest market price during import
-                    if (marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) && existingPrice.HasValue)
+                    if (fetchMarketPrices &&
+                        marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) &&
+                        existingPrice.HasValue)
                     {
                         existingItem.Price = existingPrice.Value;
                         _logger.LogDebug("Updated price for existing item {MarketHashName}: ${Price}", 
@@ -207,7 +218,7 @@ public class SteamInventoryImportService
                             matchingSkin.DefaultPrice = existingPrice.Value;
                         }
                     }
-                    else if (existingItem.Price == 0)
+                    else if (fetchMarketPrices && existingItem.Price == 0)
                     {
                         _logger.LogDebug("No market price available for existing item {MarketHashName}, keeping price at 0", 
                             steamItem.MarketHashName);
@@ -251,11 +262,13 @@ public class SteamInventoryImportService
                     : matchingSkin.ImageUrl;
                 
                 // Get market price if available
-                var marketPrice = marketPrices.TryGetValue(steamItem.MarketHashName, out var price) && price.HasValue
+                var marketPrice = fetchMarketPrices &&
+                                  marketPrices.TryGetValue(steamItem.MarketHashName, out var price) &&
+                                  price.HasValue
                     ? price.Value
                     : 0m;
                 
-                if (marketPrice > 0)
+                if (fetchMarketPrices && marketPrice > 0)
                 {
                     _logger.LogDebug("Using market price for {MarketHashName}: ${Price}", 
                         steamItem.MarketHashName, marketPrice);
