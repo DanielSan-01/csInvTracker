@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
+using System.IO;
 
 namespace backend.Services;
 
@@ -16,6 +17,8 @@ public class SteamInventoryImportService
     private readonly CsMarketApiService _csMarketApiService;
     private readonly StickerCatalogService? _stickerCatalogService;
     private const decimal SteamWalletLimit = 2000m;
+    private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
+    private static readonly object DebugLogLock = new();
 
     public SteamInventoryImportService(
         ApplicationDbContext context,
@@ -29,6 +32,38 @@ public class SteamInventoryImportService
         _dopplerPhaseService = dopplerPhaseService;
         _csMarketApiService = csMarketApiService;
         _stickerCatalogService = stickerCatalogService;
+    }
+
+    private static void DebugLog(string hypothesisId, string location, string message, object data)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(DebugLogPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var payload = new
+            {
+                sessionId = "debug-session",
+                runId = "pre-fix",
+                hypothesisId,
+                location,
+                message,
+                data,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            };
+            var json = JsonSerializer.Serialize(payload);
+            lock (DebugLogLock)
+            {
+                File.AppendAllText(DebugLogPath, json + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Swallow instrumentation errors
+        }
     }
 
     public class ImportResult
@@ -565,7 +600,21 @@ public class SteamInventoryImportService
                 _logger.LogDebug("Extracted {Count} stickers for item: {StickerNames}", 
                     stickers.Count, string.Join(", ", stickers.Select(s => s.Name)));
             }
-        }
+#region agent log
+        DebugLog(
+            hypothesisId: "H1",
+            location: "SteamInventoryImportService.ExtractItemPropertiesAsync",
+            message: "Extracted Steam properties",
+            data: new
+            {
+                steamItem.AssetId,
+                steamItem.MarketHashName,
+                floatValue,
+                exterior,
+                paintSeed,
+                paintIndex
+            });
+#endregion
 
         return (floatValue, exterior, paintSeed, paintIndex, stickers);
     }

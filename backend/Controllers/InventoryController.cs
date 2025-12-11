@@ -6,6 +6,7 @@ using backend.Data;
 using backend.DTOs;
 using backend.Models;
 using backend.Services;
+using System.IO;
 
 namespace backend.Controllers;
 
@@ -20,6 +21,8 @@ public class InventoryController : ControllerBase
     private readonly SteamApiService _steamApiService;
     private readonly CsMarketApiService _csMarketApiService;
     private const decimal SteamWalletLimit = 2000m;
+    private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
+    private static readonly object DebugLogLock = new();
 
     public InventoryController(
         ApplicationDbContext context,
@@ -35,6 +38,38 @@ public class InventoryController : ControllerBase
         _steamImportService = steamImportService;
         _steamApiService = steamApiService;
         _csMarketApiService = csMarketApiService;
+    }
+
+    private static void DebugLog(string hypothesisId, string location, string message, object data)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(DebugLogPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var payload = new
+            {
+                sessionId = "debug-session",
+                runId = "pre-fix",
+                hypothesisId,
+                location,
+                message,
+                data,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            };
+            var json = JsonSerializer.Serialize(payload);
+            lock (DebugLogLock)
+            {
+                File.AppendAllText(DebugLogPath, json + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Swallow instrumentation errors
+        }
     }
 
     // Helper method to determine exterior from float
@@ -1320,7 +1355,23 @@ public class InventoryController : ControllerBase
             candidates.Add($"{item.Skin!.Name.Trim()} ({formattedExterior})");
         }
 
-        return candidates.ToList();
+        var result = candidates.ToList();
+
+#region agent log
+        DebugLog(
+            hypothesisId: "H2",
+            location: "InventoryController.BuildMarketHashCandidates",
+            message: "Built market hash candidates",
+            data: new
+            {
+                itemId = item.Id,
+                item.SteamMarketHashName,
+                item.Exterior,
+                Candidates = result
+            });
+#endregion
+
+        return result;
     }
 
     private static bool ShouldAppendExterior(InventoryItem item)

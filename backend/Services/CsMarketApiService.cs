@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Xml;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using System.IO;
 
 namespace backend.Services;
 
@@ -35,6 +36,8 @@ public class CsMarketApiService
     private readonly TimeSpan _cacheDurationNoData;
     private bool _encounteredRateLimit;
     private readonly List<string> _rateLimitMessages = new();
+    private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
+    private static readonly object DebugLogLock = new();
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_apiKey);
     public bool EncounteredRateLimit => _encounteredRateLimit;
@@ -130,6 +133,18 @@ public class CsMarketApiService
             cached is not null)
         {
             _logger.LogDebug("CSMarket cache hit for {MarketHashName}", normalizedHash);
+#region agent log
+            DebugLog(
+                hypothesisId: "H3",
+                location: "CsMarketApiService.GetBestListingPriceAsync",
+                message: "Cache hit",
+                data: new
+                {
+                    marketHashName = normalizedHash,
+                    cacheKey,
+                    cachedPrice = cached.Price
+                });
+#endregion
             return cached.Price;
         }
 
@@ -164,6 +179,22 @@ public class CsMarketApiService
                 normalizedHash);
             CachePrice(cacheKey, null);
         }
+
+#region agent log
+        DebugLog(
+            hypothesisId: "H3",
+            location: "CsMarketApiService.GetBestListingPriceAsync",
+            message: "CSMarket lookup completed",
+            data: new
+            {
+                marketHashName = normalizedHash,
+                cacheKey,
+                markets = markets?.ToArray(),
+                listingPrice,
+                fallbackPrice,
+                cached = false
+            });
+#endregion
 
         return fallbackPrice;
     }
@@ -216,6 +247,38 @@ public class CsMarketApiService
         }
 
         return results;
+    }
+
+    private static void DebugLog(string hypothesisId, string location, string message, object data)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(DebugLogPath);
+            if (!string.IsNullOrEmpty(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var payload = new
+            {
+                sessionId = "debug-session",
+                runId = "pre-fix",
+                hypothesisId,
+                location,
+                message,
+                data,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            };
+            var json = JsonSerializer.Serialize(payload);
+            lock (DebugLogLock)
+            {
+                File.AppendAllText(DebugLogPath, json + Environment.NewLine);
+            }
+        }
+        catch
+        {
+            // Swallow instrumentation errors
+        }
     }
 
     private async Task<ListingsLatestAggregatedResponse?> GetListingsLatestAggregatedAsync(
