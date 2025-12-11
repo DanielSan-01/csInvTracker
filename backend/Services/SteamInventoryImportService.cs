@@ -600,6 +600,7 @@ public class SteamInventoryImportService
                 _logger.LogDebug("Extracted {Count} stickers for item: {StickerNames}", 
                     stickers.Count, string.Join(", ", stickers.Select(s => s.Name)));
             }
+        }
 #region agent log
         DebugLog(
             hypothesisId: "H1",
