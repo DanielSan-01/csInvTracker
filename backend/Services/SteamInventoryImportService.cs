@@ -184,6 +184,8 @@ public class SteamInventoryImportService
                     
                     // Extract item properties from Steam descriptions
                     var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
+                    var previousFloat = existingItem.Float;
+                    var previousExterior = existingItem.Exterior;
                     
                     // Always update with Steam's image URL if available (Steam has the latest images)
                     if (!string.IsNullOrEmpty(steamItem.ImageUrl))
@@ -197,6 +199,14 @@ public class SteamInventoryImportService
                     existingItem.PaintSeed = updatedPaintSeed;
                     existingItem.TradeProtected = !steamItem.Tradable;
                     existingItem.SteamMarketHashName = trimmedMarketHashName;
+                    _logger.LogInformation(
+                        "Applied Steam properties to existing item {MarketHashName} ({AssetId}): float {OldFloat} -> {NewFloat}, exterior '{OldExterior}' -> '{NewExterior}'",
+                        steamItem.MarketHashName,
+                        steamItem.AssetId,
+                        previousFloat,
+                        existingItem.Float,
+                        previousExterior,
+                        existingItem.Exterior);
                     
                     // Always update price with latest market price during import
                     if (fetchMarketPrices &&
@@ -304,6 +314,12 @@ public class SteamInventoryImportService
 
                 _context.InventoryItems.Add(inventoryItem);
                 await _context.SaveChangesAsync(cancellationToken);
+                _logger.LogInformation(
+                    "Created inventory item {MarketHashName} ({AssetId}) with float {Float} and exterior '{Exterior}'",
+                    steamItem.MarketHashName,
+                    steamItem.AssetId,
+                    inventoryItem.Float,
+                    inventoryItem.Exterior);
 
                 // Add stickers if any
                 if (stickers != null && stickers.Count > 0)
@@ -508,7 +524,7 @@ public class SteamInventoryImportService
                 {
                     floatValue = parsedFloat;
                     exterior = GetExteriorFromFloat(floatValue);
-                    _logger.LogDebug(
+                    _logger.LogInformation(
                         "Parsed float {Float} from Steam description for {MarketHashName} ({AssetId})",
                         floatValue,
                         steamItem.MarketHashName,
@@ -551,7 +567,7 @@ public class SteamInventoryImportService
             if (!string.IsNullOrWhiteSpace(exteriorTag?.LocalizedTagName))
             {
                 exterior = exteriorTag.LocalizedTagName.Trim();
-                _logger.LogDebug(
+                _logger.LogInformation(
                     "Using Steam exterior tag '{Exterior}' for {MarketHashName} ({AssetId})",
                     exterior,
                     steamItem.MarketHashName,
@@ -613,6 +629,15 @@ public class SteamInventoryImportService
                 _logger.LogDebug("Extracted {Count} stickers for item: {StickerNames}", 
                     stickers.Count, string.Join(", ", stickers.Select(s => s.Name)));
             }
+        }
+
+        if (Math.Abs(floatValue - 0.5) < 0.0001)
+        {
+            _logger.LogInformation(
+                "Steam data for {MarketHashName} ({AssetId}) did not include a float; keeping default {Float}",
+                steamItem.MarketHashName,
+                steamItem.AssetId,
+                floatValue);
         }
 #region agent log
         DebugLog(
