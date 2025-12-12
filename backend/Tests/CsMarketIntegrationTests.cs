@@ -35,7 +35,7 @@ public class CsMarketIntegrationTests
 
         var csMarketService = CreateCsMarketService();
         var dopplerService = CreateDopplerService();
-        var inspectQueue = new InspectFloatQueue(
+        using var inspectQueue = new InspectFloatQueue(
             new QueueHttpClientFactory(),
             new InMemoryDbContextFactory(context),
             NullLogger<InspectFloatQueue>.Instance,

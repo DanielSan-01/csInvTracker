@@ -38,7 +38,7 @@ public class SteamInventoryImportServiceTests
         var csMarketService = CreateCsMarketService();
         var dopplerService = new DopplerPhaseService(new TestWebHostEnvironment(), NullLogger<DopplerPhaseService>.Instance);
 
-        var inspectQueue = new InspectFloatQueue(
+        using var inspectQueue = new InspectFloatQueue(
             new NoopHttpClientFactory(),
             new InMemoryDbContextFactory(context),
             NullLogger<InspectFloatQueue>.Instance,
@@ -126,7 +126,7 @@ public class SteamInventoryImportServiceTests
         var csMarketService = CreateCsMarketService();
         var dopplerService = new DopplerPhaseService(new TestWebHostEnvironment(), NullLogger<DopplerPhaseService>.Instance);
 
-        var inspectQueue = new InspectFloatQueue(
+        using var inspectQueue = new InspectFloatQueue(
             new NoopHttpClientFactory(),
             new InMemoryDbContextFactory(context),
             NullLogger<InspectFloatQueue>.Instance,

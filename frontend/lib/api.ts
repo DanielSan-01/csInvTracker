@@ -83,6 +83,15 @@ export interface InventoryStatsDto {
   averageProfitPercent?: number | null;
 }
 
+export interface FloatStatus {
+  isProcessing: boolean;
+  pending: number;
+  currentInventoryItemId?: number | null;
+  currentAssetId?: string | null;
+  currentName?: string | null;
+  startedAt?: string | null;
+}
+
 export interface InventoryValueHistoryDto {
   date: string; // ISO date string
   totalValue: number;
@@ -435,6 +444,18 @@ export const steamInventoryApi = {
       }
 
       throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  getFloatStatus: async (): Promise<FloatStatus> => {
+    const response = await fetch(`${API_BASE_URL}/inventory/float-status`, {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch float status');
     }
 
     return response.json();

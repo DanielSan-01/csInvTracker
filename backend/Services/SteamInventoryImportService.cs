@@ -267,6 +267,7 @@ public class SteamInventoryImportService
                     {
                         _inspectQueue.Enqueue(new InspectJob(
                             userId,
+                            existingItem.Id,
                             steamItem.AssetId,
                             steamItem.InspectLink,
                             steamItem.MarketHashName,
@@ -359,6 +360,7 @@ public class SteamInventoryImportService
                 {
                     _inspectQueue.Enqueue(new InspectJob(
                         userId,
+                        inventoryItem.Id,
                         steamItem.AssetId,
                         steamItem.InspectLink,
                         steamItem.MarketHashName,

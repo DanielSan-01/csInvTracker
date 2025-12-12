@@ -21,6 +21,7 @@ public class InventoryController : ControllerBase
     private readonly SteamInventoryImportService _steamImportService;
     private readonly SteamApiService _steamApiService;
     private readonly CsMarketApiService _csMarketApiService;
+    private readonly InspectFloatQueue _inspectQueue;
     private const decimal SteamWalletLimit = 2000m;
     private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
     private static readonly object DebugLogLock = new();
@@ -31,7 +32,8 @@ public class InventoryController : ControllerBase
         ILogger<InventoryController> logger,
         SteamInventoryImportService steamImportService,
         SteamApiService steamApiService,
-        CsMarketApiService csMarketApiService)
+        CsMarketApiService csMarketApiService,
+        InspectFloatQueue inspectFloatQueue)
     {
         _context = context;
         _dopplerPhaseService = dopplerPhaseService;
@@ -39,6 +41,24 @@ public class InventoryController : ControllerBase
         _steamImportService = steamImportService;
         _steamApiService = steamApiService;
         _csMarketApiService = csMarketApiService;
+        _inspectQueue = inspectFloatQueue;
+    }
+
+    [HttpGet("float-status")]
+    public ActionResult<FloatStatusDto> GetFloatStatus()
+    {
+        var status = _inspectQueue.GetStatus();
+        var dto = new FloatStatusDto
+        {
+            IsProcessing = status.IsProcessing,
+            Pending = status.Pending,
+            CurrentInventoryItemId = status.CurrentInventoryItemId,
+            CurrentAssetId = status.CurrentAssetId,
+            CurrentName = status.CurrentName ?? status.CurrentMarketHashName,
+            StartedAt = status.StartedAt
+        };
+
+        return Ok(dto);
     }
 
     private static void DebugLog(string hypothesisId, string location, string message, object data)
@@ -1483,6 +1503,16 @@ public class InventoryController : ControllerBase
 
         return link;
     }
+}
+
+public class FloatStatusDto
+{
+    public bool IsProcessing { get; set; }
+    public int Pending { get; set; }
+    public int? CurrentInventoryItemId { get; set; }
+    public string? CurrentAssetId { get; set; }
+    public string? CurrentName { get; set; }
+    public DateTimeOffset? StartedAt { get; set; }
 }
 
 public class RefreshPricesResult

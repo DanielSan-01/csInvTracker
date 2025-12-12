@@ -21,6 +21,8 @@ public sealed class InspectFloatQueue : IDisposable
     private readonly ConcurrentDictionary<string, byte> _dedupe = new(StringComparer.Ordinal);
     private readonly Task? _processingTask;
     private readonly bool _enabled;
+    private InspectJob? _currentJob;
+    private DateTimeOffset? _currentJobStarted;
     private const int MaxRetries = 5;
     private static readonly TimeSpan RequestSpacing = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(2);
@@ -83,6 +85,9 @@ public sealed class InspectFloatQueue : IDisposable
                 continue;
             }
 
+            _currentJob = job;
+            _currentJobStarted = DateTimeOffset.UtcNow;
+
             _dedupe.TryRemove(job.UniqueKey, out _);
 
             try
@@ -92,6 +97,11 @@ public sealed class InspectFloatQueue : IDisposable
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed processing inspect job for asset {AssetId}", job.AssetId);
+            }
+            finally
+            {
+                _currentJob = null;
+                _currentJobStarted = null;
             }
 
             try
@@ -285,10 +295,35 @@ public sealed class InspectFloatQueue : IDisposable
         _cts.Dispose();
         _queueSignal.Dispose();
     }
+
+    public InspectQueueStatus GetStatus()
+    {
+        if (!_enabled)
+        {
+            return new InspectQueueStatus(false, 0, null, null, null, null, null);
+        }
+
+        var job = _currentJob;
+        var pending = _queue.Count;
+        if (job is not null)
+        {
+            pending += 1;
+        }
+
+        return new InspectQueueStatus(
+            job is not null,
+            pending,
+            job?.InventoryItemId,
+            job?.AssetId,
+            job?.MarketHashName,
+            job?.Name,
+            _currentJobStarted);
+    }
 }
 
 public record InspectJob(
     int UserId,
+    int InventoryItemId,
     string AssetId,
     string? InspectLink,
     string? MarketHashName,
@@ -296,4 +331,13 @@ public record InspectJob(
 {
     public string UniqueKey => $"{UserId}:{AssetId}";
 }
+
+public record InspectQueueStatus(
+    bool IsProcessing,
+    int Pending,
+    int? CurrentInventoryItemId,
+    string? CurrentAssetId,
+    string? CurrentMarketHashName,
+    string? CurrentName,
+    DateTimeOffset? StartedAt);
 

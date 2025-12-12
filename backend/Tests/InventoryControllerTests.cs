@@ -20,6 +20,7 @@ public class InventoryControllerTests : IDisposable
     private readonly ApplicationDbContext _context;
     private readonly InventoryController _controller;
     private readonly Skin _testSkin;
+    private readonly InspectFloatQueue _inspectQueue;
     
     public InventoryControllerTests()
     {
@@ -58,7 +59,7 @@ public class InventoryControllerTests : IDisposable
         var stickerCatalogService = new StickerCatalogService(_context, stickerCatalogLogger);
         
         var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
-        var inspectQueue = new InspectFloatQueue(
+        _inspectQueue = new InspectFloatQueue(
             httpClientFactory,
             new InMemoryDbContextFactory(_context),
             NullLogger<InspectFloatQueue>.Instance,
@@ -69,9 +70,9 @@ public class InventoryControllerTests : IDisposable
             dopplerService,
             csMarketService,
             stickerCatalogService,
-            inspectQueue);
+            _inspectQueue);
 
-        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, steamApiService, csMarketService);
+        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, steamApiService, csMarketService, _inspectQueue);
         
         // Create test user
         var testUser = new User
@@ -306,6 +307,7 @@ public class InventoryControllerTests : IDisposable
     {
         _context.Database.EnsureDeleted();
         _context.Dispose();
+        _inspectQueue.Dispose();
     }
 }
 

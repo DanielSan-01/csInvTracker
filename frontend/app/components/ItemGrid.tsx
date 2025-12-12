@@ -10,7 +10,8 @@ import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import {
   CreateInventoryItemDto,
   UpdateInventoryItemDto,
-  SkinDto /* , adminApi */,
+  SkinDto,
+  FloatStatus /* , adminApi */,
 } from '@/lib/api';
 // Removed fetchSteamInventory - now handled by backend
 import { formatCurrency, calculateValveTradeLockDate } from '@/lib/utils';
@@ -58,6 +59,7 @@ export default function ItemGrid() {
   const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
   const [showBulkPriceEditor, setShowBulkPriceEditor] = useState(false);
   const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
+  const [floatStatus, setFloatStatus] = useState<FloatStatus | null>(null);
   const { toast, showToast } = useToast();
 
   const manualPricingItems = useMemo(() => {
@@ -167,10 +169,92 @@ export default function ItemGrid() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedItemId, sortedItems]);
 
+  useEffect(() => {
+    let isMounted = true;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    let api: typeof import('@/lib/api').steamInventoryApi | null = null;
+
+    const pollOnce = async () => {
+      try {
+        if (!api) {
+          ({ steamInventoryApi: api } = await import('@/lib/api'));
+        }
+        if (!api) {
+          return;
+        }
+
+        const status = await api.getFloatStatus();
+        if (!isMounted) {
+          return;
+        }
+        setFloatStatus(status);
+      } catch (err) {
+        if (!isMounted) {
+          return;
+        }
+        console.debug('[ItemGrid] Failed to fetch float status', err);
+      }
+    };
+
+    const startPolling = async () => {
+      await pollOnce();
+      intervalId = setInterval(pollOnce, 2000);
+    };
+
+    startPolling();
+
+    return () => {
+      isMounted = false;
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, []);
+
   const selectedItem = useMemo(
     () => (selectedItemId ? sortedItems.find(item => item.id === selectedItemId) ?? null : null),
     [sortedItems, selectedItemId]
   );
+
+  const floatStatusSummary = useMemo(() => {
+    if (!floatStatus) {
+      return {
+        active: false,
+        label: '',
+        queued: 0,
+        imageUrl: undefined as string | undefined,
+        exterior: undefined as string | undefined,
+      };
+    }
+
+    const active = floatStatus.isProcessing || floatStatus.pending > 0;
+    if (!active) {
+      return {
+        active: false,
+        label: '',
+        queued: 0,
+        imageUrl: undefined as string | undefined,
+        exterior: undefined as string | undefined,
+      };
+    }
+
+    const currentId = floatStatus.currentInventoryItemId?.toString() ?? null;
+    const currentItem = currentId ? sortedItems.find(item => item.id === currentId) : null;
+    const label =
+      (currentItem?.name?.trim() ?? '') ||
+      (floatStatus.currentName?.trim() ?? '') ||
+      floatStatus.currentAssetId ||
+      'Processing item';
+    const queued = Math.max(0, floatStatus.pending - (floatStatus.isProcessing ? 1 : 0));
+
+    return {
+      active: true,
+      label,
+      queued,
+      imageUrl: currentItem?.imageUrl,
+      exterior: currentItem?.exterior,
+    };
+  }, [floatStatus, sortedItems]);
 
   // Handler for GlobalSearchBar quick-add
   const handleQuickAddSkin = (skin: SkinDto) => {
@@ -436,28 +520,32 @@ export default function ItemGrid() {
         // Try to parse JSON error if available (backend returns JSON error objects)
         try {
           // Error message might be a JSON string
-          let errorObj: any = null;
-          
-          // Try to parse as JSON directly
+          let parsed: unknown = null;
+
           try {
-            errorObj = JSON.parse(errorMessage);
+            parsed = JSON.parse(errorMessage);
           } catch {
             // If that fails, try to extract JSON from the message
             const jsonMatch = errorMessage.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-              errorObj = JSON.parse(jsonMatch[0]);
+              try {
+                parsed = JSON.parse(jsonMatch[0]);
+              } catch {
+                parsed = null;
+              }
             }
           }
-          
-          if (errorObj) {
-            // Extract error details from backend response
-            const details = errorObj.details || errorObj.error || errorMessage;
-            const suggestion = errorObj.suggestion || '';
-            
+
+          if (parsed && typeof parsed === 'object') {
+            const parsedRecord = parsed as Record<string, unknown>;
+            const details = typeof parsedRecord.details === 'string' ? parsedRecord.details : undefined;
+            const suggestion = typeof parsedRecord.suggestion === 'string' ? parsedRecord.suggestion : undefined;
+            const errorField = typeof parsedRecord.error === 'string' ? parsedRecord.error : undefined;
+
             // Check if this is a private inventory error
-            const detailsLower = (details || '').toLowerCase();
-            const errorLower = (errorObj.error || '').toLowerCase();
-            
+            const detailsLower = (details ?? '').toLowerCase();
+            const errorLower = (errorField ?? '').toLowerCase();
+
             if (
               detailsLower.includes('private') ||
               detailsLower.includes('inventory privacy') ||
@@ -465,17 +553,17 @@ export default function ItemGrid() {
               detailsLower.includes('success=0') ||
               errorLower.includes('private') ||
               errorLower.includes('inventory privacy') ||
-              errorObj.error?.toLowerCase().includes('inventory is not accessible')
+              errorLower.includes('inventory is not accessible')
             ) {
               isPrivateInventory = true;
-              bannerMessage = details || errorObj.error || 'Your Steam inventory privacy is set to private.';
+              bannerMessage = details ?? errorField ?? 'Your Steam inventory privacy is set to private.';
               if (suggestion) {
                 bannerMessage += ` ${suggestion}`;
               } else {
                 bannerMessage += ' Please make your inventory public in Steam settings: Steam > Settings > Privacy > Inventory Privacy > Public';
               }
             } else {
-              errorMessage = details || errorObj.error || errorMessage;
+              errorMessage = details ?? errorField ?? errorMessage;
             }
           } else {
             // Check if error message indicates private inventory
@@ -715,6 +803,43 @@ export default function ItemGrid() {
       />
 
       <InventoryToast toast={toast} />
+
+      {floatStatusSummary.active && (
+        <div className="pointer-events-none fixed bottom-6 right-6 z-50 max-w-xs rounded-2xl border border-sky-400/20 bg-gray-950/95 px-4 py-3 shadow-xl shadow-black/60 backdrop-blur">
+          <div className="flex items-center gap-3">
+            {floatStatusSummary.imageUrl ? (
+              <img
+                src={floatStatusSummary.imageUrl}
+                alt={floatStatusSummary.label}
+                className="h-14 w-14 flex-none rounded-xl border border-white/10 object-cover shadow-inner shadow-black/40"
+              />
+            ) : (
+              <div className="flex h-14 w-14 flex-none items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/10 text-[0.65rem] font-semibold uppercase tracking-wide text-sky-200">
+                Float
+              </div>
+            )}
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-wide text-sky-300/80">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  Fetching floats
+                </span>
+                {floatStatusSummary.queued > 0 && (
+                  <span className="text-gray-400">{floatStatusSummary.queued} queued</span>
+                )}
+              </div>
+              <p className="mt-1 text-sm font-semibold leading-snug text-white">
+                {floatStatusSummary.label}
+              </p>
+              {floatStatusSummary.exterior && (
+                <p className="text-xs uppercase tracking-wide text-gray-400">
+                  {floatStatusSummary.exterior}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Private Inventory Banner - Show prominently at top */}
       {privateInventoryBanner && (
