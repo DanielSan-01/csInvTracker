@@ -1504,6 +1504,22 @@ public class InventoryController : ControllerBase
             .Replace("%instanceid%", asset.InstanceId, StringComparison.OrdinalIgnoreCase)
             .Replace("%contextid%", contextId, StringComparison.OrdinalIgnoreCase);
 
+        if (!link.Contains('%'))
+        {
+            DebugLog(
+                "inspect-link",
+                "BuildInspectLink",
+                "Constructed inspect link",
+                new
+                {
+                    ownerSteamId,
+                    asset.AssetId,
+                    DParamPresent = link.Contains("%20S", StringComparison.OrdinalIgnoreCase) &&
+                                    link.Contains("D", StringComparison.OrdinalIgnoreCase),
+                    Link = link
+                });
+        }
+
         return link;
     }
 }
