@@ -35,13 +35,19 @@ public class CsMarketIntegrationTests
 
         var csMarketService = CreateCsMarketService();
         var dopplerService = CreateDopplerService();
+        var inspectQueue = new InspectFloatQueue(
+            new QueueHttpClientFactory(),
+            new InMemoryDbContextFactory(context),
+            NullLogger<InspectFloatQueue>.Instance,
+            enableProcessing: false);
+
         var importService = new SteamInventoryImportService(
             context,
             NullLogger<SteamInventoryImportService>.Instance,
             dopplerService,
             csMarketService,
             stickerCatalogService: null,
-            httpClientFactory: new NoopHttpClientFactory());
+            inspectQueue);
 
         var steamItems = CreateSteamItems();
 
@@ -127,6 +133,31 @@ public class CsMarketIntegrationTests
     {
         var env = new TestWebHostEnvironment();
         return new DopplerPhaseService(env, NullLogger<DopplerPhaseService>.Instance);
+    }
+
+    private sealed class QueueHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new HttpClient(new HttpClientHandler());
+    }
+
+    private sealed class InMemoryDbContextFactory : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly ApplicationDbContext _context;
+
+        public InMemoryDbContextFactory(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public ApplicationDbContext CreateDbContext()
+        {
+            return _context;
+        }
+
+        public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_context);
+        }
     }
 
     private sealed class NoopHttpClientFactory : IHttpClientFactory

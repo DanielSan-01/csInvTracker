@@ -38,13 +38,19 @@ public class SteamInventoryImportServiceTests
         var csMarketService = CreateCsMarketService();
         var dopplerService = new DopplerPhaseService(new TestWebHostEnvironment(), NullLogger<DopplerPhaseService>.Instance);
 
+        var inspectQueue = new InspectFloatQueue(
+            new NoopHttpClientFactory(),
+            new InMemoryDbContextFactory(context),
+            NullLogger<InspectFloatQueue>.Instance,
+            enableProcessing: false);
+
         var importService = new SteamInventoryImportService(
             context,
             NullLogger<SteamInventoryImportService>.Instance,
             dopplerService,
             csMarketService,
             stickerCatalogService: null,
-            httpClientFactory: new NoopHttpClientFactory());
+            inspectQueue);
 
         var steamItem = new SteamInventoryItemDto
         {
@@ -120,13 +126,19 @@ public class SteamInventoryImportServiceTests
         var csMarketService = CreateCsMarketService();
         var dopplerService = new DopplerPhaseService(new TestWebHostEnvironment(), NullLogger<DopplerPhaseService>.Instance);
 
+        var inspectQueue = new InspectFloatQueue(
+            new NoopHttpClientFactory(),
+            new InMemoryDbContextFactory(context),
+            NullLogger<InspectFloatQueue>.Instance,
+            enableProcessing: false);
+
         var importService = new SteamInventoryImportService(
             context,
             NullLogger<SteamInventoryImportService>.Instance,
             dopplerService,
             csMarketService,
             stickerCatalogService: null,
-            httpClientFactory: new NoopHttpClientFactory());
+            inspectQueue);
 
         var steamItem = new SteamInventoryItemDto
         {
@@ -182,6 +194,26 @@ public class SteamInventoryImportServiceTests
     private sealed class NoopHttpClientFactory : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new HttpClient(new HttpClientHandler());
+    }
+
+    private sealed class InMemoryDbContextFactory : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly ApplicationDbContext _context;
+
+        public InMemoryDbContextFactory(ApplicationDbContext context)
+        {
+            _context = context;
+        }
+
+        public ApplicationDbContext CreateDbContext()
+        {
+            return _context;
+        }
+
+        public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(_context);
+        }
     }
 
     private sealed class StubHttpClientFactory : IHttpClientFactory

@@ -76,6 +76,7 @@ builder.Services.AddScoped<OpenIdVerificationService>();
 builder.Services.AddScoped<StickerCatalogService>();
 builder.Services.AddScoped<SteamInventoryImportService>();
 builder.Services.AddScoped<SteamCatalogRefreshService>();
+builder.Services.AddSingleton<InspectFloatQueue>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection
@@ -130,6 +131,9 @@ if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreC
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(finalConnectionString));
+builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+    options.UseNpgsql(finalConnectionString));
+builder.Services.AddHttpClient("csgoFloat");
 
 // Add CORS for Next.js frontend
 builder.Services.AddCors(options =>

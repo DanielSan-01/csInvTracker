@@ -58,13 +58,18 @@ public class InventoryControllerTests : IDisposable
         var stickerCatalogService = new StickerCatalogService(_context, stickerCatalogLogger);
         
         var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
+        var inspectQueue = new InspectFloatQueue(
+            httpClientFactory,
+            new InMemoryDbContextFactory(_context),
+            NullLogger<InspectFloatQueue>.Instance,
+            enableProcessing: false);
         var steamImportService = new SteamInventoryImportService(
             _context,
             steamImportLogger,
             dopplerService,
             csMarketService,
             stickerCatalogService,
-            httpClientFactory);
+            inspectQueue);
 
         _controller = new InventoryController(_context, dopplerService, logger, steamImportService, steamApiService, csMarketService);
         
@@ -310,6 +315,26 @@ internal class TestHttpClientFactory : IHttpClientFactory
     public HttpClient CreateClient(string name)
     {
         return new HttpClient();
+    }
+}
+
+internal sealed class InMemoryDbContextFactory : IDbContextFactory<ApplicationDbContext>
+{
+    private readonly ApplicationDbContext _context;
+
+    public InMemoryDbContextFactory(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public ApplicationDbContext CreateDbContext()
+    {
+        return _context;
+    }
+
+    public Task<ApplicationDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(_context);
     }
 }
 
