@@ -224,6 +224,9 @@ export default function ItemGrid() {
         queued: 0,
         imageUrl: undefined as string | undefined,
         exterior: undefined as string | undefined,
+        waiting: false,
+        retrySeconds: null as number | null,
+        message: null as string | null,
       };
     }
 
@@ -235,6 +238,9 @@ export default function ItemGrid() {
         queued: 0,
         imageUrl: undefined as string | undefined,
         exterior: undefined as string | undefined,
+        waiting: false,
+        retrySeconds: null as number | null,
+        message: null as string | null,
       };
     }
 
@@ -246,6 +252,14 @@ export default function ItemGrid() {
       floatStatus.currentAssetId ||
       'Processing item';
     const queued = Math.max(0, floatStatus.pending - (floatStatus.isProcessing ? 1 : 0));
+    const waiting = !!floatStatus.waitingForRateLimit;
+    const rateLimitUntilMillis = floatStatus.rateLimitUntil ? new Date(floatStatus.rateLimitUntil).getTime() : null;
+    const now = Date.now();
+    const retrySeconds =
+      waiting && rateLimitUntilMillis
+        ? Math.max(0, Math.round((rateLimitUntilMillis - now) / 1000))
+        : null;
+    const message = floatStatus.lastStatusMessage?.trim() || null;
 
     return {
       active: true,
@@ -253,6 +267,9 @@ export default function ItemGrid() {
       queued,
       imageUrl: currentItem?.imageUrl,
       exterior: currentItem?.exterior,
+      waiting,
+      retrySeconds,
+      message,
     };
   }, [floatStatus, sortedItems]);
 
@@ -821,11 +838,16 @@ export default function ItemGrid() {
             <div className="flex-1">
               <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-wide text-sky-300/80">
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
-                  Fetching floats
+                  <span className={`h-1.5 w-1.5 rounded-full ${floatStatusSummary.waiting ? 'bg-amber-400 animate-pulse' : 'bg-sky-400 animate-pulse'}`} />
+                  {floatStatusSummary.waiting ? 'Waiting on rate limit' : 'Fetching floats'}
                 </span>
                 {floatStatusSummary.queued > 0 && (
                   <span className="text-gray-400">{floatStatusSummary.queued} queued</span>
+                )}
+                {floatStatusSummary.waiting && floatStatusSummary.retrySeconds !== null && (
+                  <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[0.65rem] text-sky-200">
+                    {floatStatusSummary.retrySeconds}s
+                  </span>
                 )}
               </div>
               <p className="mt-1 text-sm font-semibold leading-snug text-white">
@@ -834,6 +856,11 @@ export default function ItemGrid() {
               {floatStatusSummary.exterior && (
                 <p className="text-xs uppercase tracking-wide text-gray-400">
                   {floatStatusSummary.exterior}
+                </p>
+              )}
+              {floatStatusSummary.message && (
+                <p className="mt-1 text-xs text-gray-400">
+                  {floatStatusSummary.message}
                 </p>
               )}
             </div>

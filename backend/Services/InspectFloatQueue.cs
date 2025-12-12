@@ -24,8 +24,12 @@ public sealed class InspectFloatQueue : IDisposable
     private InspectJob? _currentJob;
     private DateTimeOffset? _currentJobStarted;
     private const int MaxRetries = 5;
-    private static readonly TimeSpan RequestSpacing = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan BaseRequestInterval = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan RequestSpacing = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan RetryBaseDelay = TimeSpan.FromSeconds(2);
+    private DateTimeOffset _nextAllowedRequest = DateTimeOffset.UtcNow;
+    private DateTimeOffset? _rateLimitUntil;
+    private string? _lastStatusMessage;
 
     public InspectFloatQueue(
         IHttpClientFactory httpClientFactory,
@@ -160,23 +164,34 @@ public sealed class InspectFloatQueue : IDisposable
 
         for (var attempt = 1; attempt <= MaxRetries && !cancellationToken.IsCancellationRequested; attempt++)
         {
+            await DelayUntilAllowedAsync(cancellationToken);
+
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
                 request.Headers.TryAddWithoutValidation("User-Agent", "csinvtracker/1.0 (+https://csinvtracker.com)");
 
                 using var response = await client.SendAsync(request, cancellationToken);
+                _nextAllowedRequest = DateTimeOffset.UtcNow + BaseRequestInterval;
+                _rateLimitUntil = null;
+                _lastStatusMessage = null;
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
                     var delay = ExtractRetryDelay(response) ?? TimeSpan.FromSeconds(Math.Pow(RetryBaseDelay.TotalSeconds, attempt));
+                    if (delay < BaseRequestInterval)
+                    {
+                        delay = BaseRequestInterval;
+                    }
                     _logger.LogWarning(
                         "CSGOFloat rate limit hit for {InspectLink}. Waiting {Delay}s before retry {Attempt}/{MaxAttempts}",
                         inspectLink,
                         delay.TotalSeconds.ToString("0.###"),
                         attempt,
                         MaxRetries);
-                    await Task.Delay(delay, cancellationToken);
+                    _nextAllowedRequest = DateTimeOffset.UtcNow + delay;
+                    _rateLimitUntil = _nextAllowedRequest;
+                    _lastStatusMessage = $"Rate limited, retrying in {delay.TotalSeconds:0}s (attempt {attempt}/{MaxRetries})";
                     continue;
                 }
 
@@ -231,17 +246,68 @@ public sealed class InspectFloatQueue : IDisposable
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 _logger.LogWarning("CSGOFloat request timed out for inspect link {InspectLink}", inspectLink);
+                var timeoutDelay = TimeSpan.FromSeconds(Math.Pow(RetryBaseDelay.TotalSeconds, attempt));
+                if (timeoutDelay < BaseRequestInterval)
+                {
+                    timeoutDelay = BaseRequestInterval;
+                }
+                _nextAllowedRequest = DateTimeOffset.UtcNow + timeoutDelay;
+                _rateLimitUntil = _nextAllowedRequest;
+                _lastStatusMessage = $"Inspect request timed out; retrying in {timeoutDelay.TotalSeconds:0}s (attempt {attempt}/{MaxRetries})";
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "CSGOFloat request failed for inspect link {InspectLink}", inspectLink);
+                var errorDelay = TimeSpan.FromSeconds(Math.Pow(RetryBaseDelay.TotalSeconds, attempt));
+                if (errorDelay < BaseRequestInterval)
+                {
+                    errorDelay = BaseRequestInterval;
+                }
+                _nextAllowedRequest = DateTimeOffset.UtcNow + errorDelay;
+                _rateLimitUntil = _nextAllowedRequest;
+                _lastStatusMessage = $"Inspect request failed; retrying in {errorDelay.TotalSeconds:0}s (attempt {attempt}/{MaxRetries})";
             }
 
             var backoffDelay = TimeSpan.FromSeconds(Math.Pow(RetryBaseDelay.TotalSeconds, attempt));
-            await Task.Delay(backoffDelay, cancellationToken);
+            if (backoffDelay < BaseRequestInterval)
+            {
+                backoffDelay = BaseRequestInterval;
+            }
+            _nextAllowedRequest = DateTimeOffset.UtcNow + backoffDelay;
+            _rateLimitUntil = _nextAllowedRequest;
+            _lastStatusMessage = $"Retrying inspect fetch in {backoffDelay.TotalSeconds:0}s (attempt {attempt + 1}/{MaxRetries})";
         }
 
+        _lastStatusMessage = $"Unable to retrieve float after {MaxRetries} attempts.";
         return (null, null, null);
+    }
+
+    private async Task DelayUntilAllowedAsync(CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var wait = _nextAllowedRequest - now;
+        if (wait <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        _rateLimitUntil = _nextAllowedRequest;
+        _logger.LogDebug("Throttling CSGOFloat inspect request for {Delay}s", wait.TotalSeconds.ToString("0.###"));
+        try
+        {
+            await Task.Delay(wait, cancellationToken);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // allow loop to observe cancellation
+        }
+        finally
+        {
+            if (_rateLimitUntil.HasValue && DateTimeOffset.UtcNow >= _rateLimitUntil.Value)
+            {
+                _rateLimitUntil = null;
+            }
+        }
     }
 
     private static TimeSpan? ExtractRetryDelay(HttpResponseMessage response)
@@ -300,7 +366,7 @@ public sealed class InspectFloatQueue : IDisposable
     {
         if (!_enabled)
         {
-            return new InspectQueueStatus(false, 0, null, null, null, null, null);
+            return new InspectQueueStatus(false, 0, null, null, null, null, null, false, null, null);
         }
 
         var job = _currentJob;
@@ -310,6 +376,8 @@ public sealed class InspectFloatQueue : IDisposable
             pending += 1;
         }
 
+        var waiting = _rateLimitUntil.HasValue && _rateLimitUntil.Value > DateTimeOffset.UtcNow;
+
         return new InspectQueueStatus(
             job is not null,
             pending,
@@ -317,7 +385,10 @@ public sealed class InspectFloatQueue : IDisposable
             job?.AssetId,
             job?.MarketHashName,
             job?.Name,
-            _currentJobStarted);
+            _currentJobStarted,
+            waiting,
+            waiting ? _rateLimitUntil : null,
+            _lastStatusMessage);
     }
 }
 
@@ -339,5 +410,8 @@ public record InspectQueueStatus(
     string? CurrentAssetId,
     string? CurrentMarketHashName,
     string? CurrentName,
-    DateTimeOffset? StartedAt);
+    DateTimeOffset? StartedAt,
+    bool WaitingForRateLimit,
+    DateTimeOffset? RateLimitUntil,
+    string? LastStatusMessage);
 

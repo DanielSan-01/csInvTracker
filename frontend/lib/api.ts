@@ -90,6 +90,9 @@ export interface FloatStatus {
   currentAssetId?: string | null;
   currentName?: string | null;
   startedAt?: string | null;
+  waitingForRateLimit?: boolean;
+  rateLimitUntil?: string | null;
+  lastStatusMessage?: string | null;
 }
 
 export interface InventoryValueHistoryDto {

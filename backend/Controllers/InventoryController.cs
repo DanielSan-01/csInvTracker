@@ -55,7 +55,10 @@ public class InventoryController : ControllerBase
             CurrentInventoryItemId = status.CurrentInventoryItemId,
             CurrentAssetId = status.CurrentAssetId,
             CurrentName = status.CurrentName ?? status.CurrentMarketHashName,
-            StartedAt = status.StartedAt
+            StartedAt = status.StartedAt,
+            WaitingForRateLimit = status.WaitingForRateLimit,
+            RateLimitUntil = status.RateLimitUntil,
+            LastStatusMessage = status.LastStatusMessage
         };
 
         return Ok(dto);
@@ -1513,6 +1516,9 @@ public class FloatStatusDto
     public string? CurrentAssetId { get; set; }
     public string? CurrentName { get; set; }
     public DateTimeOffset? StartedAt { get; set; }
+    public bool WaitingForRateLimit { get; set; }
+    public DateTimeOffset? RateLimitUntil { get; set; }
+    public string? LastStatusMessage { get; set; }
 }
 
 public class RefreshPricesResult
