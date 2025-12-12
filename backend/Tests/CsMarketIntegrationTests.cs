@@ -39,7 +39,9 @@ public class CsMarketIntegrationTests
             context,
             NullLogger<SteamInventoryImportService>.Instance,
             dopplerService,
-            csMarketService);
+            csMarketService,
+            stickerCatalogService: null,
+            httpClientFactory: new NoopHttpClientFactory());
 
         var steamItems = CreateSteamItems();
 
@@ -125,6 +127,11 @@ public class CsMarketIntegrationTests
     {
         var env = new TestWebHostEnvironment();
         return new DopplerPhaseService(env, NullLogger<DopplerPhaseService>.Instance);
+    }
+
+    private sealed class NoopHttpClientFactory : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new HttpClient(new HttpClientHandler());
     }
 
     private static List<Skin> CreateSkins()

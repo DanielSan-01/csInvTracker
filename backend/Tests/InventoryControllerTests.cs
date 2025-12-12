@@ -58,7 +58,13 @@ public class InventoryControllerTests : IDisposable
         var stickerCatalogService = new StickerCatalogService(_context, stickerCatalogLogger);
         
         var steamImportLogger = NullLogger<SteamInventoryImportService>.Instance;
-        var steamImportService = new SteamInventoryImportService(_context, steamImportLogger, dopplerService, csMarketService, stickerCatalogService);
+        var steamImportService = new SteamInventoryImportService(
+            _context,
+            steamImportLogger,
+            dopplerService,
+            csMarketService,
+            stickerCatalogService,
+            httpClientFactory);
 
         _controller = new InventoryController(_context, dopplerService, logger, steamImportService, steamApiService, csMarketService);
         

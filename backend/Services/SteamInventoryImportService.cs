@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using System;
 using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Globalization;
@@ -16,6 +18,7 @@ public class SteamInventoryImportService
     private readonly DopplerPhaseService _dopplerPhaseService;
     private readonly CsMarketApiService _csMarketApiService;
     private readonly StickerCatalogService? _stickerCatalogService;
+    private readonly IHttpClientFactory _httpClientFactory;
     private const decimal SteamWalletLimit = 2000m;
     private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
     private static readonly object DebugLogLock = new();
@@ -25,13 +28,15 @@ public class SteamInventoryImportService
         ILogger<SteamInventoryImportService> logger,
         DopplerPhaseService dopplerPhaseService,
         CsMarketApiService csMarketApiService,
-        StickerCatalogService? stickerCatalogService = null)
+        StickerCatalogService? stickerCatalogService,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _logger = logger;
         _dopplerPhaseService = dopplerPhaseService;
         _csMarketApiService = csMarketApiService;
         _stickerCatalogService = stickerCatalogService;
+        _httpClientFactory = httpClientFactory ?? throw new ArgumentNullException(nameof(httpClientFactory), "IHttpClientFactory is required for SteamInventoryImportService.");
     }
 
     private static void DebugLog(string hypothesisId, string location, string message, object data)
@@ -127,6 +132,8 @@ public class SteamInventoryImportService
             _logger.LogInformation("Skipping CSMarket price fetch; updating floats only for {Count} items", steamItems.Count);
         }
 
+        var inspectCache = new Dictionary<string, (double? FloatValue, int? PaintSeed, int? PaintIndex)>(StringComparer.Ordinal);
+
         foreach (var steamItem in steamItems)
         {
             try
@@ -184,6 +191,18 @@ public class SteamInventoryImportService
                     
                     // Extract item properties from Steam descriptions
                     var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
+                    var enrichedExisting = await EnrichWithInspectDataAsync(
+                        steamItem,
+                        updatedFloatValue,
+                        updatedExterior,
+                        updatedPaintSeed,
+                        updatedPaintIndex,
+                        inspectCache,
+                        cancellationToken);
+                    updatedFloatValue = enrichedExisting.FloatValue;
+                    updatedExterior = enrichedExisting.Exterior;
+                    updatedPaintSeed = enrichedExisting.PaintSeed;
+                    updatedPaintIndex = enrichedExisting.PaintIndex;
                     var previousFloat = existingItem.Float;
                     var previousExterior = existingItem.Exterior;
                     
@@ -263,6 +282,18 @@ public class SteamInventoryImportService
 
                 // Extract item properties from Steam descriptions
                 var (floatValue, exterior, paintSeed, paintIndex, stickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
+                var enrichedNew = await EnrichWithInspectDataAsync(
+                    steamItem,
+                    floatValue,
+                    exterior,
+                    paintSeed,
+                    paintIndex,
+                    inspectCache,
+                    cancellationToken);
+                floatValue = enrichedNew.FloatValue;
+                exterior = enrichedNew.Exterior;
+                paintSeed = enrichedNew.PaintSeed;
+                paintIndex = enrichedNew.PaintIndex;
 
                 // Create inventory item
                 // Always prefer Steam's image URL (it's always up-to-date from Steam's CDN)
@@ -672,6 +703,132 @@ public class SteamInventoryImportService
         return (floatValue, exterior, paintSeed, paintIndex, stickers);
     }
 
+    private async Task<(double FloatValue, string Exterior, int? PaintSeed, int? PaintIndex)> EnrichWithInspectDataAsync(
+        SteamInventoryItemDto steamItem,
+        double currentFloat,
+        string currentExterior,
+        int? currentPaintSeed,
+        int? currentPaintIndex,
+        Dictionary<string, (double? FloatValue, int? PaintSeed, int? PaintIndex)> inspectCache,
+        CancellationToken cancellationToken)
+    {
+        if (Math.Abs(currentFloat - 0.5) >= 0.0001 || string.IsNullOrWhiteSpace(steamItem.InspectLink))
+        {
+            return (currentFloat, currentExterior, currentPaintSeed, currentPaintIndex);
+        }
+
+        var inspectResult = await TryFetchFloatFromInspectAsync(steamItem.InspectLink, inspectCache, cancellationToken);
+        if (!inspectResult.FloatValue.HasValue)
+        {
+            _logger.LogDebug(
+                "Inspect lookup did not return a float for {MarketHashName} ({AssetId})",
+                steamItem.MarketHashName,
+                steamItem.AssetId);
+            return (currentFloat, currentExterior, currentPaintSeed, currentPaintIndex);
+        }
+
+        var normalizedFloat = Math.Round(inspectResult.FloatValue.Value, 6, MidpointRounding.AwayFromZero);
+        var exterior = GetExteriorFromFloat(normalizedFloat);
+
+        _logger.LogInformation(
+            "Fetched float {Float} via inspect link for {MarketHashName} ({AssetId})",
+            normalizedFloat,
+            steamItem.MarketHashName,
+            steamItem.AssetId);
+
+        return (
+            normalizedFloat,
+            exterior,
+            currentPaintSeed ?? inspectResult.PaintSeed,
+            currentPaintIndex ?? inspectResult.PaintIndex);
+    }
+
+    private async Task<(double? FloatValue, int? PaintSeed, int? PaintIndex)> TryFetchFloatFromInspectAsync(
+        string inspectLink,
+        Dictionary<string, (double? FloatValue, int? PaintSeed, int? PaintIndex)> cache,
+        CancellationToken cancellationToken)
+    {
+        if (cache.TryGetValue(inspectLink, out var cached))
+        {
+            return cached;
+        }
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient("csgoFloat");
+            client.Timeout = TimeSpan.FromSeconds(10);
+
+            var requestUri = $"https://api.csgofloat.com/?url={Uri.EscapeDataString(inspectLink)}";
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+            request.Headers.TryAddWithoutValidation("User-Agent", "csinvtracker/1.0 (+https://csinvtracker.com)");
+
+            using var response = await client.SendAsync(request, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "CSGOFloat API returned {StatusCode} for inspect link {InspectLink}",
+                    response.StatusCode,
+                    inspectLink);
+                cache[inspectLink] = (null, null, null);
+                return cache[inspectLink];
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("iteminfo", out var itemInfo))
+            {
+                _logger.LogWarning("CSGOFloat API payload missing iteminfo for inspect link {InspectLink}", inspectLink);
+                cache[inspectLink] = (null, null, null);
+                return cache[inspectLink];
+            }
+
+            double? floatValue = null;
+            if (itemInfo.TryGetProperty("floatvalue", out var floatElement))
+            {
+                if (floatElement.ValueKind == JsonValueKind.Number)
+                {
+                    floatValue = floatElement.GetDouble();
+                }
+                else if (floatElement.ValueKind == JsonValueKind.String &&
+                         double.TryParse(floatElement.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedFloat))
+                {
+                    floatValue = parsedFloat;
+                }
+            }
+
+            int? paintSeed = null;
+            if (itemInfo.TryGetProperty("paintseed", out var paintSeedElement) &&
+                paintSeedElement.ValueKind == JsonValueKind.Number)
+            {
+                paintSeed = paintSeedElement.GetInt32();
+            }
+
+            int? paintIndex = null;
+            if (itemInfo.TryGetProperty("paintindex", out var paintIndexElement) &&
+                paintIndexElement.ValueKind == JsonValueKind.Number)
+            {
+                paintIndex = paintIndexElement.GetInt32();
+            }
+
+            cache[inspectLink] = (floatValue, paintSeed, paintIndex);
+            return cache[inspectLink];
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning("CSGOFloat request timed out for inspect link {InspectLink}", inspectLink);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "CSGOFloat request failed for inspect link {InspectLink}", inspectLink);
+        }
+
+        cache[inspectLink] = (null, null, null);
+        return cache[inspectLink];
+    }
+
     private static bool TryExtractFloatValue(string rawValue, out double parsedFloat)
     {
         parsedFloat = 0.5;
@@ -752,6 +909,7 @@ public class SteamInventoryItemDto
     public string? ImageUrl { get; set; }
     public bool Marketable { get; set; }
     public bool Tradable { get; set; }
+    public string? InspectLink { get; set; }
     public List<SteamDescriptionDto>? Descriptions { get; set; }
     public List<SteamTagDto>? Tags { get; set; }
 }

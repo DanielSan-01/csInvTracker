@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System;
 using System.Linq;
 using System.Text.Json;
 using backend.Data;
@@ -1053,6 +1054,8 @@ public class InventoryController : ControllerBase
                         ? $"https://community.fastly.steamstatic.com/economy/image/{description.IconUrl}/330x192?allow_animated=1"
                         : null;
 
+                    var inspectLink = BuildInspectLink(description, asset, user.SteamId);
+
                     importItems.Add(new SteamInventoryItemDto
                     {
                         AssetId = asset.AssetId,
@@ -1071,7 +1074,8 @@ public class InventoryController : ControllerBase
                         {
                             Category = t.Category ?? string.Empty,
                             LocalizedTagName = t.LocalizedTagName ?? string.Empty
-                        }).ToList()
+                        }).ToList(),
+                        InspectLink = inspectLink
                     });
                 }
             }
@@ -1447,6 +1451,37 @@ public class InventoryController : ControllerBase
             _ => exterior.Trim()
         };
     }
+
+    private static string? BuildInspectLink(SteamItemDescription description, SteamAsset asset, string ownerSteamId)
+    {
+        if (string.IsNullOrWhiteSpace(ownerSteamId))
+        {
+            return null;
+        }
+
+        static SteamAction? FindInspectAction(List<SteamAction>? actions) =>
+            actions?.FirstOrDefault(a =>
+                !string.IsNullOrWhiteSpace(a?.Link) &&
+                (a?.Name?.Contains("Inspect", StringComparison.OrdinalIgnoreCase) ?? false));
+
+        var action = FindInspectAction(description.Actions) ?? FindInspectAction(description.MarketActions);
+        if (action?.Link == null)
+        {
+            return null;
+        }
+
+        var contextId = string.IsNullOrWhiteSpace(asset.ContextId) ? "2" : asset.ContextId!;
+
+        var link = action.Link
+            .Replace("%owner_steamid%", ownerSteamId, StringComparison.OrdinalIgnoreCase)
+            .Replace("%original_owner_steamid%", ownerSteamId, StringComparison.OrdinalIgnoreCase)
+            .Replace("%assetid%", asset.AssetId, StringComparison.OrdinalIgnoreCase)
+            .Replace("%classid%", asset.ClassId, StringComparison.OrdinalIgnoreCase)
+            .Replace("%instanceid%", asset.InstanceId, StringComparison.OrdinalIgnoreCase)
+            .Replace("%contextid%", contextId, StringComparison.OrdinalIgnoreCase);
+
+        return link;
+    }
 }
 
 public class RefreshPricesResult
@@ -1481,6 +1516,7 @@ public class SteamAsset
     public string AssetId { get; set; } = string.Empty;
     public string ClassId { get; set; } = string.Empty;
     public string InstanceId { get; set; } = string.Empty;
+    public string? ContextId { get; set; }
 }
 
 public class SteamItemDescription
@@ -1495,6 +1531,8 @@ public class SteamItemDescription
     public string Type { get; set; } = string.Empty;
     public List<SteamDescription>? Descriptions { get; set; }
     public List<SteamTag>? Tags { get; set; }
+    public List<SteamAction>? Actions { get; set; }
+    public List<SteamAction>? MarketActions { get; set; }
 }
 
 public class SteamDescription
@@ -1508,5 +1546,11 @@ public class SteamTag
 {
     public string? Category { get; set; }
     public string? LocalizedTagName { get; set; }
+}
+
+public class SteamAction
+{
+    public string? Name { get; set; }
+    public string? Link { get; set; }
 }
 
