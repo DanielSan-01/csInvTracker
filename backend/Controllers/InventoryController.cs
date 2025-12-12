@@ -1061,6 +1061,7 @@ public class InventoryController : ControllerBase
                         AssetId = asset.AssetId,
                         MarketHashName = description.MarketHashName ?? description.Name,
                         Name = description.Name,
+                        Type = description.Type,
                         ImageUrl = imageUrl,
                         Marketable = description.Marketable == 1,
                         Tradable = description.Tradable == 1,
