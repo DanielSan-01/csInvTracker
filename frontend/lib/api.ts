@@ -93,6 +93,11 @@ export interface FloatStatus {
   waitingForRateLimit?: boolean;
   rateLimitUntil?: string | null;
   lastStatusMessage?: string | null;
+  totalAttempts?: number;
+  successes?: number;
+  rateLimitHits?: number;
+  invalidLinks?: number;
+  failures?: number;
 }
 
 export interface InventoryValueHistoryDto {

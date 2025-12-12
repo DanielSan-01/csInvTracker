@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading;
 using backend.Data;
 using backend.Models;
 using Microsoft.EntityFrameworkCore;
@@ -30,6 +32,9 @@ public sealed class InspectFloatQueue : IDisposable
     private DateTimeOffset _nextAllowedRequest = DateTimeOffset.UtcNow;
     private DateTimeOffset? _rateLimitUntil;
     private string? _lastStatusMessage;
+    private static readonly Regex InspectLinkRegex = new(
+        @"^steam://rungame/730/76561202255233023/\+csgo_econ_action_preview%20S(?<owner>\d+)A(?<asset>\d+)D(?<d>\d+)$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public InspectFloatQueue(
         IHttpClientFactory httpClientFactory,
@@ -157,6 +162,16 @@ public sealed class InspectFloatQueue : IDisposable
         string inspectLink,
         CancellationToken cancellationToken)
     {
+        if (!TryValidateInspectLink(inspectLink, out _))
+        {
+            _logger.LogWarning("Rejected inspect link {InspectLink} due to invalid format", inspectLink);
+            _lastStatusMessage = "Invalid inspect link format";
+            InspectQueueMetrics.RecordInvalidLink();
+            return (null, null, null);
+        }
+
+        InspectQueueMetrics.RecordAttempt();
+
         var client = _httpClientFactory.CreateClient("csgoFloat");
         client.Timeout = TimeSpan.FromSeconds(15);
 
@@ -178,21 +193,15 @@ public sealed class InspectFloatQueue : IDisposable
 
                 if (response.StatusCode == HttpStatusCode.TooManyRequests)
                 {
-                    var delay = ExtractRetryDelay(response) ?? TimeSpan.FromSeconds(Math.Pow(RetryBaseDelay.TotalSeconds, attempt));
-                    if (delay < BaseRequestInterval)
-                    {
-                        delay = BaseRequestInterval;
-                    }
+                    var retryDelay = ExtractRetryDelay(response) ?? BaseRequestInterval;
+                    InspectQueueMetrics.RecordRateLimitHit();
+                    _rateLimitUntil = DateTimeOffset.UtcNow + retryDelay;
+                    _lastStatusMessage = "CSGOFloat API rate limited";
                     _logger.LogWarning(
-                        "CSGOFloat rate limit hit for {InspectLink}. Waiting {Delay}s before retry {Attempt}/{MaxAttempts}",
+                        "CSGOFloat API rate limit hit for {InspectLink}. Retry-After: {RetryAfter}",
                         inspectLink,
-                        delay.TotalSeconds.ToString("0.###"),
-                        attempt,
-                        MaxRetries);
-                    _nextAllowedRequest = DateTimeOffset.UtcNow + delay;
-                    _rateLimitUntil = _nextAllowedRequest;
-                    _lastStatusMessage = $"Rate limited, retrying in {delay.TotalSeconds:0}s (attempt {attempt}/{MaxRetries})";
-                    continue;
+                        response.Headers.RetryAfter?.Delta ?? retryDelay);
+                    return (null, null, null);
                 }
 
                 if (!response.IsSuccessStatusCode)
@@ -201,6 +210,7 @@ public sealed class InspectFloatQueue : IDisposable
                         "CSGOFloat API returned {StatusCode} for inspect link {InspectLink}",
                         response.StatusCode,
                         inspectLink);
+                    InspectQueueMetrics.RecordFailure();
                     return (null, null, null);
                 }
 
@@ -210,6 +220,7 @@ public sealed class InspectFloatQueue : IDisposable
                 if (!document.RootElement.TryGetProperty("iteminfo", out var itemInfo))
                 {
                     _logger.LogWarning("CSGOFloat API payload missing iteminfo for inspect link {InspectLink}", inspectLink);
+                    InspectQueueMetrics.RecordFailure();
                     return (null, null, null);
                 }
 
@@ -241,6 +252,7 @@ public sealed class InspectFloatQueue : IDisposable
                     paintIndex = paintIndexElement.GetInt32();
                 }
 
+                InspectQueueMetrics.RecordSuccess();
                 return (floatValue, paintSeed, paintIndex);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -254,6 +266,7 @@ public sealed class InspectFloatQueue : IDisposable
                 _nextAllowedRequest = DateTimeOffset.UtcNow + timeoutDelay;
                 _rateLimitUntil = _nextAllowedRequest;
                 _lastStatusMessage = $"Inspect request timed out; retrying in {timeoutDelay.TotalSeconds:0}s (attempt {attempt}/{MaxRetries})";
+                InspectQueueMetrics.RecordFailure();
             }
             catch (Exception ex)
             {
@@ -266,6 +279,7 @@ public sealed class InspectFloatQueue : IDisposable
                 _nextAllowedRequest = DateTimeOffset.UtcNow + errorDelay;
                 _rateLimitUntil = _nextAllowedRequest;
                 _lastStatusMessage = $"Inspect request failed; retrying in {errorDelay.TotalSeconds:0}s (attempt {attempt}/{MaxRetries})";
+                InspectQueueMetrics.RecordFailure();
             }
 
             var backoffDelay = TimeSpan.FromSeconds(Math.Pow(RetryBaseDelay.TotalSeconds, attempt));
@@ -279,7 +293,29 @@ public sealed class InspectFloatQueue : IDisposable
         }
 
         _lastStatusMessage = $"Unable to retrieve float after {MaxRetries} attempts.";
+        InspectQueueMetrics.RecordFailure();
         return (null, null, null);
+    }
+
+    public async Task<(bool Success, string? ErrorMessage)> ProcessJobImmediateAsync(InspectJob job, CancellationToken cancellationToken)
+    {
+        if (!TryValidateInspectLink(job.InspectLink, out _))
+        {
+            InspectQueueMetrics.RecordInvalidLink();
+            return (false, "Inspect link failed validation");
+        }
+
+        try
+        {
+            await ProcessJobAsync(job, cancellationToken);
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Immediate inspect processing failed for {AssetId}", job.AssetId);
+            InspectQueueMetrics.RecordFailure();
+            return (false, ex.Message);
+        }
     }
 
     private async Task DelayUntilAllowedAsync(CancellationToken cancellationToken)
@@ -292,7 +328,7 @@ public sealed class InspectFloatQueue : IDisposable
         }
 
         _rateLimitUntil = _nextAllowedRequest;
-        _logger.LogDebug("Throttling CSGOFloat inspect request for {Delay}s", wait.TotalSeconds.ToString("0.###"));
+        _logger.LogDebug("Local throttle delaying inspect request by {Delay}s", wait.TotalSeconds.ToString("0.###"));
         try
         {
             await Task.Delay(wait, cancellationToken);
@@ -366,7 +402,9 @@ public sealed class InspectFloatQueue : IDisposable
     {
         if (!_enabled)
         {
-            return new InspectQueueStatus(false, 0, null, null, null, null, null, false, null, null);
+            var emptyMetrics = InspectQueueMetrics.GetSnapshot();
+            return new InspectQueueStatus(false, 0, null, null, null, null, null, false, null, null,
+                emptyMetrics.TotalAttempts, emptyMetrics.Successes, emptyMetrics.RateLimitHits, emptyMetrics.InvalidLinks, emptyMetrics.Failures);
         }
 
         var job = _currentJob;
@@ -377,6 +415,7 @@ public sealed class InspectFloatQueue : IDisposable
         }
 
         var waiting = _rateLimitUntil.HasValue && _rateLimitUntil.Value > DateTimeOffset.UtcNow;
+        var metrics = InspectQueueMetrics.GetSnapshot();
 
         return new InspectQueueStatus(
             job is not null,
@@ -388,7 +427,72 @@ public sealed class InspectFloatQueue : IDisposable
             _currentJobStarted,
             waiting,
             waiting ? _rateLimitUntil : null,
-            _lastStatusMessage);
+            _lastStatusMessage,
+            metrics.TotalAttempts,
+            metrics.Successes,
+            metrics.RateLimitHits,
+            metrics.InvalidLinks,
+            metrics.Failures);
+    }
+
+    public static bool IsInspectLinkFormatValid(string? inspectLink) =>
+        !string.IsNullOrWhiteSpace(inspectLink) && InspectLinkRegex.IsMatch(inspectLink);
+
+    private bool TryValidateInspectLink(string? inspectLink, out Match match)
+    {
+        match = Match.Empty;
+
+        if (string.IsNullOrWhiteSpace(inspectLink))
+        {
+            _logger.LogWarning("Inspect link is null or empty");
+            return false;
+        }
+
+        match = InspectLinkRegex.Match(inspectLink);
+        if (!match.Success)
+        {
+            _logger.LogWarning(
+                "Invalid inspect link format. Expected S<owner> A<asset> D<d>. Got: {Link}",
+                inspectLink);
+            return false;
+        }
+
+        _logger.LogDebug(
+            "Valid inspect link - Owner: {Owner}, Asset: {Asset}, D: {D}",
+            match.Groups["owner"].Value,
+            match.Groups["asset"].Value,
+            match.Groups["d"].Value);
+        return true;
+    }
+
+    private static class InspectQueueMetrics
+    {
+        private static long _totalAttempts;
+        private static long _successes;
+        private static long _rateLimitHits;
+        private static long _invalidLinks;
+        private static long _failures;
+
+        public static void RecordAttempt() => Interlocked.Increment(ref _totalAttempts);
+        public static void RecordSuccess() => Interlocked.Increment(ref _successes);
+        public static void RecordRateLimitHit() => Interlocked.Increment(ref _rateLimitHits);
+        public static void RecordInvalidLink() => Interlocked.Increment(ref _invalidLinks);
+        public static void RecordFailure() => Interlocked.Increment(ref _failures);
+
+        public static InspectMetricsSnapshot GetSnapshot() =>
+            new(
+                Interlocked.Read(ref _totalAttempts),
+                Interlocked.Read(ref _successes),
+                Interlocked.Read(ref _rateLimitHits),
+                Interlocked.Read(ref _invalidLinks),
+                Interlocked.Read(ref _failures));
+
+        internal readonly record struct InspectMetricsSnapshot(
+            long TotalAttempts,
+            long Successes,
+            long RateLimitHits,
+            long InvalidLinks,
+            long Failures);
     }
 }
 
@@ -413,5 +517,10 @@ public record InspectQueueStatus(
     DateTimeOffset? StartedAt,
     bool WaitingForRateLimit,
     DateTimeOffset? RateLimitUntil,
-    string? LastStatusMessage);
+    string? LastStatusMessage,
+    long TotalAttempts,
+    long Successes,
+    long RateLimitHits,
+    long InvalidLinks,
+    long Failures);
 

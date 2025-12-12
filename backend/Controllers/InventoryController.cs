@@ -58,10 +58,80 @@ public class InventoryController : ControllerBase
             StartedAt = status.StartedAt,
             WaitingForRateLimit = status.WaitingForRateLimit,
             RateLimitUntil = status.RateLimitUntil,
-            LastStatusMessage = status.LastStatusMessage
+            LastStatusMessage = status.LastStatusMessage,
+            TotalAttempts = status.TotalAttempts,
+            Successes = status.Successes,
+            RateLimitHits = status.RateLimitHits,
+            InvalidLinks = status.InvalidLinks,
+            Failures = status.Failures
         };
 
         return Ok(dto);
+    }
+
+    [HttpPost("apply-inspect")]
+    public async Task<IActionResult> ApplyInspectLink([FromBody] ApplyInspectRequest request, CancellationToken cancellationToken)
+    {
+        if (!InspectFloatQueue.IsInspectLinkFormatValid(request.InspectLink))
+        {
+            return BadRequest(ApplyInspectResponse.Failure("Invalid inspect link format"));
+        }
+
+        if (request.UserId <= 0)
+        {
+            return BadRequest(ApplyInspectResponse.Failure("UserId is required"));
+        }
+
+        InventoryItem? item = null;
+
+        if (request.InventoryItemId.HasValue)
+        {
+            item = await _context.InventoryItems
+                .Include(i => i.Skin)
+                .FirstOrDefaultAsync(i => i.Id == request.InventoryItemId.Value && i.UserId == request.UserId, cancellationToken);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.AssetId))
+        {
+            item = await _context.InventoryItems
+                .Include(i => i.Skin)
+                .FirstOrDefaultAsync(i => i.AssetId == request.AssetId && i.UserId == request.UserId, cancellationToken);
+        }
+
+        if (item is null)
+        {
+            return NotFound(ApplyInspectResponse.Failure("Inventory item not found for given user"));
+        }
+
+        if (string.IsNullOrWhiteSpace(item.AssetId))
+        {
+            return BadRequest(ApplyInspectResponse.Failure("Inventory item is missing asset id"));
+        }
+
+        var job = new InspectJob(
+            item.UserId,
+            item.Id,
+            item.AssetId,
+            request.InspectLink,
+            item.SteamMarketHashName ?? item.Skin?.MarketHashName,
+            item.Skin?.Name ?? item.SteamMarketHashName ?? item.AssetId);
+
+        var (success, errorMessage) = await _inspectQueue.ProcessJobImmediateAsync(job, cancellationToken);
+        if (!success)
+        {
+            return StatusCode(StatusCodes.Status502BadGateway, ApplyInspectResponse.Failure(errorMessage ?? "Inspect fetch failed"));
+        }
+
+        await _context.Entry(item).ReloadAsync(cancellationToken);
+
+        var result = new ApplyInspectResult
+        {
+            InventoryItemId = item.Id,
+            Float = item.Float,
+            PaintSeed = item.PaintSeed,
+            Exterior = item.Exterior
+        };
+
+        return Ok(ApplyInspectResponse.SuccessResponse(result));
     }
 
     private static void DebugLog(string hypothesisId, string location, string message, object data)
@@ -1535,6 +1605,40 @@ public class FloatStatusDto
     public bool WaitingForRateLimit { get; set; }
     public DateTimeOffset? RateLimitUntil { get; set; }
     public string? LastStatusMessage { get; set; }
+    public long TotalAttempts { get; set; }
+    public long Successes { get; set; }
+    public long RateLimitHits { get; set; }
+    public long InvalidLinks { get; set; }
+    public long Failures { get; set; }
+}
+
+public class ApplyInspectRequest
+{
+    public int UserId { get; set; }
+    public int? InventoryItemId { get; set; }
+    public string? AssetId { get; set; }
+    public string InspectLink { get; set; } = string.Empty;
+}
+
+public class ApplyInspectResponse
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public ApplyInspectResult? Data { get; set; }
+
+    public static ApplyInspectResponse Failure(string message) =>
+        new() { Success = false, Message = message };
+
+    public static ApplyInspectResponse SuccessResponse(ApplyInspectResult result, string message = "Float updated successfully") =>
+        new() { Success = true, Message = message, Data = result };
+}
+
+public class ApplyInspectResult
+{
+    public int InventoryItemId { get; set; }
+    public double Float { get; set; }
+    public int? PaintSeed { get; set; }
+    public string? Exterior { get; set; }
 }
 
 public class RefreshPricesResult

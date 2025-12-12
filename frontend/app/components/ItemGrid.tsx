@@ -174,31 +174,47 @@ export default function ItemGrid() {
     let intervalId: ReturnType<typeof setInterval> | null = null;
     let api: typeof import('@/lib/api').steamInventoryApi | null = null;
 
-    const pollOnce = async () => {
+    const shouldKeepPolling = (status: FloatStatus) =>
+      status.isProcessing || status.pending > 0 || !!status.waitingForRateLimit;
+
+    const pollOnce = async (): Promise<FloatStatus | null> => {
       try {
         if (!api) {
           ({ steamInventoryApi: api } = await import('@/lib/api'));
         }
         if (!api) {
-          return;
+          return null;
         }
 
         const status = await api.getFloatStatus();
         if (!isMounted) {
-          return;
+          return null;
         }
         setFloatStatus(status);
+
+        // Stop polling automatically when there is no active work
+        if (!shouldKeepPolling(status) && intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+
+        return status;
       } catch (err) {
         if (!isMounted) {
-          return;
+          return null;
         }
         console.debug('[ItemGrid] Failed to fetch float status', err);
+        return null;
       }
     };
 
     const startPolling = async () => {
-      await pollOnce();
-      intervalId = setInterval(pollOnce, 2000);
+      const status = await pollOnce();
+
+      // Only start interval if there is active work (queue or rate-limit wait) based on latest status
+      if (!intervalId && status && shouldKeepPolling(status)) {
+        intervalId = setInterval(pollOnce, 2000);
+      }
     };
 
     startPolling();
@@ -209,6 +225,8 @@ export default function ItemGrid() {
         clearInterval(intervalId);
       }
     };
+    // We intentionally only run this on mount; floatStatus is read inside to decide whether to keep polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectedItem = useMemo(
