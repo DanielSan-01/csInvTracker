@@ -457,6 +457,58 @@ export const steamInventoryApi = {
     return response.json();
   },
 
+  refreshFloatsSelected: async (
+    userId: number,
+    inventoryItemIds: number[]
+  ): Promise<SteamInventoryImportResult> => {
+    const url = `${API_BASE_URL}/inventory/refresh-floats-selected`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        userId,
+        inventoryItemIds,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to refresh selected floats: ${response.status} ${response.statusText}`;
+      try {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorJson = await response.json();
+          if (errorJson.error) {
+            errorMessage = errorJson.error;
+            if (errorJson.details) {
+              errorMessage += ` - ${errorJson.details}`;
+            }
+            errorMessage = JSON.stringify(errorJson);
+          } else if (typeof errorJson === 'string') {
+            errorMessage = errorJson;
+          }
+        } else {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+      } catch {
+        const errorText = await response.text().catch(() => '');
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
   getFloatStatus: async (): Promise<FloatStatus> => {
     const response = await fetch(`${API_BASE_URL}/inventory/float-status`, {
       credentials: 'include',

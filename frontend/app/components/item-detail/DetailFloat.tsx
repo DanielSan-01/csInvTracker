@@ -28,7 +28,13 @@ export default function DetailFloat({ item, onUpdate }: DetailFloatProps) {
   const handleDoubleClick = () => {
     if (!onUpdate) return;
     setIsEditing(true);
-    setEditValue(item.float.toString());
+    // If the float is still at the default/sentinel value (0.5), start with an empty input
+    // so the user can type the actual float value instead of editing 0.500000.
+    if (Math.abs(item.float - 0.5) < 0.000001) {
+      setEditValue('');
+    } else {
+      setEditValue(item.float.toString());
+    }
   };
 
   const handleBlur = () => {
@@ -77,7 +83,8 @@ export default function DetailFloat({ item, onUpdate }: DetailFloatProps) {
             className={`font-mono text-sm text-white ${onUpdate ? 'cursor-pointer select-none hover:bg-gray-800/50 rounded px-1 py-0.5 transition-colors' : ''}`}
             title={onUpdate ? 'Double-click to edit' : ''}
           >
-            {formatFloat(item.float, 6)}
+            {/* Show a clear placeholder when we only have the default/sentinel float */}
+            {Math.abs(item.float - 0.5) < 0.000001 ? 'Add float' : formatFloat(item.float, 6)}
           </span>
         )}
       </div>

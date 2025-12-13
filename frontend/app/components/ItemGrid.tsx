@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { CSItem, CSSticker } from '@/lib/mockData';
+import { CSItem, CSSticker, shouldShowFloat } from '@/lib/mockData';
 import AddSkinForm from './AddSkinForm';
 import type { NewSkinData } from './add-skin/types';
 import { useInventory } from '@/hooks/useInventory';
@@ -31,6 +31,7 @@ import AnimatedBanner from './AnimatedBanner';
 import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
 import InventorySortSelector, { sortItems, type SortOption } from './item-grid/InventorySortSelector';
 import MarketSelector from './item-grid/MarketSelector';
+import BulkFloatRefreshModal from './item-grid/BulkFloatRefreshModal';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
@@ -58,6 +59,7 @@ export default function ItemGrid() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
   const [showBulkPriceEditor, setShowBulkPriceEditor] = useState(false);
+  const [showBulkFloatEditor, setShowBulkFloatEditor] = useState(false);
   const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
   const [floatStatus, setFloatStatus] = useState<FloatStatus | null>(null);
   const { toast, showToast } = useToast();
@@ -76,6 +78,12 @@ export default function ItemGrid() {
     const countLabel = `Pricing estimates provided for ${manualPricingItems.length} item${manualPricingItems.length !== 1 ? 's' : ''}.`;
     return `${countLabel} Please review and correct any estimates manually.`;
   }, [requiresManualPricing, manualPricingItems.length]);
+
+  const floatNeedingItems = useMemo(() => {
+    return sortedItems.filter(item =>
+      shouldShowFloat(item.type) && Math.abs(item.float - 0.5) < 0.000001
+    );
+  }, [sortedItems]);
 
   // Auto-import Steam inventory when user first logs in and has no items
   useEffect(() => {
@@ -712,38 +720,8 @@ export default function ItemGrid() {
       return;
     }
 
-    setIsRefreshingFloats(true);
-    try {
-      const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.refreshFloats(user.id);
-
-      await refresh();
-
-      if (result.imported > 0) {
-        showToast(
-          `Updated floats for ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
-          'success'
-        );
-      } else if (result.skipped > 0) {
-        showToast(
-          `No floats updated. ${result.skipped} item${result.skipped !== 1 ? 's were' : ' was'} skipped.`,
-          'info'
-        );
-      } else {
-        showToast('No items found to refresh floats for.', 'info');
-      }
-
-      if (result.errors > 0 && result.errorMessages.length > 0) {
-        console.error('Float refresh errors:', result.errorMessages);
-        showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during float refresh. Check console for details.`, 'error');
-      }
-    } catch (error) {
-      console.error('Error refreshing floats:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`Failed to refresh floats: ${errorMessage}`, 'error');
-    } finally {
-      setIsRefreshingFloats(false);
-    }
+    // Open bulk float refresh modal instead of directly calling the backend
+    setShowBulkFloatEditor(true);
   };
 
   const filteredItems = sortedItems.filter(item =>
@@ -797,6 +775,63 @@ export default function ItemGrid() {
       showToast('An error occurred while saving updates', 'error');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleBulkFloatConfirm = async (ids: string[]) => {
+    if (!user) {
+      showToast('Please log in first!', 'error');
+      return;
+    }
+
+    if (ids.length === 0) {
+      showToast('No items selected to refresh floats for.', 'info');
+      return;
+    }
+
+    const numericIds = ids
+      .map(id => Number.parseInt(id, 10))
+      .filter(id => Number.isFinite(id) && id > 0);
+
+    if (numericIds.length === 0) {
+      showToast('No valid items selected to refresh floats for.', 'info');
+      return;
+    }
+
+    setIsRefreshingFloats(true);
+    try {
+      const { steamInventoryApi } = await import('@/lib/api');
+      const result = await steamInventoryApi.refreshFloatsSelected(user.id, numericIds);
+
+      await refresh();
+
+      if (result.imported > 0) {
+        showToast(
+          `Updated floats for ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
+          'success'
+        );
+      } else if (result.skipped > 0) {
+        showToast(
+          `No floats updated. ${result.skipped} item${result.skipped !== 1 ? 's were' : ' was'} skipped.`,
+          'info'
+        );
+      } else {
+        showToast('No items found to refresh floats for.', 'info');
+      }
+
+      if (result.errors > 0 && result.errorMessages.length > 0) {
+        console.error('Float refresh errors:', result.errorMessages);
+        showToast(
+          `${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during float refresh. Check console for details.`,
+          'error'
+        );
+      }
+    } catch (error) {
+      console.error('Error refreshing selected floats:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`Failed to refresh floats: ${errorMessage}`, 'error');
+    } finally {
+      setIsRefreshingFloats(false);
     }
   };
 
@@ -924,6 +959,14 @@ export default function ItemGrid() {
         isOpen={showBulkPriceEditor}
         onClose={() => setShowBulkPriceEditor(false)}
         onSave={handleBulkPriceSave}
+      />
+
+      {/* Bulk Float Refresh Modal */}
+      <BulkFloatRefreshModal
+        items={floatNeedingItems}
+        isOpen={showBulkFloatEditor}
+        onClose={() => setShowBulkFloatEditor(false)}
+        onConfirm={handleBulkFloatConfirm}
       />
 
       {/* Loading overlays */}

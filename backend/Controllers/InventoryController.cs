@@ -898,11 +898,66 @@ public class InventoryController : ControllerBase
         }
     }
 
+    // POST: api/inventory/refresh-floats-selected
+    // Refreshes floats/exterior for a specific set of inventory items by assetId
+    [HttpPost("refresh-floats-selected")]
+    public async Task<ActionResult<SteamInventoryImportService.ImportResult>> RefreshSelectedFloatsFromSteam(
+        [FromBody] RefreshFloatsSelectedRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (request == null || request.UserId <= 0)
+            {
+                return BadRequest(new { error = "Valid UserId is required" });
+            }
+
+            if (request.InventoryItemIds == null || request.InventoryItemIds.Count == 0)
+            {
+                return BadRequest(new { error = "At least one inventory item id is required" });
+            }
+
+            var user = await _context.Users.FindAsync(new object[] { request.UserId }, cancellationToken);
+            if (user == null)
+            {
+                return BadRequest(new { error = "User not found" });
+            }
+
+            // Load the selected inventory items for this user to determine which asset ids to refresh
+            var selectedItems = await _context.InventoryItems
+                .Where(i => i.UserId == request.UserId && request.InventoryItemIds.Contains(i.Id))
+                .ToListAsync(cancellationToken);
+
+            if (selectedItems.Count == 0)
+            {
+                return BadRequest(new { error = "No matching inventory items found for this user" });
+            }
+
+            var assetIdFilter = selectedItems
+                .Where(i => !string.IsNullOrWhiteSpace(i.AssetId))
+                .Select(i => i.AssetId!)
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (assetIdFilter.Count == 0)
+            {
+                return BadRequest(new { error = "Selected items are missing asset ids and cannot be refreshed" });
+            }
+
+            return await RefreshFromSteamInternal(user, request.UserId, fetchMarketPrices: false, cancellationToken, assetIdFilter);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing selected floats from Steam for user {UserId}", request?.UserId);
+            return StatusCode(500, new { error = "An error occurred while refreshing selected floats from Steam", message = ex.Message });
+        }
+    }
+
     private async Task<ActionResult<SteamInventoryImportService.ImportResult>> RefreshFromSteamInternal(
         User user,
         int targetUserId,
         bool fetchMarketPrices,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HashSet<string>? assetIdFilter = null)
     {
         try
         {
@@ -1140,6 +1195,12 @@ public class InventoryController : ControllerBase
             var importItems = new List<SteamInventoryItemDto>();
             foreach (var asset in allAssets)
             {
+                // If a filter was provided, only include assets explicitly requested
+                if (assetIdFilter != null && !assetIdFilter.Contains(asset.AssetId))
+                {
+                    continue;
+                }
+
                 var key = $"{asset.ClassId}_{asset.InstanceId}";
                 if (itemMap.TryGetValue(key, out var description))
                 {
@@ -1656,6 +1717,12 @@ public class ImportSteamInventoryRequest
 {
     public int UserId { get; set; }
     public List<SteamInventoryItemDto> Items { get; set; } = new();
+}
+
+public class RefreshFloatsSelectedRequest
+{
+    public int UserId { get; set; }
+    public List<int> InventoryItemIds { get; set; } = new();
 }
 
 // DTOs for Steam API response

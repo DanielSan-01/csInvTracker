@@ -24,6 +24,22 @@ export default function ItemCardGrid({
   onClick,
   isSelected = false,
 }: ItemCardGridProps) {
+  const showFloat = shouldShowFloat(item.type);
+
+  const floatBadgeLabel = (() => {
+    if (!showFloat) {
+      // For non-floatable items (agents, cases, stickers, etc.), show the item type label
+      return item.type;
+    }
+
+    // Treat the default/sentinel 0.5 value as "no float yet" for display purposes
+    if (Math.abs(item.float - 0.5) < 0.000001) {
+      return 'Add float';
+    }
+
+    return formatFloat(item.float, 4);
+  })();
+
   return (
     <div
       ref={animation.cardRef}
@@ -57,10 +73,10 @@ export default function ItemCardGrid({
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-transparent" />
 
-        {/* Float value and trade protection badge */}
+        {/* Float value or type label and trade protection badge */}
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
           <span className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100">
-            {formatFloat(item.float, 4)}
+            {floatBadgeLabel}
           </span>
           {item.tradeProtected && (
             <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/40 bg-amber-500/30 px-1.5 py-0.5 text-[9px] text-amber-200">
