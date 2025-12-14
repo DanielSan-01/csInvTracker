@@ -31,7 +31,6 @@ import AnimatedBanner from './AnimatedBanner';
 import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
 import InventorySortSelector, { sortItems, type SortOption } from './item-grid/InventorySortSelector';
 import MarketSelector from './item-grid/MarketSelector';
-import BulkFloatRefreshModal from './item-grid/BulkFloatRefreshModal';
 
 export default function ItemGrid() {
   const { user, loading: userLoading } = useUser();
@@ -59,14 +58,21 @@ export default function ItemGrid() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
   const [showBulkPriceEditor, setShowBulkPriceEditor] = useState(false);
-  const [showBulkFloatEditor, setShowBulkFloatEditor] = useState(false);
   const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
   const [floatStatus, setFloatStatus] = useState<FloatStatus | null>(null);
   const [pendingEditField, setPendingEditField] = useState<'price' | 'cost' | 'float' | null>(null);
   const { toast, showToast } = useToast();
 
   const manualPricingItems = useMemo(() => {
-    return sortedItems.filter(item => item.price <= 0 || item.priceExceedsSteamLimit);
+    return sortedItems.filter(item => {
+      // Needs price if missing/zero or exceeds Steam wallet cap
+      const needsPrice = !item.price || item.price === 0 || item.priceExceedsSteamLimit;
+      // Needs cost if null/undefined/zero
+      const needsCost = item.cost == null || item.cost === 0;
+      // Needs float if it's a float-eligible item and we're still on the default sentinel value
+      const needsFloat = shouldShowFloat(item.type) && Math.abs(item.float - 0.5) < 0.000001;
+      return needsPrice || needsCost || needsFloat;
+    });
   }, [sortedItems]);
 
   const hasHighValueItems = manualPricingItems.some(item => item.priceExceedsSteamLimit);
@@ -79,12 +85,6 @@ export default function ItemGrid() {
     const countLabel = `Pricing estimates provided for ${manualPricingItems.length} item${manualPricingItems.length !== 1 ? 's' : ''}.`;
     return `${countLabel} Please review and correct any estimates manually.`;
   }, [requiresManualPricing, manualPricingItems.length]);
-
-  const floatNeedingItems = useMemo(() => {
-    return sortedItems.filter(item =>
-      shouldShowFloat(item.type) && Math.abs(item.float - 0.5) < 0.000001
-    );
-  }, [sortedItems]);
 
   // Auto-import Steam inventory when user first logs in and has no items
   useEffect(() => {
@@ -726,8 +726,38 @@ export default function ItemGrid() {
       return;
     }
 
-    // Open bulk float refresh modal instead of directly calling the backend
-    setShowBulkFloatEditor(true);
+    setIsRefreshingFloats(true);
+    try {
+      const { steamInventoryApi } = await import('@/lib/api');
+      const result = await steamInventoryApi.refreshFloats(user.id);
+
+      await refresh();
+
+      if (result.imported > 0) {
+        showToast(
+          `Updated floats for ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
+          'success'
+        );
+      } else if (result.skipped > 0) {
+        showToast(
+          `No floats updated. ${result.skipped} item${result.skipped !== 1 ? 's were' : ' was'} skipped.`,
+          'info'
+        );
+      } else {
+        showToast('No items found to refresh floats for.', 'info');
+      }
+
+      if (result.errors > 0 && result.errorMessages.length > 0) {
+        console.error('Float refresh errors:', result.errorMessages);
+        showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during float refresh. Check console for details.`, 'error');
+      }
+    } catch (error) {
+      console.error('Error refreshing floats:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      showToast(`Failed to refresh floats: ${errorMessage}`, 'error');
+    } finally {
+      setIsRefreshingFloats(false);
+    }
   };
 
   const filteredItems = sortedItems.filter(item =>
@@ -784,62 +814,6 @@ export default function ItemGrid() {
     }
   };
 
-  const handleBulkFloatConfirm = async (ids: string[]) => {
-    if (!user) {
-      showToast('Please log in first!', 'error');
-      return;
-    }
-
-    if (ids.length === 0) {
-      showToast('No items selected to refresh floats for.', 'info');
-      return;
-    }
-
-    const numericIds = ids
-      .map(id => Number.parseInt(id, 10))
-      .filter(id => Number.isFinite(id) && id > 0);
-
-    if (numericIds.length === 0) {
-      showToast('No valid items selected to refresh floats for.', 'info');
-      return;
-    }
-
-    setIsRefreshingFloats(true);
-    try {
-      const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.refreshFloatsSelected(user.id, numericIds);
-
-      await refresh();
-
-      if (result.imported > 0) {
-        showToast(
-          `Updated floats for ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
-          'success'
-        );
-      } else if (result.skipped > 0) {
-        showToast(
-          `No floats updated. ${result.skipped} item${result.skipped !== 1 ? 's were' : ' was'} skipped.`,
-          'info'
-        );
-      } else {
-        showToast('No items found to refresh floats for.', 'info');
-      }
-
-      if (result.errors > 0 && result.errorMessages.length > 0) {
-        console.error('Float refresh errors:', result.errorMessages);
-        showToast(
-          `${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during float refresh. Check console for details.`,
-          'error'
-        );
-      }
-    } catch (error) {
-      console.error('Error refreshing selected floats:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`Failed to refresh floats: ${errorMessage}`, 'error');
-    } finally {
-      setIsRefreshingFloats(false);
-    }
-  };
 
   const statsSummary = useMemo(() => {
     if (!stats) {
@@ -967,14 +941,6 @@ export default function ItemGrid() {
         onSave={handleBulkPriceSave}
       />
 
-      {/* Bulk Float Refresh Modal */}
-      <BulkFloatRefreshModal
-        items={floatNeedingItems}
-        isOpen={showBulkFloatEditor}
-        onClose={() => setShowBulkFloatEditor(false)}
-        onConfirm={handleBulkFloatConfirm}
-      />
-
       {/* Loading overlays */}
       {isLoadingSteam && <SteamLoadingOverlay />}
       {!isLoadingSteam && (userLoading || loading) && (
@@ -1077,12 +1043,12 @@ export default function ItemGrid() {
                 onClick={() => setShowBulkPriceEditor(true)}
                 disabled={isUpdating || manualPricingItems.length === 0}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Manually override prices or costs that Steam cannot provide"
+                title="Manually add or correct cost and float values (and prices where needed)"
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Manual Price Overrides{manualPricingItems.length > 0 ? ` (${manualPricingItems.length})` : ''}
+                Add Float & Cost{manualPricingItems.length > 0 ? ` (${manualPricingItems.length})` : ''}
               </button>
               <button
                 onClick={() => setShowAddForm(true)}

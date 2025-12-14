@@ -169,12 +169,12 @@ export default function BulkPriceEditorModal({
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div>
             <h2 className="text-2xl font-bold text-white">
-              Update Item Prices
+              Add Float & Cost
             </h2>
             <p className="text-sm text-gray-400 mt-1">
               {selectedItemIds.size > 0 
                 ? `${selectedItemIds.size} of ${items.length} items selected`
-                : `${items.length} items - Select items to update`}
+                : `${items.length} items - Select items to add cost and float for`}
             </p>
           </div>
           <button
@@ -396,7 +396,7 @@ export default function BulkPriceEditorModal({
           <div className="text-sm text-gray-400">
             {selectedItemIds.size > 0 
               ? `${selectedItemIds.size} item${selectedItemIds.size !== 1 ? 's' : ''} selected for update`
-              : 'Select items from the grid above to edit their prices'}
+              : 'Select items from the grid above to add or edit price, cost, and float values'}
           </div>
           <div className="flex items-center gap-3">
             <button
