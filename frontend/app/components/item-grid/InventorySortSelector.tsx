@@ -6,6 +6,8 @@ import type { CSItem } from '@/lib/mockData';
 export type SortOption = 
   | 'price-high-low'
   | 'price-low-high'
+  | 'float-high-low'
+  | 'float-low-high'
   | 'type-a-z'
   | 'type-z-a'
   | 'name-a-z'
@@ -19,8 +21,10 @@ type InventorySortSelectorProps = {
 const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'price-high-low', label: 'Price (High → Low)' },
   { value: 'price-low-high', label: 'Price (Low → High)' },
-  { value: 'type-a-z', label: 'Type (A → Z)' },
-  { value: 'type-z-a', label: 'Type (Z → A)' },
+  { value: 'float-low-high', label: 'Float (Low → High)' },
+  { value: 'float-high-low', label: 'Float (High → Low)' },
+  { value: 'type-a-z', label: 'Type (Custom)' },
+  { value: 'type-z-a', label: 'Type (Custom Reverse)' },
   { value: 'name-a-z', label: 'Name (A → Z)' },
   { value: 'name-z-a', label: 'Name (Z → A)' },
 ];
@@ -95,6 +99,34 @@ export default function InventorySortSelector({ onSortChange, currentSort }: Inv
   );
 }
 
+const typePriority: Record<string, number> = {
+  Knife: 1,
+  Gloves: 2,
+  Agent: 3,
+  Pistol: 4,
+  Rifle: 5,
+  SMG: 6,
+  'Sniper Rifle': 7,
+  Shotgun: 8,
+  'Machine Gun': 9,
+  Equipment: 10,
+  Collectible: 11,
+  'Music Kit': 12,
+  Tool: 13,
+  Keychain: 14,
+  Other: 15,
+  Sticker: 16,
+  Case: 17,
+  Key: 18,
+  Graffiti: 19,
+  Patch: 20,
+};
+
+function getTypeRank(type?: string) {
+  if (!type) return 999;
+  return typePriority[type] ?? 900;
+}
+
 export function sortItems(items: CSItem[], sortOption: SortOption): CSItem[] {
   const sorted = [...items];
 
@@ -104,19 +136,27 @@ export function sortItems(items: CSItem[], sortOption: SortOption): CSItem[] {
     
     case 'price-low-high':
       return sorted.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+
+    case 'float-low-high':
+      return sorted.sort((a, b) => (a.float ?? Number.POSITIVE_INFINITY) - (b.float ?? Number.POSITIVE_INFINITY));
+
+    case 'float-high-low':
+      return sorted.sort((a, b) => (b.float ?? Number.NEGATIVE_INFINITY) - (a.float ?? Number.NEGATIVE_INFINITY));
     
     case 'type-a-z':
       return sorted.sort((a, b) => {
-        const typeA = a.type || '';
-        const typeB = b.type || '';
-        return typeA.localeCompare(typeB);
+        const rankA = getTypeRank(a.type);
+        const rankB = getTypeRank(b.type);
+        if (rankA !== rankB) return rankA - rankB;
+        return (a.type || '').localeCompare(b.type || '');
       });
     
     case 'type-z-a':
       return sorted.sort((a, b) => {
-        const typeA = a.type || '';
-        const typeB = b.type || '';
-        return typeB.localeCompare(typeA);
+        const rankA = getTypeRank(a.type);
+        const rankB = getTypeRank(b.type);
+        if (rankA !== rankB) return rankB - rankA;
+        return (b.type || '').localeCompare(a.type || '');
       });
     
     case 'name-a-z':
