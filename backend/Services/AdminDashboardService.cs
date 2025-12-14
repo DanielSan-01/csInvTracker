@@ -328,10 +328,6 @@ public class AdminDashboardService
         };
     }
 
-        await _context.SaveChangesAsync();
-        return results;
-    }
-
     public async Task<BulkImportInventoryResult> ImportInventoryFromCsvAsync(int userId, IFormFile file)
     {
         if (file == null || file.Length == 0)
