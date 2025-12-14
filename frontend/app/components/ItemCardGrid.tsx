@@ -78,17 +78,6 @@ export default function ItemCardGrid({
 
         {/* Float value or type label and trade protection badge */}
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
-          <span
-            className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (showFloat) {
-                onQuickEdit?.('float');
-              }
-            }}
-          >
-            {floatBadgeLabel}
-          </span>
           {item.tradeProtected && (
             <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/40 bg-amber-500/30 px-1.5 py-0.5 text-[9px] text-amber-200">
               <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
@@ -101,6 +90,17 @@ export default function ItemCardGrid({
               Lock
             </span>
           )}
+          <span
+            className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (showFloat) {
+                onQuickEdit?.('float');
+              }
+            }}
+          >
+            {floatBadgeLabel}
+          </span>
         </div>
 
         {/* Stickers overlaid on the image, positioned higher to overlay more and avoid float badge */}
