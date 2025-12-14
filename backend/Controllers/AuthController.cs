@@ -123,11 +123,12 @@ public class AuthController : ControllerBase
             }
 
             // Set secure HTTP-only cookie
+            var isLocalhost = Request.Host.Host.Contains("localhost") || Request.Host.Host.Contains("127.0.0.1");
             var cookieOptions = new CookieOptions
             {
                 HttpOnly = true,
-                Secure = !Request.Host.Host.Contains("localhost"), // Only use Secure in production
-                SameSite = SameSiteMode.Lax,
+                Secure = !isLocalhost, // Secure required for SameSite=None
+                SameSite = isLocalhost ? SameSiteMode.Lax : SameSiteMode.None, // None for cross-site prod
                 Expires = DateTimeOffset.UtcNow.AddDays(30),
                 Path = "/"
             };
