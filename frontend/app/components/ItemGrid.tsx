@@ -48,7 +48,6 @@ export default function ItemGrid() {
   const [editingItem, setEditingItem] = useState<CSItem | null>(null);
   const [isLoadingSteam, setIsLoadingSteam] = useState(false);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
-  const [isRefreshingFloats, setIsRefreshingFloats] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
   // CSV import temporarily disabled; keep state commented for future use.
@@ -59,6 +58,7 @@ export default function ItemGrid() {
   const [privateInventoryBanner, setPrivateInventoryBanner] = useState<string | null>(null);
   const [showBulkPriceEditor, setShowBulkPriceEditor] = useState(false);
   const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
+  const [showManualPricingBanner, setShowManualPricingBanner] = useState(false);
   const [floatStatus, setFloatStatus] = useState<FloatStatus | null>(null);
   const [pendingEditField, setPendingEditField] = useState<'price' | 'cost' | 'float' | null>(null);
   const { toast, showToast } = useToast();
@@ -555,6 +555,11 @@ export default function ItemGrid() {
         console.error('Import errors:', result.errorMessages);
         showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during import. Check console for details.`, 'error');
       }
+
+      // After a Steam refresh, surface the manual pricing banner if any items need it.
+      if (requiresManualPricing) {
+        setShowManualPricingBanner(true);
+      }
     } catch (error) {
       console.error('Error refreshing from Steam:', error);
       
@@ -715,50 +720,7 @@ export default function ItemGrid() {
     }
   };
 
-  const handleRefreshFloats = async () => {
-    if (!user) {
-      showToast('Please log in first!', 'error');
-      return;
-    }
-
-    if (sortedItems.length === 0) {
-      showToast('No items available to refresh floats for.', 'info');
-      return;
-    }
-
-    setIsRefreshingFloats(true);
-    try {
-      const { steamInventoryApi } = await import('@/lib/api');
-      const result = await steamInventoryApi.refreshFloats(user.id);
-
-      await refresh();
-
-      if (result.imported > 0) {
-        showToast(
-          `Updated floats for ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
-          'success'
-        );
-      } else if (result.skipped > 0) {
-        showToast(
-          `No floats updated. ${result.skipped} item${result.skipped !== 1 ? 's were' : ' was'} skipped.`,
-          'info'
-        );
-      } else {
-        showToast('No items found to refresh floats for.', 'info');
-      }
-
-      if (result.errors > 0 && result.errorMessages.length > 0) {
-        console.error('Float refresh errors:', result.errorMessages);
-        showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during float refresh. Check console for details.`, 'error');
-      }
-    } catch (error) {
-      console.error('Error refreshing floats:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      showToast(`Failed to refresh floats: ${errorMessage}`, 'error');
-    } finally {
-      setIsRefreshingFloats(false);
-    }
-  };
+  // Float refresh is now driven by backend imports / inspect jobs only.
 
   const filteredItems = sortedItems.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -913,7 +875,7 @@ export default function ItemGrid() {
         </div>
       )}
 
-      {user && requiresManualPricing && !dismissedManualPricingBanner && (
+      {user && showManualPricingBanner && requiresManualPricing && !dismissedManualPricingBanner && (
         <div className="mx-auto mt-4 w-full max-w-7xl px-4 md:px-6">
           <AnimatedBanner
             message={manualPricingBannerMessage}
@@ -967,7 +929,7 @@ export default function ItemGrid() {
             <InventoryFilterInput value={searchTerm} onChange={setSearchTerm} />
           </div>
           <div className="flex items-center gap-2">
-            {user && (
+          {user && (
               <>
               <MarketSelector
                 value={selectedMarkets}
@@ -995,32 +957,10 @@ export default function ItemGrid() {
                   </>
                 )}
               </button>
-          <button
-            onClick={handleRefreshFloats}
-            disabled={isRefreshingFloats || sortedItems.length === 0}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Refresh float values and exterior information from Steam without updating prices"
-          >
-            {isRefreshingFloats ? (
-              <>
-                <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refreshing Floats...
-              </>
-            ) : (
-              <>
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 15a4 4 0 004 4h10a4 4 0 004-4M7 15V9a5 5 0 0110 0v6" />
-                </svg>
-                Refresh Floats
-              </>
-            )}
-          </button>
               <button
                 onClick={handleRefreshPrices}
                 disabled={isRefreshingPrices || sortedItems.length === 0}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-orange-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Refresh market prices for all items in your inventory"
               >
                 {isRefreshingPrices ? (

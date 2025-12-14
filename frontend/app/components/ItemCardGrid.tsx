@@ -5,7 +5,6 @@ import {
   exteriorAbbr,
   formatFloat,
   formatPrice,
-  getFloatColor,
   rarityGradients,
   shouldShowFloat,
 } from '@/lib/mockData';
@@ -201,9 +200,7 @@ export default function ItemCardGrid({
                   Profit {profitValue >= 0 ? '+' : ''}
                   {formatPrice(profitValue)}
                 </div>
-                <span
-                  className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
-                >
+                <span className="shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold border border-gray-600 bg-gray-800 text-gray-100">
                   {exteriorAbbr[item.exterior]}
                 </span>
               </div>
