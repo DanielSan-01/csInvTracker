@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: "CS Inventory Tracker",
   description: "Track your CS:GO inventory",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/favicon-purple.ico",
   },
 };
 
@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon-purple.ico" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <UserProvider>{children}</UserProvider>

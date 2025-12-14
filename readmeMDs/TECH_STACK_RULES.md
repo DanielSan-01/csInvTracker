@@ -10,3 +10,4 @@ This project must always conform to the following stack decisions. Treat these a
 
 If you need to deviate from these rules, document the rationale in this file and obtain explicit approval first. This keeps the implementation aligned with the intended architecture.
 
+

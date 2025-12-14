@@ -185,29 +185,40 @@ export default function ItemCardGrid({
           )}
         </div>
 
-        {/* Profit and exterior badge */}
-        {item.cost !== undefined && item.cost !== null && (() => {
-          const cost = item.cost as number;
-          const profitValue = item.price - cost;
-          return (
-            <div className="flex items-center justify-between gap-2">
-              <div
-                className={`min-w-0 flex-1 text-[10px] font-semibold leading-tight truncate ${
-                  profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
-                }`}
-                style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}
-              >
-                Profit {profitValue >= 0 ? '+' : ''}
-                {formatPrice(profitValue)}
+        {/* Profit and exterior badge / cost placeholder */}
+        {item.cost !== undefined && item.cost !== null ? (
+          (() => {
+            const cost = item.cost as number;
+            const profitValue = item.price - cost;
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <div
+                  className={`min-w-0 flex-1 text-[10px] font-semibold leading-tight truncate ${
+                    profitValue >= 0 ? 'text-emerald-300' : 'text-rose-300'
+                  }`}
+                  style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}
+                >
+                  Profit {profitValue >= 0 ? '+' : ''}
+                  {formatPrice(profitValue)}
+                </div>
+                <span
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
+                >
+                  {exteriorAbbr[item.exterior]}
+                </span>
               </div>
-              <span
-                className={`shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold ${getFloatColor(item.float)} text-white`}
-              >
-                {exteriorAbbr[item.exterior]}
-              </span>
+            );
+          })()
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <div
+              className="min-w-0 flex-1 text-[10px] font-semibold leading-tight truncate text-gray-400"
+              style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}
+            >
+              Add cost
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         {/* Float bar - always render to keep card heights consistent */}
         <div className="flex items-center gap-1">
