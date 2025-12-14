@@ -10,8 +10,9 @@ import AdminHeader from './components/AdminHeader';
 import AdminTabsNav from './components/AdminTabsNav';
 import AdminErrorBanner from './components/AdminErrorBanner';
 import AdminLoadingState from './components/AdminLoadingState';
-import type { AdminStats, AdminUser, TabType, NewSkinFormState } from './types';
+import type { AdminStats, AdminUser, TabType, NewSkinFormState, AdminInventoryItem, AdminInventoryPage } from './types';
 import { formatCurrency, formatDate } from './utils';
+import AdminUserInventory from './components/AdminUserInventory';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
 
@@ -35,6 +36,14 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [inventoryPage, setInventoryPage] = useState<AdminInventoryItem[]>([]);
+  const [inventoryTotal, setInventoryTotal] = useState(0);
+  const [inventoryPageSize] = useState(25);
+  const [inventoryPageNumber, setInventoryPageNumber] = useState(1);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [pendingEdits, setPendingEdits] = useState<Map<number, Partial<AdminInventoryItem>>>(new Map());
 
   // New skin form state
   const [newSkin, setNewSkin] = useState<NewSkinFormState>(() => createInitialSkinState());
@@ -92,6 +101,32 @@ export default function AdminPage() {
     }
   }, [activeTab, authorized, fetchUsers, fetchStats]);
 
+  const fetchUserInventory = useCallback(
+    async (userId: number, page: number) => {
+      setInventoryLoading(true);
+      setInventoryError(null);
+      try {
+        const skip = (page - 1) * inventoryPageSize;
+        const res = await fetch(
+          `${API_BASE_URL}/admin/users/${userId}/inventory?skip=${skip}&take=${inventoryPageSize}`
+        );
+        if (!res.ok) {
+          throw new Error('Failed to fetch inventory');
+        }
+        const data: AdminInventoryPage = await res.json();
+        setInventoryPage(data.items);
+        setInventoryTotal(data.total);
+        setInventoryPageNumber(page);
+        setPendingEdits(new Map());
+      } catch (err) {
+        setInventoryError(err instanceof Error ? err.message : 'Failed to fetch inventory');
+      } finally {
+        setInventoryLoading(false);
+      }
+    },
+    [inventoryPageSize]
+  );
+
   const handleAuthorize = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (authPassword === 'asd') {
@@ -102,6 +137,68 @@ export default function AdminPage() {
       setCreateSuccess(false);
     } else {
       setAuthError('Incorrect password');
+    }
+  };
+
+  const handleSelectUser = (user: AdminUser) => {
+    setSelectedUser(user);
+    fetchUserInventory(user.id, 1);
+  };
+
+  const handleInventoryPageChange = (nextPage: number) => {
+    if (!selectedUser) return;
+    fetchUserInventory(selectedUser.id, nextPage);
+  };
+
+  const handleInventoryFieldChange = (
+    id: number,
+    field: 'price' | 'cost' | 'float',
+    value: number | null
+  ) => {
+    setPendingEdits((prev) => {
+      const next = new Map(prev);
+      const current = next.get(id) || {};
+      next.set(id, { ...current, [field]: value ?? 0 });
+      return next;
+    });
+  };
+
+  const handleInventorySave = async (id: number) => {
+    if (!selectedUser) return;
+    const pending = pendingEdits.get(id);
+    if (!pending) return;
+    setInventoryLoading(true);
+    setInventoryError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}/inventory/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // Only send the fields we care about changing
+          price: pending.price ?? inventoryPage.find((i) => i.id === id)?.price ?? 0,
+          cost:
+            pending.cost ??
+            (inventoryPage.find((i) => i.id === id)?.cost ?? null),
+          float:
+            pending.float ??
+            (inventoryPage.find((i) => i.id === id)?.float ?? 0.5),
+          paintSeed: inventoryPage.find((i) => i.id === id)?.paintSeed ?? null,
+          imageUrl: inventoryPage.find((i) => i.id === id)?.imageUrl ?? undefined,
+          tradeProtected:
+            inventoryPage.find((i) => i.id === id)?.tradeProtected ?? false,
+          tradableAfter: inventoryPage.find((i) => i.id === id)?.tradableAfter ?? null,
+          stickers: [],
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || 'Failed to save item');
+      }
+      await fetchUserInventory(selectedUser.id, inventoryPageNumber);
+    } catch (err) {
+      setInventoryError(err instanceof Error ? err.message : 'Failed to save item');
+    } finally {
+      setInventoryLoading(false);
     }
   };
 
@@ -178,6 +275,23 @@ export default function AdminPage() {
             users={users}
             formatCurrency={formatCurrency}
             formatDate={formatDate}
+            selectedUserId={selectedUser?.id}
+            onSelectUser={handleSelectUser}
+          />
+        )}
+
+        {/* Selected User Inventory */}
+        {!loading && activeTab === 'users' && selectedUser && (
+          <AdminUserInventory
+            items={inventoryPage}
+            total={inventoryTotal}
+            page={inventoryPageNumber}
+            pageSize={inventoryPageSize}
+            loading={inventoryLoading}
+            error={inventoryError}
+            onPageChange={handleInventoryPageChange}
+            onFieldChange={handleInventoryFieldChange}
+            onSave={handleInventorySave}
           />
         )}
 

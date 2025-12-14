@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text;
 using backend.Data;
 using backend.DTOs.Admin;
+using backend.DTOs;
 using backend.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -224,6 +225,103 @@ public class AdminDashboardService
                 results.Errors.Add($"Error processing {item.SkinName}: {ex.Message}");
                 _logger.LogError(ex, "Error processing inventory item {SkinName}", item.SkinName);
             }
+
+    public async Task<(List<InventoryItemDto> Items, int Total)> GetUserInventoryPageAsync(int userId, int skip, int take)
+    {
+        var query = _context.InventoryItems
+            .Include(i => i.Skin)
+            .Include(i => i.Stickers)
+            .Where(i => i.UserId == userId)
+            .OrderByDescending(i => i.AcquiredAt);
+
+        var total = await query.CountAsync();
+
+        var items = await query
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync();
+
+        var dtoItems = items.Select(MapToDto).ToList();
+        return (dtoItems, total);
+    }
+
+    public async Task<InventoryItemDto?> UpdateInventoryItemAsync(int userId, int inventoryItemId, UpdateInventoryItemDto dto)
+    {
+        var item = await _context.InventoryItems
+            .Include(i => i.Skin)
+            .Include(i => i.Stickers)
+            .FirstOrDefaultAsync(i => i.Id == inventoryItemId && i.UserId == userId);
+
+        if (item == null)
+        {
+            return null;
+        }
+
+        item.Float = dto.Float;
+        item.PaintSeed = dto.PaintSeed;
+        item.Price = dto.Price;
+        item.Cost = dto.Cost;
+        item.ImageUrl = dto.ImageUrl;
+        item.TradeProtected = dto.TradeProtected;
+        item.TradableAfter = dto.TradableAfter;
+
+        // Replace stickers
+        item.Stickers.Clear();
+        if (dto.Stickers != null && dto.Stickers.Any())
+        {
+            foreach (var s in dto.Stickers)
+            {
+                item.Stickers.Add(new Sticker
+                {
+                    Name = s.Name,
+                    Price = s.Price,
+                    Slot = s.Slot,
+                    ImageUrl = s.ImageUrl
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        return MapToDto(item);
+    }
+
+    private static InventoryItemDto MapToDto(InventoryItem item)
+    {
+        return new InventoryItemDto
+        {
+            Id = item.Id,
+            SkinId = item.SkinId,
+            SkinName = item.Skin?.Name ?? "Unknown",
+            MarketHashName = item.SteamMarketHashName?.Trim()
+                ?? item.Skin?.MarketHashName?.Trim()
+                ?? item.Skin?.Name,
+            Rarity = item.Skin?.Rarity ?? "Unknown",
+            Type = item.Skin?.Type ?? "Unknown",
+            Collection = item.Skin?.Collection,
+            Weapon = item.Skin?.Weapon,
+            Float = item.Float,
+            Exterior = item.Exterior,
+            PaintSeed = item.PaintSeed,
+            Price = item.Price,
+            Cost = item.Cost,
+            PriceExceedsSteamLimit = item.Price > 2000m,
+            ImageUrl = item.ImageUrl ?? item.Skin?.ImageUrl,
+            TradeProtected = item.TradeProtected,
+            TradableAfter = item.TradableAfter,
+            AcquiredAt = item.AcquiredAt,
+            PaintIndex = item.Skin?.PaintIndex,
+            DopplerPhase = item.Skin?.DopplerPhase,
+            DopplerPhaseImageUrl = item.Skin?.DopplerPhaseImageUrl,
+            Stickers = item.Stickers.Select(s => new StickerDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Price = s.Price,
+                Slot = s.Slot,
+                ImageUrl = s.ImageUrl
+            }).ToList()
+        };
+    }
         }
 
         await _context.SaveChangesAsync();

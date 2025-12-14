@@ -8,9 +8,11 @@ type UsersTabProps = {
   users: AdminUser[];
   formatCurrency: (value: number) => string;
   formatDate: (dateString?: string) => string;
+  selectedUserId?: number | null;
+  onSelectUser?: (user: AdminUser) => void;
 };
 
-const UsersTab = ({ users, formatCurrency, formatDate }: UsersTabProps) => {
+const UsersTab = ({ users, formatCurrency, formatDate, selectedUserId, onSelectUser }: UsersTabProps) => {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-700 bg-gray-800">
       <div className="border-b border-gray-700 p-6">
@@ -36,9 +38,14 @@ const UsersTab = ({ users, formatCurrency, formatDate }: UsersTabProps) => {
               const profit = user.totalValue - user.totalCost;
               const profitPercent =
                 user.totalCost > 0 ? ((profit / user.totalCost) * 100).toFixed(1) : '0.0';
+              const isSelected = selectedUserId === user.id;
 
               return (
-                <tr key={user.id} className="transition-colors hover:bg-gray-700/50">
+                <tr
+                  key={user.id}
+                  className={`transition-colors hover:bg-gray-700/50 ${isSelected ? 'bg-gray-700/50' : ''} ${onSelectUser ? 'cursor-pointer' : ''}`}
+                  onClick={() => onSelectUser?.(user)}
+                >
                   <td className="whitespace-nowrap px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-700 font-semibold text-gray-300">

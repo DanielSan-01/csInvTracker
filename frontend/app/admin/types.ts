@@ -26,6 +26,44 @@ export interface AdminUser {
   totalCost: number;
 }
 
+export interface AdminInventoryPage {
+  total: number;
+  skip: number;
+  take: number;
+  items: AdminInventoryItem[];
+}
+
+export interface AdminInventoryItem {
+  id: number;
+  skinId: number;
+  skinName: string;
+  marketHashName?: string | null;
+  rarity: string;
+  type: string;
+  collection?: string | null;
+  weapon?: string | null;
+  float: number;
+  exterior: string;
+  paintSeed?: number;
+  price: number;
+  cost?: number;
+  imageUrl?: string;
+  tradeProtected: boolean;
+  tradableAfter?: string;
+  acquiredAt: string;
+  paintIndex?: number;
+  dopplerPhase?: string;
+  dopplerPhaseImageUrl?: string;
+  stickers?: {
+    id?: number;
+    name: string;
+    price?: number;
+    slot?: number;
+    imageUrl?: string;
+  }[];
+  priceExceedsSteamLimit: boolean;
+}
+
 export interface NewSkinFormState {
   name: string;
   rarity: string;

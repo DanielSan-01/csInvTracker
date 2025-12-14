@@ -3,7 +3,7 @@
  */
 
 import { InventoryItemDto } from './api';
-import { CSItem, Rarity, Exterior, ItemType } from './mockData';
+import { CSItem, Rarity, Exterior, ItemType, shouldShowFloat } from './mockData';
 
 /**
  * Convert backend InventoryItemDto to frontend CSItem format
@@ -13,8 +13,8 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
   const exterior = dto.exterior?.trim();
 
   // Try to build the most accurate Steam Market URL we can.
-  // If the market hash name doesn't already include an exterior suffix
-  // like "(Factory New)", append the exterior in parentheses when we know it.
+  // Only append exterior for float-eligible items; non-float items (agents, stickers, cases, etc.)
+  // should not have wear suffixes in the URL.
   const exteriorSuffixCandidates = new Set([
     'Factory New',
     'Minimal Wear',
@@ -24,13 +24,16 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
   ]);
 
   let listingName = marketHashName;
-  if (
-    listingName &&
-    exterior &&
-    !listingName.includes('(') &&
-    exteriorSuffixCandidates.has(exterior)
-  ) {
-    listingName = `${listingName} (${exterior})`;
+  const isFloatEligible = dto.type ? shouldShowFloat(dto.type as ItemType) : true;
+  if (isFloatEligible) {
+    if (
+      listingName &&
+      exterior &&
+      !listingName.includes('(') &&
+      exteriorSuffixCandidates.has(exterior)
+    ) {
+      listingName = `${listingName} (${exterior})`;
+    }
   }
 
   const converted = {

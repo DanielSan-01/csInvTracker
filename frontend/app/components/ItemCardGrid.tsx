@@ -200,7 +200,10 @@ export default function ItemCardGrid({
                   Profit {profitValue >= 0 ? '+' : ''}
                   {formatPrice(profitValue)}
                 </div>
-                <span className="shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold border border-gray-600 bg-gray-800 text-gray-100">
+                <span
+                  className="shrink-0 rounded px-1.5 py-0.5 text-[8px] font-bold border border-gray-600 bg-gray-800 text-gray-100"
+                  title={item.exterior}
+                >
                   {exteriorAbbr[item.exterior]}
                 </span>
               </div>

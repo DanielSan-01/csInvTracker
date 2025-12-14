@@ -380,9 +380,13 @@ public class InventoryController : ControllerBase
         }
     }
 
-    // GET: api/inventory?userId={userId}
+    // GET: api/inventory?userId={userId}&page={page}&pageSize={pageSize}
+    // If page/pageSize are provided, results are paginated; otherwise all items are returned.
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<InventoryItemDto>>> GetInventory([FromQuery] int? userId)
+    public async Task<ActionResult<IEnumerable<InventoryItemDto>>> GetInventory(
+        [FromQuery] int? userId,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize)
     {
         try
         {
@@ -416,6 +420,16 @@ public class InventoryController : ControllerBase
                 query = query.Where(i => i.UserId == userId.Value);
             }
             
+            // Apply pagination if requested
+            if (page.HasValue && pageSize.HasValue && page > 0 && pageSize > 0)
+            {
+                var skip = (page.Value - 1) * pageSize.Value;
+                query = query
+                    .OrderBy(i => i.Id)
+                    .Skip(skip)
+                    .Take(pageSize.Value);
+            }
+
             var items = await query.ToListAsync();
             _logger.LogInformation("Found {Count} inventory items", items.Count);
             

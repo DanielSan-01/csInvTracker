@@ -42,6 +42,57 @@ public class AdminController : ControllerBase
         }
     }
 
+    // GET: api/admin/users/{userId}/inventory
+    [HttpGet("users/{userId:int}/inventory")]
+    public async Task<ActionResult<object>> GetUserInventory(
+        [FromRoute] int userId,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = 25)
+    {
+        if (take is < 1 or > 200) take = 25;
+        if (skip < 0) skip = 0;
+
+        try
+        {
+            var (items, total) = await _adminService.GetUserInventoryPageAsync(userId, skip, take);
+            return Ok(new
+            {
+                total,
+                skip,
+                take,
+                items
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching inventory for user {UserId}", userId);
+            return StatusCode(500, new { error = "An error occurred while fetching the user inventory" });
+        }
+    }
+
+    // PUT: api/admin/users/{userId}/inventory/{inventoryItemId}
+    [HttpPut("users/{userId:int}/inventory/{inventoryItemId:int}")]
+    public async Task<ActionResult<InventoryItemDto>> UpdateUserInventoryItem(
+        [FromRoute] int userId,
+        [FromRoute] int inventoryItemId,
+        [FromBody] UpdateInventoryItemDto dto)
+    {
+        try
+        {
+            var updated = await _adminService.UpdateInventoryItemAsync(userId, inventoryItemId, dto);
+            if (updated == null)
+            {
+                return NotFound(new { error = "Inventory item not found for this user" });
+            }
+            return Ok(updated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating inventory item {InventoryItemId} for user {UserId}", inventoryItemId, userId);
+            return StatusCode(500, new { error = "An error occurred while updating the inventory item" });
+        }
+    }
+
     // GET: api/admin/stats
     [HttpGet("stats")]
     public async Task<ActionResult<AdminStats>> GetSystemStats()
