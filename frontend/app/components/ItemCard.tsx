@@ -13,6 +13,8 @@ interface ItemCardProps {
   onUpdate?: (field: 'price' | 'cost' | 'float', value: number | null) => void;
   variant?: 'grid' | 'detailed';
   isSelected?: boolean;
+  onQuickEdit?: (field: 'price' | 'cost' | 'float') => void;
+  autoEditField?: 'price' | 'cost' | 'float' | null;
 }
 
 export default function ItemCard({
@@ -23,6 +25,8 @@ export default function ItemCard({
   onUpdate,
   variant = 'grid',
   isSelected = false,
+  onQuickEdit,
+  autoEditField,
 }: ItemCardProps) {
   const animation = useItemCardAnimation(item);
 
@@ -34,6 +38,7 @@ export default function ItemCard({
         onEdit={onEdit}
         onDelete={onDelete}
         onUpdate={onUpdate}
+        autoEditField={autoEditField}
       />
     );
   }
@@ -44,6 +49,7 @@ export default function ItemCard({
       animation={animation}
       onClick={onClick}
       isSelected={isSelected}
+      onQuickEdit={onQuickEdit}
     />
   );
 }

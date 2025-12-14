@@ -8,11 +8,12 @@ type InventoryGridListProps = {
   items: CSItem[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onQuickEdit?: (id: string, field: 'price' | 'cost' | 'float') => void;
 };
 
 const ITEMS_PER_PAGE = 20;
 
-export default function InventoryGridList({ items, selectedId, onSelect }: InventoryGridListProps) {
+export default function InventoryGridList({ items, selectedId, onSelect, onQuickEdit }: InventoryGridListProps) {
   const [currentPage, setCurrentPage] = useState(1);
   
   const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
@@ -48,6 +49,7 @@ export default function InventoryGridList({ items, selectedId, onSelect }: Inven
           <ItemCard
             item={item}
             onClick={() => onSelect(item.id)}
+            onQuickEdit={onQuickEdit ? (field) => onQuickEdit(item.id, field) : undefined}
             isSelected={selectedId === item.id}
             variant="grid"
           />

@@ -216,6 +216,7 @@ export default function DemoPage() {
             onEdit={undefined}
             onDelete={handleLocalDelete}
             onUpdate={handleLocalUpdate}
+            autoEditField={null}
           />
         </div>
       </div>

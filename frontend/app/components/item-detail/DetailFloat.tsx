@@ -7,9 +7,10 @@ import { formatFloat, getFloatColor, shouldShowFloat } from '@/lib/mockData';
 type DetailFloatProps = {
   item: CSItem;
   onUpdate?: (value: number) => void;
+  autoEdit?: boolean;
 };
 
-export default function DetailFloat({ item, onUpdate }: DetailFloatProps) {
+export default function DetailFloat({ item, onUpdate, autoEdit = false }: DetailFloatProps) {
   // Don't show float for cases, agents, stickers, patches, or keys
   if (!shouldShowFloat(item.type)) {
     return null;
@@ -24,6 +25,18 @@ export default function DetailFloat({ item, onUpdate }: DetailFloatProps) {
       inputRef.current.select();
     }
   }, [isEditing]);
+
+  // When autoEdit is requested (e.g., from a quick-edit click in the grid),
+  // automatically enter editing mode and prepare the input.
+  useEffect(() => {
+    if (!autoEdit || !onUpdate) return;
+    setIsEditing(true);
+    if (Math.abs(item.float - 0.5) < 0.000001) {
+      setEditValue('');
+    } else {
+      setEditValue(item.float.toString());
+    }
+  }, [autoEdit, onUpdate, item.float]);
 
   const handleDoubleClick = () => {
     if (!onUpdate) return;

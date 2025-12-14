@@ -28,7 +28,7 @@ export default function InventoryStatsGrid({
         isLoading={isLoading}
       />
       <StatCard 
-        label="Market Value" 
+        label="Value" 
         value={marketValue} 
         valueClassName="type-heading-xl" 
         isLoading={isLoading}

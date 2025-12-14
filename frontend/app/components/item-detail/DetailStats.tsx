@@ -13,9 +13,10 @@ type DetailStatsProps = {
     className: string;
   };
   onUpdate?: (field: 'price' | 'cost', value: number | null) => void;
+  autoEditField?: 'price' | 'cost' | null;
 };
 
-export default function DetailStats({ item, exteriorLabel, profitDisplay, onUpdate }: DetailStatsProps) {
+export default function DetailStats({ item, exteriorLabel, profitDisplay, onUpdate, autoEditField = null }: DetailStatsProps) {
   const [editingField, setEditingField] = useState<'price' | 'cost' | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const priceInputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +31,14 @@ export default function DetailStats({ item, exteriorLabel, profitDisplay, onUpda
       costInputRef.current.select();
     }
   }, [editingField]);
+
+  // Support auto-editing when requested (e.g., from quick-edit in the grid)
+  useEffect(() => {
+    if (!onUpdate || !autoEditField) return;
+    setEditingField(autoEditField);
+    const currentValue = autoEditField === 'price' ? item.price : item.cost;
+    setEditValue(currentValue != null ? currentValue.toString() : '');
+  }, [autoEditField, onUpdate, item.price, item.cost]);
 
   const handleDoubleClick = (field: 'price' | 'cost') => {
     if (!onUpdate) return;

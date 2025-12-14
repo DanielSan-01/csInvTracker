@@ -16,6 +16,7 @@ type ItemCardGridProps = {
   animation: ItemCardAnimation;
   onClick?: () => void;
   isSelected?: boolean;
+  onQuickEdit?: (field: 'price' | 'cost' | 'float') => void;
 };
 
 export default function ItemCardGrid({
@@ -23,6 +24,7 @@ export default function ItemCardGrid({
   animation,
   onClick,
   isSelected = false,
+  onQuickEdit,
 }: ItemCardGridProps) {
   const showFloat = shouldShowFloat(item.type);
 
@@ -77,7 +79,15 @@ export default function ItemCardGrid({
 
         {/* Float value or type label and trade protection badge */}
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1">
-          <span className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100">
+          <span
+            className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (showFloat) {
+                onQuickEdit?.('float');
+              }
+            }}
+          >
             {floatBadgeLabel}
           </span>
           {item.tradeProtected && (
@@ -146,15 +156,29 @@ export default function ItemCardGrid({
         {/* Price info in a more compact layout */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
           <div className="min-w-0">
-            <span className="text-[8px] uppercase tracking-wide text-gray-500">Market Value</span>
-            <div className="text-xs font-semibold text-emerald-400 leading-tight truncate" style={{ fontSize: 'clamp(0.625rem, 2.5vw, 0.75rem)' }}>
+            <span className="text-[8px] uppercase tracking-wide text-gray-500">Value</span>
+            <div
+              className="text-xs font-semibold text-emerald-400 leading-tight truncate"
+              style={{ fontSize: 'clamp(0.625rem, 2.5vw, 0.75rem)' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickEdit?.('price');
+              }}
+            >
               {formatPrice(item.price)}
             </div>
           </div>
           {item.cost !== undefined && (
             <div className="min-w-0">
               <span className="text-[8px] uppercase tracking-wide text-gray-500">Cost</span>
-              <div className="text-[10px] font-medium text-gray-200 leading-tight truncate" style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}>
+              <div
+                className="text-[10px] font-medium text-gray-200 leading-tight truncate"
+                style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQuickEdit?.('cost');
+                }}
+              >
                 {formatPrice(item.cost)}
               </div>
             </div>

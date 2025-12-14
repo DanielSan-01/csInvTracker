@@ -62,6 +62,7 @@ export default function ItemGrid() {
   const [showBulkFloatEditor, setShowBulkFloatEditor] = useState(false);
   const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
   const [floatStatus, setFloatStatus] = useState<FloatStatus | null>(null);
+  const [pendingEditField, setPendingEditField] = useState<'price' | 'cost' | 'float' | null>(null);
   const { toast, showToast } = useToast();
 
   const manualPricingItems = useMemo(() => {
@@ -469,6 +470,11 @@ export default function ItemGrid() {
   const handleCancelDelete = () => {
     if (isDeleting) return;
     setDeleteCandidate(null);
+  };
+
+  const handleQuickEditFromGrid = (id: string, field: 'price' | 'cost' | 'float') => {
+    setSelectedItemId(id);
+    setPendingEditField(field);
   };
 
   /*
@@ -1116,11 +1122,16 @@ export default function ItemGrid() {
             <InventoryGridList
               items={filteredItems}
               selectedId={selectedItemId}
-              onSelect={(id) => setSelectedItemId(id)}
+              onSelect={(id) => {
+                setSelectedItemId(id);
+                setPendingEditField(null);
+              }}
+              onQuickEdit={handleQuickEditFromGrid}
             />
           </div>
           <InventoryDetailPanel
             item={selectedItem}
+            autoEditField={pendingEditField}
             onEdit={
               selectedItem && user ? () => handleEditClick(selectedItem) : undefined
             }
