@@ -32,7 +32,14 @@ export default function RootLayout({
         <link rel="icon" href="/favicon-purple.ico" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <UserProvider>{children}</UserProvider>
+        <UserProvider>
+          <div className="flex min-h-screen flex-col">
+            <main className="flex-1">{children}</main>
+            <footer className="border-t border-gray-800 bg-black/70 py-3 text-center text-xs text-gray-400">
+              csinvtracker.com © 2025 — not affiliated with Valve.
+            </footer>
+          </div>
+        </UserProvider>
       </body>
     </html>
   );
