@@ -198,9 +198,22 @@ public class SteamInventoryImportService
                     }
                     
                     // Update other properties that might have changed
-                    existingItem.Float = updatedFloatValue;
-                    existingItem.Exterior = updatedExterior;
-                    existingItem.PaintSeed = updatedPaintSeed;
+                    // Preserve existing float if Steam didn't give us a real float (null/0)
+                    var shouldUpdateFloat = updatedFloatValue.HasValue && updatedFloatValue.Value > 0;
+                    if (shouldUpdateFloat)
+                    {
+                        existingItem.Float = updatedFloatValue.Value;
+                    }
+                    // Preserve exterior if float didn't update
+                    if (shouldUpdateFloat && !string.IsNullOrWhiteSpace(updatedExterior))
+                    {
+                        existingItem.Exterior = updatedExterior;
+                    }
+                    // Paint seed only if present
+                    if (updatedPaintSeed.HasValue)
+                    {
+                        existingItem.PaintSeed = updatedPaintSeed;
+                    }
                     existingItem.TradeProtected = !steamItem.Tradable;
                     existingItem.SteamMarketHashName = trimmedMarketHashName;
                     _logger.LogInformation(
@@ -318,7 +331,7 @@ public class SteamInventoryImportService
                     SkinId = matchingSkin.Id,
                     AssetId = steamItem.AssetId, // Store Steam asset ID for duplicate detection
                     SteamMarketHashName = trimmedMarketHashName,
-                    Float = floatValue,
+                    Float = (floatValue.HasValue && floatValue.Value > 0) ? floatValue.Value : 0.5, // preserve sentinel for missing
                     Exterior = exterior,
                     PaintSeed = paintSeed,
                     ImageUrl = imageUrl,
