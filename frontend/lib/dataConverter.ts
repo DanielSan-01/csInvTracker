@@ -10,6 +10,29 @@ import { CSItem, Rarity, Exterior, ItemType } from './mockData';
  */
 export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
   const marketHashName = dto.marketHashName?.trim() || undefined;
+  const exterior = dto.exterior?.trim();
+
+  // Try to build the most accurate Steam Market URL we can.
+  // If the market hash name doesn't already include an exterior suffix
+  // like "(Factory New)", append the exterior in parentheses when we know it.
+  const exteriorSuffixCandidates = new Set([
+    'Factory New',
+    'Minimal Wear',
+    'Field-Tested',
+    'Well-Worn',
+    'Battle-Scarred',
+  ]);
+
+  let listingName = marketHashName;
+  if (
+    listingName &&
+    exterior &&
+    !listingName.includes('(') &&
+    exteriorSuffixCandidates.has(exterior)
+  ) {
+    listingName = `${listingName} (${exterior})`;
+  }
+
   const converted = {
     id: dto.id.toString(),
     skinId: dto.skinId,
@@ -38,8 +61,8 @@ export function inventoryItemToCSItem(dto: InventoryItemDto): CSItem {
       imageUrl: s.imageUrl,
     })),
     priceExceedsSteamLimit: dto.priceExceedsSteamLimit,
-    steamListingUrl: marketHashName
-      ? `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`
+    steamListingUrl: listingName
+      ? `https://steamcommunity.com/market/listings/730/${encodeURIComponent(listingName)}`
       : undefined,
   };
   
