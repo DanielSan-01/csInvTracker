@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from 'react';
 import StatsTab from './components/StatsTab';
 import UsersTab from './components/UsersTab';
 import AddSkinTab from './components/AddSkinTab';
-import AdminAuthGate from './components/AdminAuthGate';
 import AdminHeader from './components/AdminHeader';
 import AdminTabsNav from './components/AdminTabsNav';
 import AdminErrorBanner from './components/AdminErrorBanner';
@@ -14,7 +13,10 @@ import type { AdminStats, AdminUser, TabType, NewSkinFormState, AdminInventoryIt
 import { formatCurrency, formatDate } from './utils';
 import AdminUserInventory from './components/AdminUserInventory';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
+const rawApiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
+const API_BASE_URL = rawApiBase.endsWith('/api')
+  ? rawApiBase
+  : `${rawApiBase.replace(/\/+$/, '')}/api`;
 
 const createInitialSkinState = (): NewSkinFormState => ({
   name: '',
@@ -29,8 +31,7 @@ const createInitialSkinState = (): NewSkinFormState => ({
 
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState(false);
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('stats');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -66,7 +67,11 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/users`);
+      const response = await fetch(`${API_BASE_URL}/admin/users`, { credentials: 'include' });
+      if (response.status === 401 || response.status === 403) {
+        setAuthorized(false);
+        throw new Error('Unauthorized');
+      }
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setUsers(data);
@@ -81,7 +86,11 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/stats`);
+      const response = await fetch(`${API_BASE_URL}/admin/stats`, { credentials: 'include' });
+      if (response.status === 401 || response.status === 403) {
+        setAuthorized(false);
+        throw new Error('Unauthorized');
+      }
       if (!response.ok) throw new Error('Failed to fetch stats');
       const data = await response.json();
       setStats(data);
@@ -90,6 +99,28 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const verifyAuth = async () => {
+      setAuthChecking(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include' });
+        if (!res.ok) {
+          throw new Error('Unauthorized');
+        }
+        await res.json();
+        setAuthorized(true);
+        setError(null);
+      } catch (err) {
+        setAuthorized(false);
+        setError('Admin access requires an authenticated, whitelisted account.');
+      } finally {
+        setAuthChecking(false);
+      }
+    };
+
+    verifyAuth();
   }, []);
 
   useEffect(() => {
@@ -108,8 +139,13 @@ export default function AdminPage() {
       try {
         const skip = (page - 1) * inventoryPageSize;
         const res = await fetch(
-          `${API_BASE_URL}/admin/users/${userId}/inventory?skip=${skip}&take=${inventoryPageSize}`
+          `${API_BASE_URL}/admin/users/${userId}/inventory?skip=${skip}&take=${inventoryPageSize}`,
+          { credentials: 'include' }
         );
+        if (res.status === 401 || res.status === 403) {
+          setAuthorized(false);
+          throw new Error('Unauthorized');
+        }
         if (!res.ok) {
           throw new Error('Failed to fetch inventory');
         }
@@ -126,19 +162,6 @@ export default function AdminPage() {
     },
     [inventoryPageSize]
   );
-
-  const handleAuthorize = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (authPassword === 'asd') {
-      setAuthorized(true);
-      setAuthPassword('');
-      setAuthError(null);
-      setError(null);
-      setCreateSuccess(false);
-    } else {
-      setAuthError('Incorrect password');
-    }
-  };
 
   const handleSelectUser = (user: AdminUser) => {
     setSelectedUser(user);
@@ -173,6 +196,7 @@ export default function AdminPage() {
       const res = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}/inventory/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           // Only send the fields we care about changing
           price: pending.price ?? inventoryPage.find((i) => i.id === id)?.price ?? 0,
@@ -190,6 +214,10 @@ export default function AdminPage() {
           stickers: [],
         }),
       });
+      if (res.status === 401 || res.status === 403) {
+        setAuthorized(false);
+        throw new Error('Unauthorized');
+      }
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.error || 'Failed to save item');
@@ -204,12 +232,19 @@ export default function AdminPage() {
 
   if (!authorized) {
     return (
-      <AdminAuthGate
-        password={authPassword}
-        onPasswordChange={setAuthPassword}
-        onSubmit={handleAuthorize}
-        error={authError}
-      />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 px-4">
+        <div className="w-full max-w-md rounded-2xl border border-gray-700 bg-gray-900/80 p-8 shadow-2xl backdrop-blur-xl text-center">
+          <h1 className="mb-2 text-3xl font-bold text-white">Admin Access</h1>
+          <p className="mb-4 text-sm text-gray-300">
+            {authChecking ? 'Checking your session...' : 'Log in with an approved Steam account to access the admin panel.'}
+          </p>
+          {error && !authChecking && (
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -229,6 +264,7 @@ export default function AdminPage() {
       const response = await fetch(`${API_BASE_URL}/admin/skins`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(skinData),
       });
 

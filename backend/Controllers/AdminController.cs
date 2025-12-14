@@ -1,12 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
+using backend.Authorization;
 using backend.DTOs.Admin;
 using backend.Models;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 
 namespace backend.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
+[AdminAuthorize]
 public class AdminController : ControllerBase
 {
     private readonly AdminDashboardService _adminService;
