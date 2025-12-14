@@ -385,8 +385,8 @@ public class InventoryController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<InventoryItemDto>>> GetInventory(
         [FromQuery] int? userId,
-        [FromQuery] int? page,
-        [FromQuery] int? pageSize)
+        [FromQuery] int? page = null,
+        [FromQuery] int? pageSize = null)
     {
         try
         {

@@ -315,8 +315,6 @@ public class AdminDashboardService
             TradableAfter = item.TradableAfter,
             AcquiredAt = item.AcquiredAt,
             PaintIndex = item.Skin?.PaintIndex,
-            DopplerPhase = item.Skin?.DopplerPhase,
-            DopplerPhaseImageUrl = item.Skin?.DopplerPhaseImageUrl,
             Stickers = item.Stickers.Select(s => new StickerDto
             {
                 Id = s.Id,
