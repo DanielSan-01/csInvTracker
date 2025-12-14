@@ -225,6 +225,11 @@ public class AdminDashboardService
                 results.Errors.Add($"Error processing {item.SkinName}: {ex.Message}");
                 _logger.LogError(ex, "Error processing inventory item {SkinName}", item.SkinName);
             }
+        }
+
+        await _context.SaveChangesAsync();
+        return results;
+    }
 
     public async Task<(List<InventoryItemDto> Items, int Total)> GetUserInventoryPageAsync(int userId, int skip, int take)
     {
