@@ -40,6 +40,8 @@ export default function ItemCardGrid({
     return formatFloat(item.float, 4);
   })();
 
+  const hasRealFloat = showFloat && Math.abs(item.float - 0.5) >= 0.000001;
+
   return (
     <div
       ref={animation.cardRef}
@@ -183,17 +185,21 @@ export default function ItemCardGrid({
           );
         })()}
 
-        {/* Float bar - only show for items that have float */}
-        {shouldShowFloat(item.type) && (
-          <div className="flex items-center gap-1">
-            <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500">
+        {/* Float bar - always render to keep card heights consistent */}
+        <div className="flex items-center gap-1">
+          <div
+            className={`relative h-1.5 flex-1 overflow-hidden rounded-full ${
+              showFloat ? 'bg-gradient-to-r from-green-500 via-yellow-500 to-red-500' : 'bg-gray-800'
+            }`}
+          >
+            {hasRealFloat && (
               <div
                 className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
                 style={{ left: `${Math.min(item.float * 100, 100)}%` }}
               />
-            </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
