@@ -89,31 +89,28 @@ public class SteamInventoryImportService
         bool fetchMarketPrices = true,
         CancellationToken cancellationToken = default)
     {
-        var result = new ImportResult
-        {
-            TotalItems = steamItems.Count
-        };
-
-        // Get all skins from catalog for matching
+        var result = new ImportResult { TotalItems = steamItems.Count };
         var allSkins = await _context.Skins.ToListAsync(cancellationToken);
         _logger.LogInformation("Loaded {Count} skins from catalog for matching", allSkins.Count);
 
-        var marketPrices = new Dictionary<string, decimal?>(StringComparer.OrdinalIgnoreCase);
+        static bool HasMeaningfulFloat(double value) => value > 0 && Math.Abs(value - 0.5) > 0.000001;
+        static double NormalizeFloat(double value) => HasMeaningfulFloat(value) ? value : 0.5;
+
+        Dictionary<string, decimal?> marketPrices = new(StringComparer.OrdinalIgnoreCase);
         if (fetchMarketPrices)
         {
-            // Fetch market prices for all items (batch fetch with rate limiting)
-            _logger.LogInformation("Fetching CSMarket prices for {Count} items...", steamItems.Count);
             var marketHashNames = steamItems
                 .Where(item => !string.IsNullOrWhiteSpace(item.MarketHashName))
                 .Select(item => item.MarketHashName)
                 .Distinct()
                 .ToList();
-            
+
+            _logger.LogInformation("Fetching CSMarket prices for {Count} items...", marketHashNames.Count);
             marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
                 marketHashNames,
                 delayMs: 200,
                 cancellationToken: cancellationToken);
-            
+
             var pricesFound = marketPrices.Values.Count(p => p.HasValue);
             _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
 
@@ -131,14 +128,68 @@ public class SteamInventoryImportService
             _logger.LogInformation("Skipping CSMarket price fetch; updating floats only for {Count} items", steamItems.Count);
         }
 
+        void UpsertStickers(int inventoryItemId, List<StickerInfo>? stickers)
+        {
+            if (stickers == null || stickers.Count == 0)
+            {
+                return;
+            }
+
+            var oldStickers = _context.Stickers.Where(s => s.InventoryItemId == inventoryItemId).ToList();
+            if (oldStickers.Count > 0)
+            {
+                _context.Stickers.RemoveRange(oldStickers);
+            }
+
+            foreach (var sticker in stickers)
+            {
+                _context.Stickers.Add(new Sticker
+                {
+                    InventoryItemId = inventoryItemId,
+                    Name = sticker.Name,
+                    Price = sticker.Price,
+                    Slot = sticker.Slot,
+                    ImageUrl = sticker.ImageUrl
+                });
+            }
+        }
+
+        decimal ResolveMarketPrice(SteamInventoryItemDto steamItem, Skin matchingSkin)
+        {
+            if (!fetchMarketPrices)
+            {
+                return 0m;
+            }
+
+            if (marketPrices.TryGetValue(steamItem.MarketHashName, out var price) && price.HasValue)
+            {
+                var value = price.Value;
+                _logger.LogDebug("Using market price for {MarketHashName}: ${Price}", steamItem.MarketHashName, value);
+
+                if (value > SteamWalletLimit)
+                {
+                    _logger.LogInformation("Market price for {MarketHashName} exceeds Steam balance limit (${Limit}). Value: ${Price}",
+                        steamItem.MarketHashName, SteamWalletLimit, value);
+                }
+
+                if (value > 0)
+                {
+                    matchingSkin.DefaultPrice = value;
+                }
+
+                return value;
+            }
+
+            _logger.LogDebug("No market price available for {MarketHashName}, setting to 0", steamItem.MarketHashName);
+            return 0m;
+        }
+
         foreach (var steamItem in steamItems)
         {
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                // Skip items that are both non-marketable AND non-tradable
-                // (Allow items that are marketable OR tradable, as some items might be one but not the other)
                 if (!steamItem.Marketable && !steamItem.Tradable)
                 {
                     _logger.LogDebug("Skipping non-marketable and non-tradable item: {MarketHashName}", steamItem.MarketHashName);
@@ -147,7 +198,6 @@ public class SteamInventoryImportService
                     continue;
                 }
 
-                // Find matching skin in catalog
                 var matchingSkin = FindMatchingSkin(allSkins, steamItem.MarketHashName);
                 var trimmedMarketHashName = string.IsNullOrWhiteSpace(steamItem.MarketHashName)
                     ? null
@@ -155,15 +205,15 @@ public class SteamInventoryImportService
 
                 if (matchingSkin == null)
                 {
-                    _logger.LogWarning("No matching skin found in catalog for: {MarketHashName} (AssetId: {AssetId})", 
+                    _logger.LogWarning("No matching skin found in catalog for: {MarketHashName} (AssetId: {AssetId})",
                         steamItem.MarketHashName, steamItem.AssetId);
                     result.Skipped++;
                     result.SkippedItems.Add($"{steamItem.MarketHashName} (no catalog match)");
                     result.ErrorMessages.Add($"No catalog match: {steamItem.MarketHashName}");
                     continue;
                 }
-                
-                _logger.LogDebug("Found matching skin: {MarketHashName} -> {SkinName} (SkinId: {SkinId})", 
+
+                _logger.LogDebug("Found matching skin: {MarketHashName} -> {SkinName} (SkinId: {SkinId})",
                     steamItem.MarketHashName, matchingSkin.Name, matchingSkin.Id);
 
                 if (string.IsNullOrWhiteSpace(matchingSkin.MarketHashName) && !string.IsNullOrWhiteSpace(trimmedMarketHashName))
@@ -171,8 +221,6 @@ public class SteamInventoryImportService
                     matchingSkin.MarketHashName = trimmedMarketHashName;
                 }
 
-                // Check if item already exists by AssetId (unique Steam identifier)
-                // If it exists, update it with latest Steam data (especially image URL)
                 InventoryItem? existingItem = null;
                 if (!string.IsNullOrEmpty(steamItem.AssetId))
                 {
@@ -182,40 +230,48 @@ public class SteamInventoryImportService
 
                 if (existingItem != null)
                 {
-                    // Update existing item with latest Steam data (especially image URL)
-                    _logger.LogDebug("Updating existing item with latest Steam data: AssetId {AssetId}, {MarketHashName}", 
+                    _logger.LogDebug("Updating existing item with latest Steam data: AssetId {AssetId}, {MarketHashName}",
                         steamItem.AssetId, steamItem.MarketHashName);
-                    
-                    // Extract item properties from Steam descriptions
-                    var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
+
+                    var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) =
+                        await ExtractItemPropertiesAsync(steamItem, cancellationToken);
+
                     var previousFloat = existingItem.Float;
                     var previousExterior = existingItem.Exterior;
-                    
-                    // Always update with Steam's image URL if available (Steam has the latest images)
+
                     if (!string.IsNullOrEmpty(steamItem.ImageUrl))
                     {
                         existingItem.ImageUrl = steamItem.ImageUrl;
                     }
-                    
-                    // Update other properties that might have changed
-                    // Preserve existing float if Steam didn't give us a meaningful float (sentinel 0.5)
-                    var shouldUpdateFloat = updatedFloatValue > 0 && Math.Abs(updatedFloatValue - 0.5) > 0.000001;
-                    if (shouldUpdateFloat)
+
+                    if (HasMeaningfulFloat(updatedFloatValue))
                     {
                         existingItem.Float = updatedFloatValue;
+                        if (!string.IsNullOrWhiteSpace(updatedExterior))
+                        {
+                            existingItem.Exterior = updatedExterior;
+                        }
                     }
-                    // Preserve exterior if float didn't update
-                    if (shouldUpdateFloat && !string.IsNullOrWhiteSpace(updatedExterior))
-                    {
-                        existingItem.Exterior = updatedExterior;
-                    }
-                    // Paint seed only if present
+
                     if (updatedPaintSeed.HasValue)
                     {
                         existingItem.PaintSeed = updatedPaintSeed;
                     }
+
                     existingItem.TradeProtected = !steamItem.Tradable;
                     existingItem.SteamMarketHashName = trimmedMarketHashName;
+
+                    var price = ResolveMarketPrice(steamItem, matchingSkin);
+                    if (price > 0 || (fetchMarketPrices && existingItem.Price == 0))
+                    {
+                        existingItem.Price = price;
+                    }
+
+                    UpsertStickers(existingItem.Id, updatedStickers);
+
+                    await _context.SaveChangesAsync(cancellationToken);
+                    result.Imported++;
+
                     _logger.LogInformation(
                         "Applied Steam properties to existing item {MarketHashName} ({AssetId}): float {OldFloat} -> {NewFloat}, exterior '{OldExterior}' -> '{NewExterior}'",
                         steamItem.MarketHashName,
@@ -224,57 +280,6 @@ public class SteamInventoryImportService
                         existingItem.Float,
                         previousExterior,
                         existingItem.Exterior);
-                    
-                    // Always update price with latest market price during import
-                    if (fetchMarketPrices &&
-                        marketPrices.TryGetValue(steamItem.MarketHashName, out var existingPrice) &&
-                        existingPrice.HasValue)
-                    {
-                        existingItem.Price = existingPrice.Value;
-                        _logger.LogDebug("Updated price for existing item {MarketHashName}: ${Price}", 
-                            steamItem.MarketHashName, existingPrice.Value);
-
-                        if (existingPrice.Value > SteamWalletLimit)
-                        {
-                            _logger.LogInformation("Price for {MarketHashName} exceeds Steam balance limit (${Limit}). Value: ${Price}", 
-                                steamItem.MarketHashName, SteamWalletLimit, existingPrice.Value);
-                        }
-
-                        if (existingPrice.Value > 0)
-                        {
-                            matchingSkin.DefaultPrice = existingPrice.Value;
-                        }
-                    }
-                    else if (fetchMarketPrices && existingItem.Price == 0)
-                    {
-                        _logger.LogDebug("No market price available for existing item {MarketHashName}, keeping price at 0", 
-                            steamItem.MarketHashName);
-                    }
-                    
-                    // Update stickers if any
-                    if (updatedStickers != null && updatedStickers.Count > 0)
-                    {
-                        // Remove old stickers
-                        var oldStickers = _context.Stickers.Where(s => s.InventoryItemId == existingItem.Id).ToList();
-                        _context.Stickers.RemoveRange(oldStickers);
-                        
-                        // Add new stickers
-                        foreach (var sticker in updatedStickers)
-                        {
-                            var stickerEntity = new Sticker
-                            {
-                                InventoryItemId = existingItem.Id,
-                                Name = sticker.Name,
-                                Price = sticker.Price,
-                                Slot = sticker.Slot,
-                                ImageUrl = sticker.ImageUrl
-                            };
-                            _context.Stickers.Add(stickerEntity);
-                        }
-                    }
-                    
-                    await _context.SaveChangesAsync(cancellationToken);
-                    result.Imported++; // Count as imported (updated)
 
                     if (ShouldFetchInspectFloat(steamItem))
                     {
@@ -289,53 +294,25 @@ public class SteamInventoryImportService
                     continue;
                 }
 
-                // Extract item properties from Steam descriptions
                 var (floatValue, exterior, paintSeed, paintIndex, stickers) = await ExtractItemPropertiesAsync(steamItem, cancellationToken);
 
-                // Create inventory item
-                // Always prefer Steam's image URL (it's always up-to-date from Steam's CDN)
-                // Only fall back to catalog image if Steam doesn't provide one (shouldn't happen)
-                var imageUrl = !string.IsNullOrEmpty(steamItem.ImageUrl) 
-                    ? steamItem.ImageUrl 
+                var imageUrl = !string.IsNullOrEmpty(steamItem.ImageUrl)
+                    ? steamItem.ImageUrl
                     : matchingSkin.ImageUrl;
-                
-                // Get market price if available
-                var marketPrice = fetchMarketPrices &&
-                                  marketPrices.TryGetValue(steamItem.MarketHashName, out var price) &&
-                                  price.HasValue
-                    ? price.Value
-                    : 0m;
-                
-                if (fetchMarketPrices && marketPrice > 0)
-                {
-                    _logger.LogDebug("Using market price for {MarketHashName}: ${Price}", 
-                        steamItem.MarketHashName, marketPrice);
 
-                    if (marketPrice > SteamWalletLimit)
-                    {
-                        _logger.LogInformation("Market price for {MarketHashName} exceeds Steam balance limit (${Limit}). Value: ${Price}", 
-                            steamItem.MarketHashName, SteamWalletLimit, marketPrice);
-                    }
+                var marketPrice = ResolveMarketPrice(steamItem, matchingSkin);
 
-                    matchingSkin.DefaultPrice = marketPrice;
-                }
-                else
-                {
-                    _logger.LogDebug("No market price available for {MarketHashName}, setting to 0", 
-                        steamItem.MarketHashName);
-                }
-                
                 var inventoryItem = new InventoryItem
                 {
                     UserId = userId,
                     SkinId = matchingSkin.Id,
-                    AssetId = steamItem.AssetId, // Store Steam asset ID for duplicate detection
+                    AssetId = steamItem.AssetId,
                     SteamMarketHashName = trimmedMarketHashName,
-                    Float = (floatValue > 0 && Math.Abs(floatValue - 0.5) > 0.000001) ? floatValue : 0.5, // preserve sentinel for missing
+                    Float = NormalizeFloat(floatValue),
                     Exterior = exterior,
                     PaintSeed = paintSeed,
                     ImageUrl = imageUrl,
-                    Price = marketPrice, // Use fetched market price, or 0 if not available
+                    Price = marketPrice,
                     TradeProtected = !steamItem.Tradable,
                     AcquiredAt = DateTime.UtcNow
                 };
@@ -349,21 +326,9 @@ public class SteamInventoryImportService
                     inventoryItem.Float,
                     inventoryItem.Exterior);
 
-                // Add stickers if any
-                if (stickers != null && stickers.Count > 0)
+                UpsertStickers(inventoryItem.Id, stickers);
+                if (stickers is { Count: > 0 })
                 {
-                    foreach (var sticker in stickers)
-                    {
-                        var stickerEntity = new Sticker
-                        {
-                            InventoryItemId = inventoryItem.Id,
-                            Name = sticker.Name,
-                            Price = sticker.Price,
-                            Slot = sticker.Slot,
-                            ImageUrl = sticker.ImageUrl
-                        };
-                        _context.Stickers.Add(stickerEntity);
-                    }
                     await _context.SaveChangesAsync(cancellationToken);
                 }
 
