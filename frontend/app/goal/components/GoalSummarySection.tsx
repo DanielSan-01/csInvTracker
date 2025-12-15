@@ -17,7 +17,7 @@ type GoalSummarySectionProps = {
 
 const GoalSummarySection = ({
   step,
-  targetSkinName,
+  targetSummaryName,
   parsedTargetPrice,
   selectedTotal,
   selectedItemCount,
