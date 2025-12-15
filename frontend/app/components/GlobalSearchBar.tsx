@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useSkinCatalog } from '@/hooks/useSkinCatalog';
 import { CSItem } from '@/lib/mockData';
 import type { SkinDto } from '@/lib/api';
@@ -25,6 +26,7 @@ export default function GlobalSearchBar({
 }: GlobalSearchBarProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const { skins, loading } = useSkinCatalog(searchTerm);
   const searchRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -32,14 +34,16 @@ export default function GlobalSearchBar({
 
   // Update dropdown position when it's shown or window is resized/scrolled
   useEffect(() => {
-    if (!showResults || !searchRef.current || !dropdownRef.current) return;
+    if (!showResults || !searchRef.current) return;
 
     const updatePosition = () => {
-      if (!searchRef.current || !dropdownRef.current) return;
+      if (!searchRef.current) return;
       const rect = searchRef.current.getBoundingClientRect();
-      dropdownRef.current.style.top = `${rect.bottom + 8}px`;
-      dropdownRef.current.style.left = `${rect.left}px`;
-      dropdownRef.current.style.width = `${rect.width}px`;
+      setDropdownPos({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
     };
 
     updatePosition();
@@ -69,7 +73,11 @@ export default function GlobalSearchBar({
   };
 
   return (
-    <div ref={searchRef} className="relative w-full max-w-xl" style={{ isolation: 'isolate' }}>
+    <div
+      ref={searchRef}
+      className="relative w-full max-w-xl"
+      style={{ isolation: 'isolate', zIndex: 50 }}
+    >
       {/* Search Input */}
       <div className="relative">
         <input
@@ -98,23 +106,30 @@ export default function GlobalSearchBar({
 
       {searchTerm.length === 0 && <SearchTips />}
 
-      {showResults && searchTerm.length >= 2 && (
-        <div 
-          ref={dropdownRef}
-          className="fixed z-[99999] max-h-[500px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl"
-        >
-          <SearchResultsDropdown
-            skins={skins}
-            isLoading={loading}
-            searchTerm={searchTerm}
-            isLoggedIn={isLoggedIn}
-            inventoryContains={isInInventory}
-            allowDuplicateSelection={allowDuplicateSelection}
-            actionLabel={actionLabel}
-            onAdd={handleAddClick}
-          />
-        </div>
-      )}
+      {showResults && searchTerm.length >= 2 && dropdownPos &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className="fixed z-[100000] max-h-[500px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl"
+            style={{
+              top: dropdownPos.top,
+              left: dropdownPos.left,
+              width: dropdownPos.width,
+            }}
+          >
+            <SearchResultsDropdown
+              skins={skins}
+              isLoading={loading}
+              searchTerm={searchTerm}
+              isLoggedIn={isLoggedIn}
+              inventoryContains={isInInventory}
+              allowDuplicateSelection={allowDuplicateSelection}
+              actionLabel={actionLabel}
+              onAdd={handleAddClick}
+            />
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

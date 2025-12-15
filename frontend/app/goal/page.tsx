@@ -30,16 +30,25 @@ export default function GoalPlannerPage() {
   const [savedGoal, setSavedGoal] = useState<GoalData | null>(null);
   const [loadingGoal, setLoadingGoal] = useState(true);
 
-  const [targetSkinName, setTargetSkinName] = useState('');
-  const [targetSkinPrice, setTargetSkinPrice] = useState('');
+  type TargetEntry = {
+    id: string;
+    skin: SkinDto | null;
+    name: string;
+    price: string;
+    imageUrl?: string | null;
+  };
+
+  const [targets, setTargets] = useState<TargetEntry[]>([
+    { id: 'target-1', skin: null, name: '', price: '', imageUrl: undefined },
+  ]);
   const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
   const [existingBalance, setExistingBalance] = useState('');
   const [inventorySearch, setInventorySearch] = useState('');
-  const [selectedSkin, setSelectedSkin] = useState<SkinDto | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [showNewGoalForm, setShowNewGoalForm] = useState(false);
   const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
+  const [activeTargetId, setActiveTargetId] = useState('target-1');
 
   // Load saved goal on mount
   useEffect(() => {
@@ -69,9 +78,23 @@ export default function GoalPlannerPage() {
   }, [user?.id]);
 
   const parsedTargetPrice = useMemo(() => {
-    const value = parseFloat(targetSkinPrice.replace(',', '.'));
-    return Number.isFinite(value) ? value : 0;
-  }, [targetSkinPrice]);
+    return targets.reduce((sum, t) => {
+      const val = parseFloat(t.price.replace(',', '.'));
+      return sum + (Number.isFinite(val) ? val : 0);
+    }, 0);
+  }, [targets]);
+
+  const targetSummaryName = useMemo(() => {
+    if (targets.length === 1) {
+      return targets[0].name || 'Target skin';
+    }
+    return `${targets.length} targets`;
+  }, [targets]);
+
+  const targetSummaryImage = useMemo(() => {
+    const withImage = targets.find((t) => t.imageUrl);
+    return withImage?.imageUrl ?? null;
+  }, [targets]);
 
   const parsedBalance = useMemo(() => {
     const value = parseFloat(existingBalance.replace(',', '.'));
@@ -144,17 +167,55 @@ export default function GoalPlannerPage() {
     setPriceOverrides({});
   }, []);
 
-  const handleSkinSelection = useCallback((skin: SkinDto) => {
-    setSelectedSkin(skin);
-    setTargetSkinName(skin.name);
+  const handleUpdateTarget = useCallback(
+    (id: string, updates: Partial<TargetEntry>) => {
+      setTargets((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+      );
+    },
+    []
+  );
 
-    if (skin.defaultPrice && skin.defaultPrice > 0) {
-      setTargetSkinPrice(skin.defaultPrice.toFixed(2));
-    }
+  const handleSelectSkinForTarget = useCallback(
+    (id: string, skin: SkinDto) => {
+      handleUpdateTarget(id, {
+        skin,
+        name: skin.name,
+        price:
+          skin.defaultPrice && skin.defaultPrice > 0
+            ? skin.defaultPrice.toFixed(2)
+            : '',
+        imageUrl: skin.dopplerPhaseImageUrl ?? skin.imageUrl ?? undefined,
+      });
+    },
+    [handleUpdateTarget]
+  );
+
+  const handleClearTargetSkin = useCallback(
+    (id: string) => {
+      handleUpdateTarget(id, { skin: null, imageUrl: undefined });
+    },
+    [handleUpdateTarget]
+  );
+
+  const handleAddTarget = useCallback(() => {
+    setTargets((prev) => {
+      if (prev.length >= 10) return prev;
+      const nextId = `target-${prev.length + 1}`;
+      setActiveTargetId(nextId);
+      return [...prev, { id: nextId, skin: null, name: '', price: '', imageUrl: undefined }];
+    });
   }, []);
 
-  const handleClearSelectedSkin = useCallback(() => {
-    setSelectedSkin(null);
+  const handleRemoveTarget = useCallback((id: string) => {
+    setTargets((prev) => {
+      if (prev.length <= 1) return prev;
+      const filtered = prev.filter((t) => t.id !== id);
+      if (activeTargetId === id && filtered.length > 0) {
+        setActiveTargetId(filtered[0].id);
+      }
+      return filtered;
+    });
   }, []);
 
   const handleAddGoal = async () => {
@@ -165,8 +226,9 @@ export default function GoalPlannerPage() {
       return;
     }
 
-    if (!targetSkinName.trim()) {
-      setFormError('Please select or enter the skin you want.');
+    const hasValidTarget = targets.some((t) => (t.name && t.name.trim()) || (parseFloat(t.price) > 0));
+    if (!hasValidTarget) {
+      setFormError('Please add at least one target with a name or price.');
       return;
     }
 
@@ -183,13 +245,13 @@ export default function GoalPlannerPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       userId: user.id,
-      skinName: targetSkinName.trim(),
-      skinId: selectedSkin?.id ?? null,
-      skinImageUrl: selectedSkin?.dopplerPhaseImageUrl ?? selectedSkin?.imageUrl ?? null,
-      skinAltImageUrl: selectedSkin?.imageUrl ?? null,
-      skinRarity: selectedSkin?.rarity ?? null,
-      skinType: selectedSkin?.type ?? null,
-      skinWeapon: selectedSkin?.weapon ?? null,
+      skinName: targetSummaryName.trim(),
+      skinId: null,
+      skinImageUrl: targetSummaryImage,
+      skinAltImageUrl: targetSummaryImage,
+      skinRarity: null,
+      skinType: null,
+      skinWeapon: null,
       targetPrice: parsedTargetPrice,
       balance: parsedBalance,
       selectedTotal,
@@ -360,14 +422,17 @@ export default function GoalPlannerPage() {
           <div className="lg:col-span-2 space-y-8">
             <GoalTargetSkinSection
               step={1}
-              selectedSkin={selectedSkin}
               inventoryItems={inventoryAsCsItems}
-              onSkinSelect={handleSkinSelection}
-              onClearSkin={handleClearSelectedSkin}
-              targetSkinName={targetSkinName}
-              onTargetSkinNameChange={setTargetSkinName}
-              targetSkinPrice={targetSkinPrice}
-              onTargetSkinPriceChange={setTargetSkinPrice}
+            targets={targets}
+            activeTargetId={activeTargetId}
+            onSetActiveTarget={setActiveTargetId}
+            onSelectSkin={handleSelectSkinForTarget}
+            onClearSkin={handleClearTargetSkin}
+            onNameChange={(id, value) => handleUpdateTarget(id, { name: value })}
+            onPriceChange={(id, value) => handleUpdateTarget(id, { price: value })}
+            onAddTarget={handleAddTarget}
+            onRemoveTarget={handleRemoveTarget}
+            canAddMore={targets.length < 10}
               formatCurrency={formatCurrency}
             />
 
@@ -399,7 +464,7 @@ export default function GoalPlannerPage() {
 
         <GoalSummarySection
           step={4}
-          targetSkinName={targetSkinName}
+          targetSummaryName={targetSummaryName}
           parsedTargetPrice={parsedTargetPrice}
           selectedTotal={selectedTotal}
           selectedItemCount={selectedItemIds.length}
@@ -422,17 +487,14 @@ export default function GoalPlannerPage() {
           <aside className="lg:col-span-1">
             <div className="lg:sticky lg:top-8">
               <GoalAffordabilityPanel
-                targetSkinName={targetSkinName}
-                targetSkinImageUrl={selectedSkin?.dopplerPhaseImageUrl ?? selectedSkin?.imageUrl ?? null}
+            targetSkinName={targetSummaryName}
+            targetSkinImageUrl={targetSummaryImage}
                 targetPrice={parsedTargetPrice}
                 selectedTotal={selectedTotal}
                 parsedBalance={parsedBalance}
                 remainingAmount={remainingAmount}
                 surplusAmount={surplusAmount}
                 formatCurrency={formatCurrency}
-                onTargetPriceChange={(newPrice) => {
-                  setTargetSkinPrice(newPrice.toFixed(2));
-                }}
               />
             </div>
           </aside>

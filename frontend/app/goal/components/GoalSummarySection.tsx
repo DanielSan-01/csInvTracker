@@ -4,7 +4,7 @@ import GoalStepSection from './GoalStepSection';
 
 type GoalSummarySectionProps = {
   step: number;
-  targetSkinName: string;
+  targetSummaryName: string;
   parsedTargetPrice: number;
   selectedTotal: number;
   selectedItemCount: number;
@@ -29,8 +29,8 @@ const GoalSummarySection = ({
 }: GoalSummarySectionProps) => {
   const summaryCards: SummaryCardProps[] = [
     {
-      label: 'Target skin',
-      value: targetSkinName ? targetSkinName : 'Not set yet',
+      label: 'Targets',
+      value: targetSummaryName ? targetSummaryName : 'Not set yet',
       secondaryValue: parsedTargetPrice > 0 ? formatCurrency(parsedTargetPrice) : '–',
     },
     {
