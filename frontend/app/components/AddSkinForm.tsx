@@ -49,6 +49,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       name: item?.name ?? effectiveSkin?.name ?? '',
       rarity: item?.rarity ?? (effectiveSkin?.rarity as Rarity) ?? 'Mil-Spec',
       type: item?.type ?? (effectiveSkin?.type as ItemType) ?? 'Rifle',
+      quantity: 1,
       float: item?.float,
       paintSeed: item?.paintSeed,
       price: item?.price ?? Number(effectiveSkin?.defaultPrice ?? 0),
@@ -91,6 +92,7 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
   const [errors, setErrors] = useState<Record<string, string>>({});
   const formRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const isQuantityEligible = formData.type === 'Case' || formData.type === 'Sticker';
 
   useEffect(() => {
     if (formRef.current && overlayRef.current) {
@@ -154,6 +156,17 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       newErrors.cost = 'Cost cannot be negative';
     }
 
+    if (isQuantityEligible) {
+      const qty = formData.quantity ?? 1;
+      if (!Number.isFinite(qty) || qty <= 0) {
+        newErrors.quantity = 'Quantity must be at least 1';
+      } else if (!Number.isInteger(qty)) {
+        newErrors.quantity = 'Quantity must be a whole number';
+      } else if (qty > 1000) {
+        newErrors.quantity = 'Max quantity is 1000';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -172,8 +185,13 @@ export default function AddSkinForm({ onAdd, onUpdate, onClose, item, initialSki
       tradableAfter = date.toISOString();
     }
 
+    const quantity = isQuantityEligible
+      ? Math.min(1000, Math.max(1, Math.floor(formData.quantity ?? 1)))
+      : 1;
+
     const submitData = {
       ...formData,
+      quantity,
       tradeProtected: Boolean(formData.tradeLockDays && formData.tradeLockDays > 0),
       tradableAfter,
       // Remove imageUrl from submission - it will be auto-generated

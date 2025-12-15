@@ -27,7 +27,7 @@ export type ItemType =
  * Agents, Cases, Keys, Stickers, and Patches do not have float values.
  */
 export function shouldShowFloat(type: ItemType): boolean {
-  const noFloatTypes: ItemType[] = ['Agent', 'Case', 'Key', 'Sticker', 'Patch'];
+  const noFloatTypes: ItemType[] = ['Agent', 'Case', 'Key', 'Sticker', 'Patch', 'Keychain'];
   return !noFloatTypes.includes(type);
 }
 

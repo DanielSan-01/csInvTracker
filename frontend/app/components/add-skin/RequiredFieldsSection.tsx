@@ -16,6 +16,8 @@ export default function RequiredFieldsSection({
   selectedExterior,
   onChange,
 }: RequiredFieldsSectionProps) {
+  const showQuantity = formData.type === 'Case' || formData.type === 'Sticker';
+
   return (
     <div className="space-y-4">
       <h3 className="border-b border-purple-500 pb-2 text-lg font-semibold text-purple-400">
@@ -125,6 +127,38 @@ export default function RequiredFieldsSection({
           The amount you paid for this item (used for profit calculation)
         </p>
       </div>
+
+      {showQuantity && (
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-300">
+            Quantity (1–1000) <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="number"
+            min="1"
+            max="1000"
+            step="1"
+            value={formData.quantity ?? 1}
+            onChange={(event) =>
+              onChange({
+                quantity: Math.min(
+                  1000,
+                  Math.max(1, Math.floor(Number(event.target.value) || 0))
+                ),
+              })
+            }
+            className={`w-full rounded-lg border-2 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 ${
+              errors.quantity ? 'border-red-500 bg-gray-900' : 'border-gray-700 bg-gray-800'
+            }`}
+            placeholder="1"
+            required
+          />
+          {errors.quantity && <p className="mt-1 text-sm text-red-400">{errors.quantity}</p>}
+          <p className="mt-1 text-xs text-gray-500">
+            Creates one inventory item per case or sticker selected.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

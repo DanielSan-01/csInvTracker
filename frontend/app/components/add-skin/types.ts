@@ -6,6 +6,7 @@ export interface NewSkinData {
   name: string;
   rarity: Rarity;
   type: ItemType;
+  quantity?: number;
   float?: number;
   paintSeed?: number;
   patternName?: string;

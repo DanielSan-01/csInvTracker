@@ -30,6 +30,9 @@ export default function ItemCardGrid({
   const floatBadgeLabel = (() => {
     if (!showFloat) {
       // For non-floatable items (agents, cases, stickers, etc.), show the item type label
+      if (item.type === 'Keychain') {
+        return 'Charm';
+      }
       return item.type;
     }
 

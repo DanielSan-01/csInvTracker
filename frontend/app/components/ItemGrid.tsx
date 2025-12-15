@@ -347,18 +347,33 @@ export default function ItemGrid() {
       stickers: validStickers.length > 0 ? validStickers : undefined,
     };
 
-    const newItem = await createItem(createDto);
-    if (newItem) {
-      console.log('[ItemGrid] Created item response:', newItem);
-      console.log('[ItemGrid] Stickers in created item:', newItem.stickers);
-      // Select the newly added item
-      const csItem = inventoryItemsToCSItems([newItem])[0];
-      console.log('[ItemGrid] Converted CSItem:', csItem);
-      console.log('[ItemGrid] Stickers in CSItem:', csItem?.stickers);
-      if (csItem) {
-        setSelectedItemId(csItem.id);
+    const quantity =
+      newSkinData.type === 'Case' || newSkinData.type === 'Sticker'
+        ? Math.min(1000, Math.max(1, Math.floor(newSkinData.quantity ?? 1)))
+        : 1;
+
+    let createdCount = 0;
+    let lastCreated: ReturnType<typeof inventoryItemsToCSItems>[0] | null = null;
+
+    for (let i = 0; i < quantity; i += 1) {
+      const newItem = await createItem(createDto);
+      if (newItem) {
+        createdCount += 1;
+        const csItem = inventoryItemsToCSItems([newItem])[0];
+        if (csItem) {
+          lastCreated = csItem;
+        }
       }
-      showToast('Skin added successfully.', 'success');
+    }
+
+    if (createdCount > 0) {
+      if (lastCreated) {
+        setSelectedItemId(lastCreated.id);
+      }
+      showToast(
+        `Added ${createdCount} ${createdCount === 1 ? 'item' : 'items'}${quantity > 1 ? ' (one per case/sticker)' : ''}.`,
+        'success'
+      );
       return true;
     }
 
