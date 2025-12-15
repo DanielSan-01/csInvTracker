@@ -198,11 +198,11 @@ public class SteamInventoryImportService
                     }
                     
                     // Update other properties that might have changed
-                    // Preserve existing float if Steam didn't give us a real float (null/0)
-                    var shouldUpdateFloat = updatedFloatValue.HasValue && updatedFloatValue.Value > 0;
+                    // Preserve existing float if Steam didn't give us a meaningful float (sentinel 0.5)
+                    var shouldUpdateFloat = updatedFloatValue > 0 && Math.Abs(updatedFloatValue - 0.5) > 0.000001;
                     if (shouldUpdateFloat)
                     {
-                        existingItem.Float = updatedFloatValue.Value;
+                        existingItem.Float = updatedFloatValue;
                     }
                     // Preserve exterior if float didn't update
                     if (shouldUpdateFloat && !string.IsNullOrWhiteSpace(updatedExterior))
@@ -331,7 +331,7 @@ public class SteamInventoryImportService
                     SkinId = matchingSkin.Id,
                     AssetId = steamItem.AssetId, // Store Steam asset ID for duplicate detection
                     SteamMarketHashName = trimmedMarketHashName,
-                    Float = (floatValue.HasValue && floatValue.Value > 0) ? floatValue.Value : 0.5, // preserve sentinel for missing
+                    Float = (floatValue > 0 && Math.Abs(floatValue - 0.5) > 0.000001) ? floatValue : 0.5, // preserve sentinel for missing
                     Exterior = exterior,
                     PaintSeed = paintSeed,
                     ImageUrl = imageUrl,
