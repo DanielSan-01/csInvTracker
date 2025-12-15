@@ -16,6 +16,10 @@ type GoalInventorySectionProps = {
   selectedItemIds: number[];
   onToggleItem: (item: InventoryItemDto) => void;
   onClearSelection: () => void;
+  priceOverrides: Record<number, number>;
+  onOverrideChange: (itemId: number, value: number | null) => void;
+  onClearAllOverrides: () => void;
+  getEffectivePrice: (item: InventoryItemDto) => number;
   inventoryLoading: boolean;
   inventorySearch: string;
   onInventorySearchChange: (value: string) => void;
@@ -32,6 +36,10 @@ const GoalInventorySection = ({
   selectedItemIds,
   onToggleItem,
   onClearSelection,
+  priceOverrides,
+  onOverrideChange,
+  onClearAllOverrides,
+  getEffectivePrice,
   inventoryLoading,
   inventorySearch,
   onInventorySearchChange,
@@ -41,9 +49,12 @@ const GoalInventorySection = ({
 }: GoalInventorySectionProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [tempOverride, setTempOverride] = useState<string>('');
   
   const itemCountLabel = items.length === 1 ? 'item' : 'items';
   const selectedCountLabel = selectedItemIds.length === 1 ? 'item' : 'items';
+  const overrideCount = Object.keys(priceOverrides).length;
 
   // Sort items by price (most expensive to least expensive)
   const sortedFilteredItems = useMemo(() => {
@@ -104,6 +115,20 @@ const GoalInventorySection = ({
                 placeholder="Filter inventory…"
                 className="w-full max-w-xs rounded-lg border border-gray-800 bg-gray-950/60 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
               />
+              {overrideCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(null);
+                    setTempOverride('');
+                    onClearAllOverrides();
+                  }}
+                  className="whitespace-nowrap rounded-lg border border-amber-400/50 bg-amber-500/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-amber-100 transition-colors hover:bg-amber-500/20"
+                  title="Clear all temporary price overrides"
+                >
+                  Reset overrides ({overrideCount})
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
@@ -141,18 +166,99 @@ const GoalInventorySection = ({
               <div className="grid gap-3 md:grid-cols-2">
                 {paginatedItems.map((item) => {
                   const isSelected = selectedItemIds.includes(item.id);
+                  const override = priceOverrides[item.id];
+                  const effectivePrice = getEffectivePrice(item);
+                  const isEditing = editingId === item.id;
+
+                  const footer = (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-300">{formatCurrency(effectivePrice)}</span>
+                        {override !== undefined && (
+                          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-100">
+                            Override
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingId(item.id);
+                          setTempOverride(
+                            override !== undefined
+                              ? override.toString()
+                              : effectivePrice.toString()
+                          );
+                        }}
+                        className="rounded border border-gray-700 px-2 py-0.5 text-[11px] text-white transition-colors hover:border-purple-500 hover:bg-purple-500/10"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  );
+
+                  const editor =
+                    isEditing && (
+                      <div className="col-span-2 -mb-1 flex items-center gap-2 rounded-lg border border-gray-800 bg-gray-900/70 px-3 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={tempOverride}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setTempOverride(e.target.value)}
+                          className="w-28 rounded border border-gray-700 bg-gray-950 px-2 py-1 text-sm text-white focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                          placeholder="0.00"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const parsed = parseFloat(tempOverride.replace(',', '.'));
+                            if (Number.isFinite(parsed) && parsed >= 0) {
+                              onOverrideChange(item.id, parsed);
+                              setEditingId(null);
+                              setTempOverride('');
+                            }
+                          }}
+                          className="rounded bg-purple-600 px-2 py-1 text-xs font-semibold text-white hover:bg-purple-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOverrideChange(item.id, null);
+                            setEditingId(null);
+                            setTempOverride('');
+                          }}
+                          className="rounded border border-gray-700 px-2 py-1 text-xs font-semibold text-gray-200 hover:border-red-500 hover:text-red-200"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    );
+
                   return (
-                    <InventoryListCard
-                      key={item.id}
-                      title={item.skinName}
-                      subtitle={item.weapon ?? item.type}
-                      imageUrl={item.imageUrl}
-                      selectable
-                      isSelected={isSelected}
-                      onClick={() => onToggleItem(item)}
-                      footerLeft={`Tradable: ${item.tradeProtected ? 'No' : 'Yes'}`}
-                      footerRight={formatCurrency(item.price ?? 0)}
-                    />
+                    <div key={item.id} className="space-y-2">
+                      <InventoryListCard
+                        title={item.skinName}
+                        subtitle={item.weapon ?? item.type}
+                        imageUrl={item.imageUrl}
+                        selectable
+                        isSelected={isSelected}
+                        onClick={() => {
+                          if (!isEditing) {
+                            onToggleItem(item);
+                          }
+                        }}
+                        footerLeft={`Tradable: ${item.tradeProtected ? 'No' : 'Yes'}`}
+                        footerRight={footer}
+                      />
+                      {editor}
+                    </div>
                   );
                 })}
               </div>

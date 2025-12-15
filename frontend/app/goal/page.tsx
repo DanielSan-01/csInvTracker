@@ -39,6 +39,7 @@ export default function GoalPlannerPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [showNewGoalForm, setShowNewGoalForm] = useState(false);
+  const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
 
   // Load saved goal on mount
   useEffect(() => {
@@ -94,9 +95,20 @@ export default function GoalPlannerPage() {
     return items.filter((item) => selectedMap.has(item.id));
   }, [items, selectedItemIds]);
 
+  const getEffectivePrice = useCallback(
+    (item: InventoryItemDto) => {
+      const override = priceOverrides[item.id];
+      if (Number.isFinite(override)) {
+        return override;
+      }
+      return item.price ?? 0;
+    },
+    [priceOverrides]
+  );
+
   const selectedTotal = useMemo(() => {
-    return selectedItems.reduce((acc, item) => acc + (item.price ?? 0), 0);
-  }, [selectedItems]);
+    return selectedItems.reduce((acc, item) => acc + getEffectivePrice(item), 0);
+  }, [selectedItems, getEffectivePrice]);
 
   const coverageTotal = selectedTotal + parsedBalance;
   const remainingAmount = Math.max(parsedTargetPrice - coverageTotal, 0);
@@ -114,6 +126,22 @@ export default function GoalPlannerPage() {
 
   const handleClearSelection = useCallback(() => {
     setSelectedItemIds([]);
+  }, []);
+
+  const handleOverrideChange = useCallback((itemId: number, value: number | null) => {
+    setPriceOverrides((prev) => {
+      const next = { ...prev };
+      if (value === null || Number.isNaN(value)) {
+        delete next[itemId];
+      } else {
+        next[itemId] = value;
+      }
+      return next;
+    });
+  }, []);
+
+  const handleClearAllOverrides = useCallback(() => {
+    setPriceOverrides({});
   }, []);
 
   const handleSkinSelection = useCallback((skin: SkinDto) => {
@@ -171,7 +199,7 @@ export default function GoalPlannerPage() {
       selectedItems: selectedItems.map((item) => ({
         inventoryItemId: item.id,
         skinName: item.skinName,
-        price: item.price ?? 0,
+        price: getEffectivePrice(item),
         tradeProtected: item.tradeProtected,
         imageUrl: item.imageUrl ?? null,
         weapon: item.weapon ?? null,
@@ -351,6 +379,10 @@ export default function GoalPlannerPage() {
           selectedItemIds={selectedItemIds}
           onToggleItem={handleToggleItem}
           onClearSelection={handleClearSelection}
+        priceOverrides={priceOverrides}
+        onOverrideChange={handleOverrideChange}
+        onClearAllOverrides={handleClearAllOverrides}
+        getEffectivePrice={getEffectivePrice}
           inventoryLoading={inventoryLoading}
           inventorySearch={inventorySearch}
           onInventorySearchChange={setInventorySearch}
