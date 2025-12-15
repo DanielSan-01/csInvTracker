@@ -185,7 +185,7 @@ export default function GoalPlannerPage() {
           skin.defaultPrice && skin.defaultPrice > 0
             ? skin.defaultPrice.toFixed(2)
             : '',
-        imageUrl: skin.dopplerPhaseImageUrl ?? skin.imageUrl ?? undefined,
+        imageUrl: skin.imageUrl ?? skin.dopplerPhaseImageUrl ?? undefined,
       });
     },
     [handleUpdateTarget]
