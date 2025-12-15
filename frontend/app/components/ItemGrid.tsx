@@ -429,6 +429,8 @@ export default function ItemGrid() {
       if (success) {
         await refresh();
         showToast(`${field === 'price' ? 'Price' : field === 'cost' ? 'Cost' : 'Float'} updated successfully.`, 'success');
+        // Clear any auto-edit flag so the input doesn't immediately re-enter edit mode
+        setPendingEditField(null);
       } else {
         showToast(`Failed to update ${field}.`, 'error');
       }
