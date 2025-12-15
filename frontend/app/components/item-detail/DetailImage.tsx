@@ -46,6 +46,34 @@ export default function DetailImage({ item, animation }: DetailImageProps) {
     }
   };
 
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!item.tradeProtected || !item.tradableAfter) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [item.tradeProtected, item.tradableAfter]);
+
+  const tradableAt = item.tradableAfter ? new Date(item.tradableAfter).getTime() : null;
+  const isTradeLocked = !!(item.tradeProtected && tradableAt && tradableAt > now);
+  const remainingMs = isTradeLocked && tradableAt ? tradableAt - now : 0;
+
+  const formatRemaining = (ms: number) => {
+    if (ms <= 0) return 'now';
+    const totalSeconds = Math.floor(ms / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (days === 0 && minutes > 0) parts.push(`${minutes}m`);
+    if (parts.length === 0) return 'under 1m';
+    return parts.slice(0, 2).join(' ');
+  };
+
+  const remainingLabel = isTradeLocked ? formatRemaining(remainingMs) : null;
+
   return (
     <div
       ref={animation.imageContainerRef}
@@ -141,7 +169,7 @@ export default function DetailImage({ item, animation }: DetailImageProps) {
         <span className="rounded-full border border-white/30 bg-black/40 px-3 py-1 text-xs font-semibold text-white">
           {exteriorAbbr[item.exterior]}
         </span>
-        {item.tradeProtected && item.tradableAfter ? (
+        {isTradeLocked ? (
           <span className="flex items-center gap-1.5 rounded-full border border-amber-400/60 bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-200">
             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -150,7 +178,7 @@ export default function DetailImage({ item, animation }: DetailImageProps) {
                 clipRule="evenodd"
               />
             </svg>
-            Trade locked
+            Trade locked{remainingLabel ? ` • ${remainingLabel}` : ''}
           </span>
         ) : (
           <span className="flex items-center gap-1.5 rounded-full border border-emerald-400/50 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-200">
