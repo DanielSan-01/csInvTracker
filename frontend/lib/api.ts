@@ -598,6 +598,22 @@ export const adminApi = {
 
     return response.json();
   },
+
+  updateSkinPrice: async (skinId: number, defaultPrice: number | null): Promise<{ id: number; defaultPrice: number | null }> => {
+    const response = await fetch(`${API_BASE_URL}/admin/skins/${skinId}/price`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ defaultPrice }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to update skin price' }));
+      throw new Error(error.error || 'Failed to update skin price');
+    }
+
+    return response.json();
+  },
 };
 
 // Stickers API

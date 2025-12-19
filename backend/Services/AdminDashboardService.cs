@@ -109,6 +109,21 @@ public class AdminDashboardService
         return newSkin;
     }
 
+    public async Task<Skin?> UpdateSkinPriceAsync(int skinId, decimal? defaultPrice)
+    {
+        var skin = await _context.Skins.FirstOrDefaultAsync(s => s.Id == skinId);
+        if (skin == null)
+        {
+            return null;
+        }
+
+        skin.DefaultPrice = defaultPrice;
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Updated skin {SkinId} default price to {DefaultPrice}", skinId, defaultPrice);
+
+        return skin;
+    }
+
     public async Task<SkinStats> GetSkinStatsAsync()
     {
         var total = await _context.Skins.CountAsync();

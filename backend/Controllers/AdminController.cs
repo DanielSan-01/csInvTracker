@@ -135,6 +135,39 @@ public class AdminController : ControllerBase
         }
     }
 
+    // PUT: api/admin/skins/{skinId}/price
+    [HttpPut("skins/{skinId:int}/price")]
+    public async Task<ActionResult<object>> UpdateSkinPrice(
+        [FromRoute] int skinId,
+        [FromBody] UpdateSkinPriceDto dto)
+    {
+        if (dto == null)
+        {
+            return BadRequest(new { error = "Missing request body" });
+        }
+
+        if (dto.DefaultPrice.HasValue && dto.DefaultPrice.Value < 0)
+        {
+            return BadRequest(new { error = "Default price cannot be negative" });
+        }
+
+        try
+        {
+            var updated = await _adminService.UpdateSkinPriceAsync(skinId, dto.DefaultPrice);
+            if (updated == null)
+            {
+                return NotFound(new { error = "Skin not found" });
+            }
+
+            return Ok(new { id = updated.Id, defaultPrice = updated.DefaultPrice });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating skin {SkinId} default price", skinId);
+            return StatusCode(500, new { error = "An error occurred while updating the skin price" });
+        }
+    }
+
     [HttpGet("skin-stats")]
     public async Task<ActionResult<SkinStats>> GetSkinStats()
     {

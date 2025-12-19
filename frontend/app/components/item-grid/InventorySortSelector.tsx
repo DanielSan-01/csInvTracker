@@ -9,7 +9,6 @@ export type SortOption =
   | 'float-high-low'
   | 'float-low-high'
   | 'type-a-z'
-  | 'type-z-a'
   | 'name-a-z'
   | 'name-z-a';
 
@@ -24,7 +23,6 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'float-low-high', label: 'Float (Low → High)' },
   { value: 'float-high-low', label: 'Float (High → Low)' },
   { value: 'type-a-z', label: 'Type (Custom)' },
-  { value: 'type-z-a', label: 'Type (Custom Reverse)' },
   { value: 'name-a-z', label: 'Name (A → Z)' },
   { value: 'name-z-a', label: 'Name (Z → A)' },
 ];
@@ -100,15 +98,15 @@ export default function InventorySortSelector({ onSortChange, currentSort }: Inv
 }
 
 const typePriority: Record<string, number> = {
-  Knife: 1,
-  Gloves: 2,
-  Agent: 3,
-  Pistol: 4,
-  Rifle: 5,
-  SMG: 6,
-  'Sniper Rifle': 7,
-  Shotgun: 8,
-  'Machine Gun': 9,
+  Gloves: 1,
+  Knife: 2,
+  Pistol: 3,
+  Rifle: 4,
+  SMG: 5,
+  'Sniper Rifle': 6,
+  Shotgun: 7,
+  'Machine Gun': 8,
+  Agent: 9,
   Equipment: 10,
   Collectible: 11,
   'Music Kit': 12,
@@ -150,15 +148,6 @@ export function sortItems(items: CSItem[], sortOption: SortOption): CSItem[] {
         if (rankA !== rankB) return rankA - rankB;
         return (a.type || '').localeCompare(b.type || '');
       });
-    
-    case 'type-z-a':
-      return sorted.sort((a, b) => {
-        const rankA = getTypeRank(a.type);
-        const rankB = getTypeRank(b.type);
-        if (rankA !== rankB) return rankB - rankA;
-        return (b.type || '').localeCompare(a.type || '');
-      });
-    
     case 'name-a-z':
       return sorted.sort((a, b) => {
         const nameA = a.name || '';

@@ -9,6 +9,7 @@ import AdminHeader from './components/AdminHeader';
 import AdminTabsNav from './components/AdminTabsNav';
 import AdminErrorBanner from './components/AdminErrorBanner';
 import AdminLoadingState from './components/AdminLoadingState';
+import EditCatalogPrice from './components/EditCatalogPrice';
 import type { AdminStats, AdminUser, TabType, NewSkinFormState, AdminInventoryItem, AdminInventoryPage } from './types';
 import { formatCurrency, formatDate } from './utils';
 import AdminUserInventory from './components/AdminUserInventory';
@@ -333,14 +334,17 @@ export default function AdminPage() {
 
         {/* Add Skin Tab */}
         {activeTab === 'skins' && (
-          <AddSkinTab
-            newSkin={newSkin}
-            onFieldChange={handleSkinFieldChange}
-            onSubmit={handleCreateSkin}
-            onClear={handleClearSkinForm}
-            loading={createLoading}
-            success={createSuccess}
-          />
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+            <AddSkinTab
+              newSkin={newSkin}
+              onFieldChange={handleSkinFieldChange}
+              onSubmit={handleCreateSkin}
+              onClear={handleClearSkinForm}
+              loading={createLoading}
+              success={createSuccess}
+            />
+            <EditCatalogPrice onUpdated={fetchStats} />
+          </div>
         )}
       </div>
     </div>

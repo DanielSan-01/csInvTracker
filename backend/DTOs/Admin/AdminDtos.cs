@@ -77,4 +77,9 @@ public class CreateSkinDto
     public int? PaintIndex { get; set; }
 }
 
+public class UpdateSkinPriceDto
+{
+    public decimal? DefaultPrice { get; set; }
+}
+
 
