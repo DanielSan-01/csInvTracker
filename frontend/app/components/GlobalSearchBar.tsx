@@ -76,7 +76,6 @@ export default function GlobalSearchBar({
     <div
       ref={searchRef}
       className="relative w-full max-w-xl"
-      style={{ isolation: 'isolate', zIndex: 50 }}
     >
       {/* Search Input */}
       <div className="relative">
@@ -135,5 +134,3 @@ export default function GlobalSearchBar({
     </div>
   );
 }
-
-
