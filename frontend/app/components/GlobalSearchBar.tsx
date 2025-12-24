@@ -109,13 +109,13 @@ export default function GlobalSearchBar({
         createPortal(
           <div
             ref={dropdownRef}
-            className="fixed max-h-[500px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl"
+            className="fixed z-[99999] max-h-[500px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-800 shadow-2xl"
             style={{
               position: 'fixed',
               top: dropdownPos.top,
               left: dropdownPos.left,
               width: dropdownPos.width,
-              zIndex: 2147483647,
+              isolation: 'isolate',
             }}
           >
             <SearchResultsDropdown

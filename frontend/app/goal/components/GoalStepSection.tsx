@@ -11,7 +11,7 @@ type GoalStepSectionProps = {
 };
 
 const baseSectionClasses =
-  'space-y-6 rounded-3xl border border-gray-800/60 bg-gray-900/70 p-6 shadow-2xl shadow-black/40 backdrop-blur';
+  'space-y-6 rounded-3xl border border-gray-800/60 bg-gray-900/70 p-6 shadow-2xl shadow-black/40 backdrop-blur relative z-0';
 
 const GoalStepSection = ({ step, title, description, children, className }: GoalStepSectionProps) => {
   return (
