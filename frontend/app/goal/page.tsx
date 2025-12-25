@@ -277,11 +277,10 @@ export default function GoalPlannerPage() {
         setSavedGoal(goals[0]);
         setShowNewGoalForm(false);
         // Reset form
-        setTargetSkinName('');
-        setTargetSkinPrice('');
+        setTargets([{ id: 'target-1', skin: null, name: '', price: '', imageUrl: undefined }]);
         setSelectedItemIds([]);
         setExistingBalance('');
-        setSelectedSkin(null);
+        setActiveTargetId('target-1');
       }
     } catch (error) {
       console.error('Failed to save goal', error);
@@ -479,7 +478,7 @@ export default function GoalPlannerPage() {
           formError={formError}
           onSubmit={handleAddGoal}
           isSaving={isSavingGoal}
-          canSubmit={Boolean(targetSkinName.trim()) && parsedTargetPrice > 0}
+          canSubmit={targets.some(t => t.name.trim() || t.skin) && parsedTargetPrice > 0}
         />
           </div>
 
