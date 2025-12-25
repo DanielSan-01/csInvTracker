@@ -5,7 +5,30 @@ type DetailInfoPillsProps = {
   item: CSItem;
 };
 
+/**
+ * Converts a skin name to a URL-friendly slug for csgoskins.gg
+ * Example: "★ M9 Bayonet | Ultraviolet" -> "m9-bayonet-ultraviolet"
+ */
+function skinNameToSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/★/g, '') // Remove star symbols
+    .replace(/\|/g, '-') // Replace pipe with hyphen
+    .replace(/[()]/g, '') // Remove parentheses
+    .replace(/™/g, '') // Remove trademark symbols
+    .replace(/\bstattrak™?\b/gi, '') // Remove StatTrak
+    .replace(/\bsouvenir\b/gi, '') // Remove Souvenir
+    .replace(/\bphase\s*\d+\b/gi, '') // Remove phase numbers (e.g., "phase 4")
+    .replace(/\bph\s*\d+\b/gi, '') // Remove phase abbreviations (e.g., "ph4")
+    .trim()
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+    .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
+}
+
 export default function DetailInfoPills({ item }: DetailInfoPillsProps) {
+  const priceCheckUrl = `https://www.csgoskins.gg/items/${skinNameToSlug(item.name)}`;
+
   return (
     <div className="grid grid-cols-2 gap-3 text-[11px] text-gray-300">
       <div className={infoPillBase}>
@@ -14,16 +37,18 @@ export default function DetailInfoPills({ item }: DetailInfoPillsProps) {
         </svg>
         {item.rarity}
       </div>
-      <div className={infoPillBase}>
-        <svg className="h-4 w-4 text-sky-300" fill="currentColor" viewBox="0 0 20 20">
-          <path
-            fillRule="evenodd"
-            d="M4 3a2 2 0 00-2 2v2a4 4 0 002 3.465v1.535a2 2 0 002 2h1.055a3 3 0 002.83 2H13a2 2 0 002-2v-3a2 2 0 002-2V5a2 2 0 00-2-2H4zm5 9.917V9a1 1 0 112 0v6a1 1 0 01-1 1h-.945a3 3 0 01-1.055-.183z"
-            clipRule="evenodd"
-          />
+      <a
+        href={priceCheckUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${infoPillBase} group transition-colors duration-150 hover:border-orange-400 hover:bg-orange-400/10 cursor-pointer`}
+        title="Check price on CSGOSkins.gg"
+      >
+        <svg className="h-4 w-4 text-orange-300 group-hover:text-orange-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        Exterior: {item.exterior}
-      </div>
+        Price check
+      </a>
       <div className={infoPillBase}>
         <svg className="h-4 w-4 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
           <path
