@@ -1040,6 +1040,7 @@ export default function ItemGrid() {
               selectedItem && user ? () => handleRequestDelete(selectedItem) : undefined
             }
             onUpdate={selectedItem && user ? handleInlineUpdate : undefined}
+            onClose={() => setSelectedItemId(null)}
           />
         </div>
       </div>

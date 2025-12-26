@@ -217,6 +217,7 @@ export default function DemoPage() {
             onDelete={handleLocalDelete}
             onUpdate={handleLocalUpdate}
             autoEditField={null}
+            onClose={() => setSelectedItemId(null)}
           />
         </div>
       </div>
