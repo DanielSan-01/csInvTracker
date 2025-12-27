@@ -8,26 +8,44 @@ type DetailInfoPillsProps = {
 /**
  * Converts a skin name to a URL-friendly slug for csgoskins.gg
  * Example: "★ M9 Bayonet | Ultraviolet" -> "m9-bayonet-ultraviolet"
+ * Example: "Butterfly Knife | Doppler (Phase 4)" -> "butterfly-knife-doppler-phase-4"
+ * Example: "Sport Gloves | Pandora's Box" -> "sport-gloves-pandoras-box"
  */
 function skinNameToSlug(name: string): string {
   return name
     .toLowerCase()
     .replace(/★/g, '') // Remove star symbols
-    .replace(/\|/g, '-') // Replace pipe with hyphen
-    .replace(/[()]/g, '') // Remove parentheses
+    .replace(/\|/g, ' ') // Replace pipe with space (will become hyphen later)
+    .replace(/['']/g, '') // Remove apostrophes and single quotes
+    .replace(/[()]/g, '') // Remove parentheses (but keep phase info from text)
     .replace(/™/g, '') // Remove trademark symbols
     .replace(/\bstattrak™?\b/gi, '') // Remove StatTrak
     .replace(/\bsouvenir\b/gi, '') // Remove Souvenir
-    .replace(/\bphase\s*\d+\b/gi, '') // Remove phase numbers (e.g., "phase 4")
-    .replace(/\bph\s*\d+\b/gi, '') // Remove phase abbreviations (e.g., "ph4")
+    // Normalize phase format: "phase 4" or "phase4" -> "phase-4"
+    .replace(/\bphase\s*(\d+)\b/gi, 'phase-$1')
+    .replace(/\bph\s*(\d+)\b/gi, 'phase-$1')
     .trim()
     .replace(/\s+/g, '-') // Replace spaces with hyphens
     .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
     .replace(/^-|-$/g, ''); // Remove leading/trailing hyphens
 }
 
+/**
+ * Converts an exterior condition to a URL-friendly slug
+ * Example: "Field-Tested" -> "field-tested"
+ * Example: "Factory New" -> "factory-new"
+ */
+function exteriorToSlug(exterior: string): string {
+  return exterior
+    .toLowerCase()
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .trim();
+}
+
 export default function DetailInfoPills({ item }: DetailInfoPillsProps) {
-  const priceCheckUrl = `https://www.csgoskins.gg/items/${skinNameToSlug(item.name)}`;
+  const skinSlug = skinNameToSlug(item.name);
+  const exteriorSlug = exteriorToSlug(item.exterior);
+  const priceCheckUrl = `https://www.csgoskins.gg/items/${skinSlug}/${exteriorSlug}`;
 
   return (
     <div className="grid grid-cols-2 gap-3 text-[11px] text-gray-300">
