@@ -42,6 +42,7 @@ export default function ItemGrid() {
   }, [items, sortOption]);
   
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [showMobileModal, setShowMobileModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [quickAddSkin, setQuickAddSkin] = useState<SkinDto | null>(null);
@@ -1026,6 +1027,10 @@ export default function ItemGrid() {
               onSelect={(id) => {
                 setSelectedItemId(id);
                 setPendingEditField(null);
+                // Show modal on mobile when user explicitly taps an item
+                if (window.innerWidth < 1024) {
+                  setShowMobileModal(true);
+                }
               }}
               onQuickEdit={handleQuickEditFromGrid}
             />
@@ -1040,7 +1045,12 @@ export default function ItemGrid() {
               selectedItem && user ? () => handleRequestDelete(selectedItem) : undefined
             }
             onUpdate={selectedItem && user ? handleInlineUpdate : undefined}
-            onClose={() => setSelectedItemId(null)}
+            showMobileModal={showMobileModal}
+            onClose={() => {
+              setShowMobileModal(false);
+              // On mobile, just close the modal but keep item selected
+              // On desktop, clearing selectedItemId is handled elsewhere if needed
+            }}
           />
         </div>
       </div>

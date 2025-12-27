@@ -18,6 +18,7 @@ export default function DemoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [showMobileModal, setShowMobileModal] = useState(false);
 
   // Load pink panther (user 1) inventory and stats once from the backend
   useEffect(() => {
@@ -208,7 +209,13 @@ export default function DemoPage() {
             <InventoryGridList
               items={items}
               selectedId={selectedItemId}
-              onSelect={(id) => setSelectedItemId(id)}
+              onSelect={(id) => {
+                setSelectedItemId(id);
+                // Show modal on mobile when user explicitly taps an item
+                if (window.innerWidth < 1024) {
+                  setShowMobileModal(true);
+                }
+              }}
             />
           </div>
           <InventoryDetailPanel
@@ -217,7 +224,12 @@ export default function DemoPage() {
             onDelete={handleLocalDelete}
             onUpdate={handleLocalUpdate}
             autoEditField={null}
-            onClose={() => setSelectedItemId(null)}
+            showMobileModal={showMobileModal}
+            onClose={() => {
+              setShowMobileModal(false);
+              // On mobile, just close the modal but keep item selected
+              // On desktop, clearing selectedItemId is handled elsewhere if needed
+            }}
           />
         </div>
       </div>

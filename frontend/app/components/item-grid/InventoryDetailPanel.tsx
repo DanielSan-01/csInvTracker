@@ -10,13 +10,14 @@ type InventoryDetailPanelProps = {
   onDelete?: () => void;
   onUpdate?: (field: 'price' | 'cost' | 'float', value: number | null) => void;
   autoEditField?: 'price' | 'cost' | 'float' | null;
+  showMobileModal?: boolean;
   onClose?: () => void;
 };
 
-export default function InventoryDetailPanel({ item, onEdit, onDelete, onUpdate, autoEditField = null, onClose }: InventoryDetailPanelProps) {
+export default function InventoryDetailPanel({ item, onEdit, onDelete, onUpdate, autoEditField = null, showMobileModal = false, onClose }: InventoryDetailPanelProps) {
   // Close modal on Escape key
   useEffect(() => {
-    if (!item || !onClose) return;
+    if (!showMobileModal || !onClose) return;
 
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -26,7 +27,7 @@ export default function InventoryDetailPanel({ item, onEdit, onDelete, onUpdate,
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [item, onClose]);
+  }, [showMobileModal, onClose]);
 
   // Desktop panel (hidden on mobile)
   const desktopPanel = (
@@ -50,8 +51,8 @@ export default function InventoryDetailPanel({ item, onEdit, onDelete, onUpdate,
     </div>
   );
 
-  // Mobile modal (shown on mobile when item is selected)
-  const mobileModal = item && onClose ? (
+  // Mobile modal (shown on mobile only when explicitly opened)
+  const mobileModal = item && showMobileModal && onClose ? (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/80 px-4 backdrop-blur-sm lg:hidden"
       onClick={onClose}
