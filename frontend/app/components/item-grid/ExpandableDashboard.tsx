@@ -90,7 +90,7 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
   }, [items, breakdownMode]);
 
   // Find best and worst performers (by profit percentage)
-  const { bestPerformer, worstPerformer } = useMemo(() => {
+  const { bestPerformer, worstPerformer, bestStats, worstStats } = useMemo(() => {
     const itemsWithProfit = items
       .filter(item => item.cost != null && item.cost > 0)
       .map(item => ({
@@ -100,7 +100,7 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
       }));
 
     if (itemsWithProfit.length === 0) {
-      return { bestPerformer: null, worstPerformer: null };
+      return { bestPerformer: null, worstPerformer: null, bestStats: null, worstStats: null };
     }
 
     const best = itemsWithProfit.reduce((max, current) => 
@@ -146,6 +146,28 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
       {/* Expanded Content */}
       {isExpanded && (
         <div className="mt-4 rounded-lg border border-gray-700 bg-gray-900/50 p-6">
+          {/* Best Performer Summary Card */}
+          {bestPerformer && bestStats && (
+            <div className="mb-6 rounded-lg border border-green-500/40 bg-green-950/30 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-green-400 mb-1">
+                    Best Performer
+                  </h3>
+                  <p className="text-lg font-semibold text-white">{bestPerformer.name}</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-green-400">
+                    {formatPrice(bestStats.profit)}
+                  </div>
+                  <div className="text-sm font-medium text-green-300">
+                    {bestStats.profitPercent >= 0 ? '+' : ''}{bestStats.profitPercent.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Pie Chart */}
             <div className="flex flex-col overflow-hidden">
