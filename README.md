@@ -20,7 +20,6 @@ csInvTracker/
 │   ├── Data/          # EF Core DbContext
 │   ├── Models/        # Data models
 │   └── ...
-└── README.md
 ```
 
 ## tech-stack
