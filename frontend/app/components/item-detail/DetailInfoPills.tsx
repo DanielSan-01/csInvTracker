@@ -1,4 +1,5 @@
 import type { CSItem } from '@/lib/mockData';
+import { shouldShowFloat } from '@/lib/mockData';
 import { infoPillBase, resolveDisplayType } from '../ItemCardShared';
 
 type DetailInfoPillsProps = {
@@ -44,8 +45,11 @@ function exteriorToSlug(exterior: string): string {
 
 export default function DetailInfoPills({ item }: DetailInfoPillsProps) {
   const skinSlug = skinNameToSlug(item.name);
-  const exteriorSlug = exteriorToSlug(item.exterior);
-  const priceCheckUrl = `https://www.csgoskins.gg/items/${skinSlug}/${exteriorSlug}`;
+  // Only include exterior condition for items that have float values
+  const hasExterior = shouldShowFloat(item.type);
+  const priceCheckUrl = hasExterior
+    ? `https://www.csgoskins.gg/items/${skinSlug}/${exteriorToSlug(item.exterior)}`
+    : `https://www.csgoskins.gg/items/${skinSlug}`;
 
   return (
     <div className="grid grid-cols-2 gap-3 text-[11px] text-gray-300">
