@@ -26,7 +26,7 @@ csInvTracker/
 
 - Node.js 18+ and npm
 - .NET 9.0 SDK
-- PostgreSQL 12+ (or Docker with PostgreSQL)
+- PostgreSQL 12+
 
 
 Valid market codes include `STEAMCOMMUNITY`, `BUFFMARKET`, `SKINPORT`, `MARKETCSGO`, `DMARKET`, `GAMERPAYGG`, `CSDEALS`, `SKINBARON`, `CSFLOAT`, `CSMONEY`, and `WHITEMARKET`.
