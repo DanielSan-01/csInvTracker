@@ -77,6 +77,7 @@ builder.Services.AddScoped<OpenIdVerificationService>();
 builder.Services.AddScoped<StickerCatalogService>();
 builder.Services.AddScoped<SteamInventoryImportService>();
 builder.Services.AddScoped<SteamCatalogRefreshService>();
+builder.Services.AddScoped<CsgoskinsScraperService>();
 builder.Services.AddSingleton<InspectFloatQueue>();
 
 // Add Entity Framework Core with PostgreSQL

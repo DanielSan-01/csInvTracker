@@ -23,4 +23,3 @@ public class StickerCatalogDto
     public string? ImageUrl { get; set; }
     public decimal? AveragePrice { get; set; }
 }
-
