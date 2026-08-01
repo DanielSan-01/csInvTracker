@@ -10,7 +10,7 @@ type BulkPriceEditorModalProps = {
   onClose: () => void;
   onSave: (updates: Array<{ id: number; data: UpdateInventoryItemDto }>) => Promise<void>;
   onDeleteItem: (item: CSItem) => void;
-  onDeleteSelected: (items: CSItem[]) => Promise<void>;
+  onDeleteSelected: (items: CSItem[]) => Promise<boolean>;
 };
 
 type ItemUpdate = {
@@ -163,8 +163,12 @@ export default function BulkPriceEditorModal({
     try {
       setIsDeleting(true);
       setError(null);
-      await onDeleteSelected(selectedItems);
-      onClose();
+      const deletedAny = await onDeleteSelected(selectedItems);
+      if (deletedAny) {
+        onClose();
+      } else {
+        setError('Failed to delete selected items');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete selected items');
       console.error('Error deleting selected items:', err);

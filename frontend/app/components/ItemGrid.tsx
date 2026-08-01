@@ -405,12 +405,19 @@ export default function ItemGrid() {
   };
 
   const refreshWithTimeout = async (timeoutMs = 15000) => {
-    await Promise.race([
-      refresh(),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('inventory refresh timed out')), timeoutMs);
-      }),
-    ]);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    try {
+      await Promise.race([
+        refresh(),
+        new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('inventory refresh timed out')), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
   };
 
   const handleLoadFromSteam = async () => {
@@ -673,22 +680,22 @@ export default function ItemGrid() {
     }
   };
 
-  const handleBulkDeleteFromEditor = async (itemsToDelete: CSItem[]) => {
+  const handleBulkDeleteFromEditor = async (itemsToDelete: CSItem[]): Promise<boolean> => {
     if (!user) {
       showToast('Please log in with Steam first!', 'error');
-      return;
+      return false;
     }
 
     if (itemsToDelete.length === 0) {
       showToast('No items selected to delete.', 'error');
-      return;
+      return false;
     }
 
     const confirmed = window.confirm(
       `Delete ${itemsToDelete.length} selected item${itemsToDelete.length !== 1 ? 's' : ''} from inventory? This cannot be undone.`
     );
     if (!confirmed) {
-      return;
+      return false;
     }
 
     try {
@@ -715,8 +722,10 @@ export default function ItemGrid() {
           `Deleted ${successCount} item${successCount !== 1 ? 's' : ''} from inventory (server)${errorCount > 0 ? ` (${errorCount} failed)` : ''}.`,
           errorCount > 0 ? 'info' : 'success'
         );
+        return true;
       } else {
         showToast('Failed to delete selected items.', 'error');
+        return false;
       }
     } finally {
       setIsUpdating(false);
