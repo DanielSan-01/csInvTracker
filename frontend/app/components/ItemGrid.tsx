@@ -440,7 +440,35 @@ export default function ItemGrid() {
       const { steamInventoryApi } = await import('@/lib/api');
       const result = await steamInventoryApi.refreshFromSteam(user.id);
 
-      // Refresh inventory display, but don't let a hanging follow-up request keep the Steam loader forever.
+      const totalItems = result.totalItems > 0
+        ? result.totalItems
+        : result.imported + result.skipped + result.errors;
+      const pendingItems = Math.max(0, totalItems - result.imported - result.skipped - result.errors);
+
+      if (totalItems > 0) {
+        const progressParts: string[] = [];
+        if (pendingItems > 0) {
+          progressParts.push(`${pendingItems} on the way`);
+        }
+        if (result.skipped > 0) {
+          progressParts.push(`${result.skipped} skipped`);
+        }
+        if (result.errors > 0) {
+          progressParts.push(`${result.errors} error${result.errors !== 1 ? 's' : ''}`);
+        }
+        const progressSuffix = progressParts.length > 0 ? ` (${progressParts.join(', ')})` : '';
+        showToast(
+          `Imported ${result.imported} of ${totalItems} item${totalItems !== 1 ? 's' : ''}${progressSuffix}.`,
+          result.imported > 0 ? 'success' : 'info'
+        );
+      } else {
+        showToast('No items found in your Steam inventory.', 'info');
+      }
+
+      // Hide the Steam-specific loader as soon as we have import progress.
+      setIsLoadingSteam(false);
+
+      // Refresh inventory display in the background, but don't let a slow follow-up request block the UI.
       let inventoryRefreshTimedOut = false;
       try {
         await refreshWithTimeout();
@@ -450,21 +478,6 @@ export default function ItemGrid() {
         } else {
           throw refreshError;
         }
-      }
-
-      // Show results
-      if (result.imported > 0) {
-        showToast(
-          `Successfully imported ${result.imported} item${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? ` (${result.skipped} skipped)` : ''}`,
-          'success'
-        );
-      } else if (result.skipped > 0) {
-        showToast(
-          `All ${result.skipped} item${result.skipped !== 1 ? 's' : ''} were skipped (already imported or not in catalog)`,
-          'info'
-        );
-      } else {
-        showToast('No items found in your Steam inventory.', 'info');
       }
 
       if (result.errors > 0 && result.errorMessages.length > 0) {
