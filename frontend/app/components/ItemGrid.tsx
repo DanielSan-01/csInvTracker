@@ -404,6 +404,15 @@ export default function ItemGrid() {
     setPendingEditField(field);
   };
 
+  const refreshWithTimeout = async (timeoutMs = 15000) => {
+    await Promise.race([
+      refresh(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('inventory refresh timed out')), timeoutMs);
+      }),
+    ]);
+  };
+
   const handleLoadFromSteam = async () => {
     if (!user) {
       showToast('Please log in with Steam first!', 'error');
@@ -424,8 +433,17 @@ export default function ItemGrid() {
       const { steamInventoryApi } = await import('@/lib/api');
       const result = await steamInventoryApi.refreshFromSteam(user.id);
 
-      // Refresh inventory display
-      await refresh();
+      // Refresh inventory display, but don't let a hanging follow-up request keep the Steam loader forever.
+      let inventoryRefreshTimedOut = false;
+      try {
+        await refreshWithTimeout();
+      } catch (refreshError) {
+        if (refreshError instanceof Error && refreshError.message === 'inventory refresh timed out') {
+          inventoryRefreshTimedOut = true;
+        } else {
+          throw refreshError;
+        }
+      }
 
       // Show results
       if (result.imported > 0) {
@@ -445,6 +463,10 @@ export default function ItemGrid() {
       if (result.errors > 0 && result.errorMessages.length > 0) {
         console.error('Import errors:', result.errorMessages);
         showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during import. Check console for details.`, 'error');
+      }
+
+      if (inventoryRefreshTimedOut) {
+        showToast('Steam refresh finished, but inventory update is taking longer than expected. Please refresh again.', 'info');
       }
 
       // After a Steam refresh, surface the manual pricing banner if any items need it.
