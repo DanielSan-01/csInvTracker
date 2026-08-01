@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, ReactNode } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import type { CSItem } from '@/lib/mockData';
 import { formatPrice, calculateProfitPercentage } from '@/lib/mockData';
@@ -8,6 +8,7 @@ import { resolveDisplayType } from '../ItemCardShared';
 
 type ExpandableDashboardProps = {
   items: CSItem[];
+  children?: ReactNode;
 };
 
 // Color palette for pie chart - consistent colors for each category
@@ -46,7 +47,7 @@ function categorizeType(type: string): string {
   return 'Other';
 }
 
-export default function ExpandableDashboard({ items }: ExpandableDashboardProps) {
+export default function ExpandableDashboard({ items, children }: ExpandableDashboardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [breakdownMode, setBreakdownMode] = useState<'value' | 'volume'>('value');
 
@@ -352,6 +353,8 @@ export default function ExpandableDashboard({ items }: ExpandableDashboardProps)
               )}
             </div>
           </div>
+
+          {children}
         </div>
       )}
     </div>

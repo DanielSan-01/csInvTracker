@@ -73,7 +73,7 @@ const GoalSummarySection = ({
         {parsedTargetPrice <= 0 ? (
           <p className="text-sm text-gray-400">Enter a target price above to see how close you are.</p>
         ) : remainingAmount > 0 ? (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <p className="text-lg font-semibold text-amber-300">
               You still need {formatCurrency(remainingAmount)}.
             </p>
@@ -81,6 +81,14 @@ const GoalSummarySection = ({
               Based on your planned sales and balance, you have covered {formatCurrency(coverageTotal)} out of{' '}
               {formatCurrency(parsedTargetPrice)}. Consider adding more items to sell or saving the remaining amount.
             </p>
+            <button
+              type="button"
+              onClick={onSaveGoal}
+              disabled={!canSubmit || isSaving}
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-500/60"
+            >
+              {isSaving ? 'Saving...' : 'Save this goal'}
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
