@@ -472,6 +472,9 @@ export default function GoalPlannerPage() {
           remainingAmount={remainingAmount}
           surplusAmount={surplusAmount}
           formatCurrency={formatCurrency}
+          onSaveGoal={handleAddGoal}
+          isSaving={isSavingGoal}
+          canSubmit={targets.some(t => t.name.trim() || t.skin) && parsedTargetPrice > 0}
         />
 
         <GoalActionSection

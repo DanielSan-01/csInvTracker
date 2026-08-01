@@ -13,6 +13,9 @@ type GoalSummarySectionProps = {
   remainingAmount: number;
   surplusAmount: number;
   formatCurrency: (value: number) => string;
+  onSaveGoal: () => void;
+  isSaving: boolean;
+  canSubmit: boolean;
 };
 
 const GoalSummarySection = ({
@@ -26,6 +29,9 @@ const GoalSummarySection = ({
   remainingAmount,
   surplusAmount,
   formatCurrency,
+  onSaveGoal,
+  isSaving,
+  canSubmit,
 }: GoalSummarySectionProps) => {
   const summaryCards: SummaryCardProps[] = [
     {
@@ -77,12 +83,20 @@ const GoalSummarySection = ({
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <p className="text-lg font-semibold text-emerald-300">You can afford it!</p>
             <p className="text-sm text-emerald-100">
               Your plan covers {formatCurrency(coverageTotal)}, which is enough for the target skin.{' '}
               {surplusAmount > 0 && <span>You’ll have {formatCurrency(surplusAmount)} left after the purchase.</span>}
             </p>
+            <button
+              type="button"
+              onClick={onSaveGoal}
+              disabled={!canSubmit || isSaving}
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-500/60"
+            >
+              {isSaving ? 'Saving...' : 'Save this goal'}
+            </button>
           </div>
         )}
       </div>
