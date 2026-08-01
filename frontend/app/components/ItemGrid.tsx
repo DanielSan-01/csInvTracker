@@ -445,6 +445,13 @@ export default function ItemGrid() {
       const pollSteamProgress = async () => {
         try {
           const status = await steamInventoryApi.getRefreshFromSteamStatus(user.id);
+          if (!status) {
+            if (progressPollInterval) {
+              clearInterval(progressPollInterval);
+              progressPollInterval = null;
+            }
+            return;
+          }
           const pendingItems = Math.max(0, status.totalItems - status.imported - status.skipped - status.errors);
           if (status.imported > 0 && status.totalItems > 0 && !releasedLoaderFromProgress) {
             releasedLoaderFromProgress = true;

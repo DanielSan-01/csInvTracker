@@ -432,7 +432,7 @@ export const steamInventoryApi = {
     return response.json();
   },
 
-  getRefreshFromSteamStatus: async (userId?: number): Promise<SteamRefreshStatus> => {
+  getRefreshFromSteamStatus: async (userId?: number): Promise<SteamRefreshStatus | null> => {
     const url = new URL(`${API_BASE_URL}/inventory/refresh-from-steam-status`);
     if (userId) {
       url.searchParams.append('userId', userId.toString());
@@ -441,6 +441,11 @@ export const steamInventoryApi = {
     const response = await fetch(url.toString(), {
       credentials: 'include',
     });
+
+    // If backend has not deployed the status endpoint yet, disable polling gracefully.
+    if (response.status === 404) {
+      return null;
+    }
 
     if (!response.ok) {
       throw new Error('Failed to fetch Steam refresh status');
