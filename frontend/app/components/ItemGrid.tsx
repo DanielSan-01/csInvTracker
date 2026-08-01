@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { CSItem, CSSticker, shouldShowFloat } from '@/lib/mockData';
+import { CSItem } from '@/lib/mockData';
 import AddSkinForm from './AddSkinForm';
 import type { NewSkinData } from './add-skin/types';
 import { useInventory } from '@/hooks/useInventory';
+import { useManualPricingStatus } from '@/hooks/useManualPricingStatus';
 import { useUser } from '@/contexts/UserContext';
 import { inventoryItemsToCSItems } from '@/lib/dataConverter';
 import {
@@ -15,6 +16,7 @@ import {
 } from '@/lib/api';
 // Removed fetchSteamInventory - now handled by backend
 import { formatCurrency, calculateValveTradeLockDate } from '@/lib/utils';
+import { mapStickersForDto } from '@/lib/mapStickersForDto';
 import Navbar from './Navbar';
 import SteamLoginButton from './SteamLoginButton';
 import InventoryToast from './item-grid/InventoryToast';
@@ -29,6 +31,7 @@ import ExpandableDashboard from './item-grid/ExpandableDashboard';
 import { useToast } from './item-grid/useToast';
 import AnimatedBanner from './AnimatedBanner';
 import BulkPriceEditorModal from './item-grid/BulkPriceEditorModal';
+import FloatStatusToast from './item-grid/FloatStatusToast';
 import InventorySortSelector, { sortItems, type SortOption } from './item-grid/InventorySortSelector';
 import MarketSelector from './item-grid/MarketSelector';
 
@@ -51,8 +54,6 @@ export default function ItemGrid() {
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [steamId, setSteamId] = useState<string | null>(null);
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
-  // CSV import temporarily disabled; keep state commented for future use.
-  // const [isImportingCsv, setIsImportingCsv] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<CSItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -64,28 +65,11 @@ export default function ItemGrid() {
   const [pendingEditField, setPendingEditField] = useState<'price' | 'cost' | 'float' | null>(null);
   const { toast, showToast } = useToast();
 
-  const manualPricingItems = useMemo(() => {
-    return sortedItems.filter(item => {
-      // Needs price if missing/zero or exceeds Steam wallet cap
-      const needsPrice = !item.price || item.price === 0 || item.priceExceedsSteamLimit;
-      // Needs cost if null/undefined/zero
-      const needsCost = item.cost == null || item.cost === 0;
-      // Needs float if it's a float-eligible item and we're still on the default sentinel value
-      const needsFloat = shouldShowFloat(item.type) && Math.abs(item.float - 0.5) < 0.000001;
-      return needsPrice || needsCost || needsFloat;
-    });
-  }, [sortedItems]);
-
-  const hasHighValueItems = manualPricingItems.some(item => item.priceExceedsSteamLimit);
-  const requiresManualPricing = manualPricingItems.length > 0;
-  const manualPricingBannerMessage = useMemo(() => {
-    if (!requiresManualPricing) {
-      return '';
-    }
-
-    const countLabel = `Pricing estimates provided for ${manualPricingItems.length} item${manualPricingItems.length !== 1 ? 's' : ''}.`;
-    return `${countLabel} Please review and correct any estimates manually.`;
-  }, [requiresManualPricing, manualPricingItems.length]);
+  const {
+    manualPricingItems,
+    requiresManualPricing,
+    manualPricingBannerMessage,
+  } = useManualPricingStatus(sortedItems);
 
   // Auto-import Steam inventory when user first logs in and has no items
   useEffect(() => {
@@ -316,17 +300,7 @@ export default function ItemGrid() {
       return false;
     }
     
-    // Convert NewSkinData to CreateInventoryItemDto
-    const validStickers = newSkinData.stickers
-      ?.filter((s: CSSticker) => s.name && s.name.trim().length > 0) // Only include stickers with names
-      .map((s: CSSticker) => ({
-        name: s.name,
-        price: s.price,
-        slot: s.slot,
-        imageUrl: s.imageUrl,
-      })) || [];
-    
-    console.log('[ItemGrid] Creating item with stickers:', validStickers);
+    const mappedStickers = mapStickersForDto(newSkinData.stickers);
     
     // Calculate tradableAfter using Valve time (9am GMT+1 = 8am UTC)
     let tradableAfter: string | undefined;
@@ -345,7 +319,7 @@ export default function ItemGrid() {
       imageUrl: undefined, // Image URL is auto-generated
       tradeProtected: newSkinData.tradeProtected ?? false,
       tradableAfter,
-      stickers: validStickers.length > 0 ? validStickers : undefined,
+      stickers: mappedStickers,
     };
 
     const quantity =
@@ -383,16 +357,7 @@ export default function ItemGrid() {
   };
 
   const handleUpdateSkin = async (id: string, updatedData: NewSkinData): Promise<boolean> => {
-    const validStickers = updatedData.stickers
-      ?.filter((s: CSSticker) => s.name && s.name.trim().length > 0) // Only include stickers with names
-      .map((s: CSSticker) => ({
-        name: s.name,
-        price: s.price,
-        slot: s.slot,
-        imageUrl: s.imageUrl,
-      })) || [];
-    
-    console.log('[ItemGrid] Updating item with stickers:', validStickers);
+    const mappedStickers = mapStickersForDto(updatedData.stickers);
     
     // Calculate tradableAfter using Valve time (9am GMT+1 = 8am UTC)
     let tradableAfter: string | undefined;
@@ -409,7 +374,7 @@ export default function ItemGrid() {
       imageUrl: undefined, // Image URL is auto-generated
       tradeProtected: updatedData.tradeProtected ?? false,
       tradableAfter,
-      stickers: validStickers.length > 0 ? validStickers : undefined,
+      stickers: mappedStickers,
     };
 
     setIsUpdating(true);
@@ -459,7 +424,6 @@ export default function ItemGrid() {
   };
 
   const handleEditClick = (item: CSItem) => {
-    console.log('[ItemGrid] Editing item:', item.id, 'stickers:', item.stickers);
     setEditingItem(item);
   };
 
@@ -495,40 +459,6 @@ export default function ItemGrid() {
     setPendingEditField(field);
   };
 
-  /*
-  // CSV import temporarily disabled.
-  const handleCsvImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) {
-      return;
-    }
-
-    setIsImportingCsv(true);
-
-    try {
-      const result = await adminApi.importInventoryFromCsv(user.id, file);
-
-      // Refresh inventory
-      await refresh();
-
-      if (result.successCount > 0) {
-        showToast(
-          `Imported ${result.successCount} item${result.successCount !== 1 ? 's' : ''}.${result.failedCount > 0 ? ` ${result.failedCount} failed.` : ''}`,
-          result.failedCount > 0 ? 'info' : 'success'
-        );
-      } else {
-        showToast(`Import failed: ${result.errors.join(', ')}`, 'error');
-      }
-    } catch (error) {
-      showToast(`Error importing CSV: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
-    } finally {
-      setIsImportingCsv(false);
-      // Reset file input
-      event.target.value = '';
-    }
-  };
-  */
-
   const handleLoadFromSteam = async () => {
     if (!user) {
       showToast('Please log in with Steam first!', 'error');
@@ -545,8 +475,6 @@ export default function ItemGrid() {
 
     setIsLoadingSteam(true);
     try {
-      console.log('Refreshing Steam inventory for user:', user.id);
-      
       // Use the new refreshFromSteam endpoint which handles everything on the backend
       const { steamInventoryApi } = await import('@/lib/api');
       const result = await steamInventoryApi.refreshFromSteam(user.id);
@@ -683,8 +611,6 @@ export default function ItemGrid() {
 
     setIsRefreshingPrices(true);
     try {
-      console.log('Refreshing prices for user:', user.id);
-      
       const { steamInventoryApi } = await import('@/lib/api');
       const result = await steamInventoryApi.refreshPrices(
         user.id,
@@ -743,20 +669,6 @@ export default function ItemGrid() {
   const filteredItems = sortedItems.filter(item =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  // Filter items that need pricing - simple check: price is 0 or cost is missing/0
-  const itemsNeedingPricing = useMemo(() => {
-    return sortedItems.filter(item => {
-      // Simple check: price is 0 or missing
-      const needsPrice = !item.price || item.price === 0;
-      
-      // Simple check: cost is null, undefined, or 0
-      const needsCost = item.cost == null || item.cost === 0;
-      
-      // Item needs pricing if either price or cost is missing
-      return needsPrice || needsCost;
-    });
-  }, [sortedItems]);
 
   const handleBulkPriceSave = async (updates: Array<{ id: number; data: UpdateInventoryItemDto }>) => {
     try {
@@ -834,52 +746,7 @@ export default function ItemGrid() {
 
       <InventoryToast toast={toast} />
 
-      {floatStatusSummary.active && (
-        <div className="pointer-events-none fixed bottom-6 right-6 z-50 max-w-xs rounded-2xl border border-sky-400/20 bg-gray-950/95 px-4 py-3 shadow-xl shadow-black/60 backdrop-blur">
-          <div className="flex items-center gap-3">
-            {floatStatusSummary.imageUrl ? (
-              <img
-                src={floatStatusSummary.imageUrl}
-                alt={floatStatusSummary.label}
-                className="h-14 w-14 flex-none rounded-xl border border-white/10 object-cover shadow-inner shadow-black/40"
-              />
-            ) : (
-              <div className="flex h-14 w-14 flex-none items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/10 text-[0.65rem] font-semibold uppercase tracking-wide text-sky-200">
-                Float
-              </div>
-            )}
-            <div className="flex-1">
-              <div className="flex items-center gap-2 text-[0.7rem] font-semibold uppercase tracking-wide text-sky-300/80">
-                <span className="inline-flex items-center gap-1">
-                  <span className={`h-1.5 w-1.5 rounded-full ${floatStatusSummary.waiting ? 'bg-amber-400 animate-pulse' : 'bg-sky-400 animate-pulse'}`} />
-                  {floatStatusSummary.waiting ? 'Waiting on rate limit' : 'Fetching floats'}
-                </span>
-                {floatStatusSummary.queued > 0 && (
-                  <span className="text-gray-400">{floatStatusSummary.queued} queued</span>
-                )}
-                {floatStatusSummary.waiting && floatStatusSummary.retrySeconds !== null && (
-                  <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[0.65rem] text-sky-200">
-                    {floatStatusSummary.retrySeconds}s
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-sm font-semibold leading-snug text-white">
-                {floatStatusSummary.label}
-              </p>
-              {floatStatusSummary.exterior && (
-                <p className="text-xs uppercase tracking-wide text-gray-400">
-                  {floatStatusSummary.exterior}
-                </p>
-              )}
-              {floatStatusSummary.message && (
-                <p className="mt-1 text-xs text-gray-400">
-                  {floatStatusSummary.message}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <FloatStatusToast summary={floatStatusSummary} />
 
       {/* Private Inventory Banner - Show prominently at top */}
       {privateInventoryBanner && (
@@ -932,10 +799,13 @@ export default function ItemGrid() {
 
       {/* Backend Error State */}
       {error && !loading && (
-        <div className="mb-4 p-4 bg-red-900/30 border border-red-500/50 rounded-lg text-red-200">
+        <div className="mb-4 rounded-lg border border-red-500/50 bg-red-900/30 p-4 text-red-200" role="alert">
           <p className="font-semibold">Error loading inventory:</p>
           <p className="text-sm">{error}</p>
-          <button onClick={() => refresh()} className="mt-2 px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm">
+          <button
+            onClick={() => refresh()}
+            className="mt-2 rounded bg-red-600 px-3 py-1 text-sm hover:bg-red-700"
+          >
             Retry
           </button>
         </div>
@@ -984,7 +854,7 @@ export default function ItemGrid() {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Add Float & Cost{manualPricingItems.length > 0 ? ` (${manualPricingItems.length})` : ''}
+                Edit Skins{manualPricingItems.length > 0 ? ` (${manualPricingItems.length})` : ''}
               </button>
               <button
                 onClick={() => setShowAddForm(true)}
