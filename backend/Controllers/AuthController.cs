@@ -173,29 +173,37 @@ public class AuthController : ControllerBase
     {
         try
         {
-            // Try to get token from Authorization header first (for cross-domain), then from cookie
+            // Try Authorization header first, then fall back to cookie if needed.
             var authHeader = Request.Headers["Authorization"].ToString();
-            var token = !string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ") 
-                ? authHeader.Substring(7).Trim() 
-                : Request.Cookies["auth_token"];
+            var headerToken = !string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ")
+                ? authHeader.Substring(7).Trim()
+                : null;
+            var cookieToken = Request.Cookies["auth_token"];
 
-            if (string.IsNullOrEmpty(token))
+            if (string.IsNullOrEmpty(headerToken) && string.IsNullOrEmpty(cookieToken))
             {
                 _logger.LogWarning("No authentication token provided in /api/auth/me request. Headers: {Headers}, Cookies: {Cookies}", 
                     string.Join(", ", Request.Headers.Keys), 
                     string.Join(", ", Request.Cookies.Keys));
                 return Unauthorized(new { error = "No authentication token provided" });
             }
-            
-            _logger.LogInformation("Token found in /api/auth/me request (from {Source})", 
-                authHeader.StartsWith("Bearer ") ? "Authorization header" : "cookie");
 
-            // Validate token and get user ID
-            _logger.LogInformation("Attempting to validate token. Token length: {Length}, First 20 chars: {Preview}", 
-                token?.Length ?? 0, 
-                token?.Length > 20 ? token.Substring(0, 20) + "..." : token);
-            
-            var userId = _authService.GetUserIdFromToken(token);
+            int? userId = null;
+
+            if (!string.IsNullOrEmpty(headerToken))
+            {
+                _logger.LogInformation("Attempting to validate /api/auth/me token from Authorization header");
+                userId = _authService.GetUserIdFromToken(headerToken);
+            }
+
+            // If header token fails (stale client token, multi-source token mismatch, etc.),
+            // try HttpOnly cookie before denying the request.
+            if (userId == null && !string.IsNullOrEmpty(cookieToken))
+            {
+                _logger.LogInformation("Falling back to /api/auth/me cookie token validation");
+                userId = _authService.GetUserIdFromToken(cookieToken);
+            }
+
             if (userId == null)
             {
                 _logger.LogWarning("Invalid or expired token in /api/auth/me request. Token validation failed.");

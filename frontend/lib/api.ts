@@ -281,8 +281,9 @@ export interface LoginResponse {
 export const authApi = {
   getCurrentUser: async (): Promise<User | null> => {
     try {
+      const token = getClientAuthToken();
       const headers = buildAuthenticatedHeaders(true);
-      if (headers.Authorization) {
+      if (token) {
         console.log('Sending token in Authorization header');
       } else {
         console.warn('No token found in cookies or localStorage');

@@ -23,7 +23,8 @@ public class AuthService
         _jwtIssuer = configuration["JWT:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "cs-inv-tracker";
         _jwtAudience = configuration["JWT:Audience"] ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "cs-inv-tracker";
         
-        if (string.IsNullOrEmpty(_jwtSecret) || _jwtSecret == GenerateRandomSecret())
+        if (string.IsNullOrWhiteSpace(configuration["JWT:Secret"]) &&
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("JWT_SECRET")))
         {
             _logger.LogWarning("JWT_SECRET not set. Using a random secret that will change on restart. Set JWT_SECRET environment variable for production!");
         }

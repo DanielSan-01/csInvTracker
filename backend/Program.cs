@@ -2,6 +2,8 @@ using backend.Data;
 using backend.Services;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Security.Cryptography;
+using System.Text;
 using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,15 +18,36 @@ var jwtSecret = builder.Configuration["JWT:Secret"] ?? Environment.GetEnvironmen
 var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "cs-inv-tracker";
 var jwtAudience = builder.Configuration["JWT:Audience"] ?? Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "cs-inv-tracker";
 
-if (string.IsNullOrEmpty(jwtSecret))
+if (string.IsNullOrWhiteSpace(jwtSecret))
 {
-    Console.WriteLine("[JWT Config] WARNING: JWT_SECRET is not set! Authentication will not work properly.");
-    Console.WriteLine("[JWT Config] Set JWT_SECRET environment variable in Railway.");
+    if (builder.Environment.IsDevelopment())
+    {
+        jwtSecret = "csinvtracker-dev-jwt-secret-change-me";
+        Console.WriteLine("[JWT Config] WARNING: JWT_SECRET missing. Using development fallback secret.");
+    }
+    else
+    {
+        var databaseUrlForJwtFallback = Environment.GetEnvironmentVariable("DATABASE_URL");
+        if (!string.IsNullOrWhiteSpace(databaseUrlForJwtFallback))
+        {
+            var derivedBytes = SHA256.HashData(Encoding.UTF8.GetBytes($"csinvtracker::{databaseUrlForJwtFallback}"));
+            jwtSecret = Convert.ToBase64String(derivedBytes);
+            Console.WriteLine("[JWT Config] WARNING: JWT_SECRET missing. Using deterministic derived secret from DATABASE_URL. Configure JWT_SECRET explicitly.");
+        }
+        else
+        {
+            Console.WriteLine("[JWT Config] ERROR: JWT_SECRET and DATABASE_URL are both missing. Authentication cannot be initialized.");
+            throw new InvalidOperationException("JWT_SECRET must be configured in production.");
+        }
+    }
 }
 else
 {
     Console.WriteLine($"[JWT Config] JWT_SECRET loaded. Length: {jwtSecret.Length}, First 10 chars: {(jwtSecret.Length > 10 ? jwtSecret.Substring(0, 10) + "..." : jwtSecret)}");
 }
+
+// Ensure all services (including AuthService) resolve the same secret in this process.
+Environment.SetEnvironmentVariable("JWT_SECRET", jwtSecret);
 
 if (!string.IsNullOrEmpty(jwtSecret))
 {
