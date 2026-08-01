@@ -91,6 +91,136 @@ public class InventoryController : ControllerBase
         return Ok(_steamRefreshStatusTracker.Get(targetUserId));
     }
 
+    [HttpGet("debug-item-mapping")]
+    public async Task<IActionResult> DebugItemMapping(
+        [FromQuery] int userId,
+        [FromQuery] int? inventoryItemId,
+        [FromQuery] string? assetId,
+        [FromQuery] string? steamMarketHashName,
+        CancellationToken cancellationToken)
+    {
+        if (userId <= 0)
+        {
+            return BadRequest(new { error = "userId is required" });
+        }
+
+        if (!inventoryItemId.HasValue && string.IsNullOrWhiteSpace(assetId) && string.IsNullOrWhiteSpace(steamMarketHashName))
+        {
+            return BadRequest(new
+            {
+                error = "Provide one of: inventoryItemId, assetId, or steamMarketHashName"
+            });
+        }
+
+        var query = _context.InventoryItems
+            .Include(i => i.Skin)
+            .Where(i => i.UserId == userId)
+            .AsQueryable();
+
+        if (inventoryItemId.HasValue)
+        {
+            query = query.Where(i => i.Id == inventoryItemId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(assetId))
+        {
+            query = query.Where(i => i.AssetId == assetId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(steamMarketHashName))
+        {
+            var normalizedRequestHash = steamMarketHashName.Trim();
+            query = query.Where(i => i.SteamMarketHashName == normalizedRequestHash);
+        }
+
+        var item = await query
+            .OrderByDescending(i => i.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (item == null)
+        {
+            return NotFound(new
+            {
+                error = "No inventory item matched your query for this user",
+                userId,
+                inventoryItemId,
+                assetId,
+                steamMarketHashName
+            });
+        }
+
+        var resolvedHash = (item.SteamMarketHashName ?? steamMarketHashName)?.Trim();
+        var catalogByHash = new List<object>();
+        if (!string.IsNullOrWhiteSpace(resolvedHash))
+        {
+            catalogByHash = await _context.Skins
+                .Where(s =>
+                    (s.MarketHashName != null && s.MarketHashName == resolvedHash) ||
+                    s.Name == resolvedHash)
+                .OrderBy(s => s.Id)
+                .Take(25)
+                .Select(s => new
+                {
+                    s.Id,
+                    s.Name,
+                    s.MarketHashName,
+                    s.Type,
+                    s.Weapon,
+                    s.PaintIndex
+                })
+                .Cast<object>()
+                .ToListAsync(cancellationToken);
+        }
+
+        var linkedSkinId = item.SkinId;
+        var linkedSkin = item.Skin;
+
+        return Ok(new
+        {
+            userId = item.UserId,
+            inventoryItem = new
+            {
+                item.Id,
+                item.AssetId,
+                item.SkinId,
+                item.SteamMarketHashName,
+                item.Float,
+                item.Exterior,
+                item.Price,
+                item.TradeProtected
+            },
+            linkedSkin = linkedSkin == null
+                ? null
+                : new
+                {
+                    linkedSkin.Id,
+                    linkedSkin.Name,
+                    linkedSkin.MarketHashName,
+                    linkedSkin.Type,
+                    linkedSkin.Weapon,
+                    linkedSkin.PaintIndex
+                },
+            lookup = new
+            {
+                requestedInventoryItemId = inventoryItemId,
+                requestedAssetId = assetId,
+                requestedSteamMarketHashName = steamMarketHashName,
+                resolvedSteamMarketHashName = resolvedHash
+            },
+            catalogMatchesByResolvedHash = catalogByHash,
+            sanity = new
+            {
+                linkedSkinId,
+                linkedSkinName = linkedSkin?.Name,
+                linkedSkinHash = linkedSkin?.MarketHashName,
+                itemHashMatchesLinkedSkinName = !string.IsNullOrWhiteSpace(item.SteamMarketHashName) &&
+                                               string.Equals(item.SteamMarketHashName.Trim(), linkedSkin?.Name, StringComparison.OrdinalIgnoreCase),
+                itemHashMatchesLinkedSkinHash = !string.IsNullOrWhiteSpace(item.SteamMarketHashName) &&
+                                               string.Equals(item.SteamMarketHashName.Trim(), linkedSkin?.MarketHashName, StringComparison.OrdinalIgnoreCase)
+            }
+        });
+    }
+
     [HttpPost("apply-inspect")]
     public async Task<IActionResult> ApplyInspectLink([FromBody] ApplyInspectRequest request, CancellationToken cancellationToken)
     {
