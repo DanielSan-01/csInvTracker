@@ -72,7 +72,14 @@ public class InventoryControllerTests : IDisposable
             stickerCatalogService,
             _inspectQueue);
 
-        _controller = new InventoryController(_context, dopplerService, logger, steamImportService, steamApiService, csMarketService, _inspectQueue);
+        _controller = new InventoryController(
+            _context,
+            dopplerService,
+            logger,
+            steamImportService,
+            steamApiService,
+            csMarketService,
+            _inspectQueue);
         
         // Create test user
         var testUser = new User

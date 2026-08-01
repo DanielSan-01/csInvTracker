@@ -1,5 +1,6 @@
 'use client';
 
+import type { KeyboardEvent } from 'react';
 import type { CSItem } from '@/lib/mockData';
 import {
   exteriorAbbr,
@@ -45,16 +46,30 @@ export default function ItemCardGrid({
   })();
 
   const hasRealFloat = showFloat && Math.abs(item.float - 0.5) >= 0.000001;
+  const onCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!onClick) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
 
   return (
     <div
       ref={animation.cardRef}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick ? isSelected : undefined}
+      aria-label={onClick ? `Select ${item.name}` : undefined}
       className={`group relative cursor-pointer overflow-hidden rounded-2xl border transition-all duration-200 ${
         isSelected
           ? 'border-blue-500 shadow-lg shadow-blue-500/20'
           : 'border-gray-800 hover:border-blue-400/60 hover:shadow-lg hover:shadow-blue-500/10'
       }`}
       onClick={onClick}
+      onKeyDown={onCardKeyDown}
       onMouseEnter={animation.handleMouseEnter}
       onMouseLeave={animation.handleMouseLeave}
     >
@@ -93,7 +108,8 @@ export default function ItemCardGrid({
               Lock
             </span>
           )}
-          <span
+          <button
+            type="button"
             className="rounded border border-white/20 bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-gray-100"
             onClick={(e) => {
               e.stopPropagation();
@@ -101,9 +117,10 @@ export default function ItemCardGrid({
                 onQuickEdit?.('float');
               }
             }}
+            aria-label={showFloat ? `Edit float for ${item.name}` : `${item.type} for ${item.name}`}
           >
             {floatBadgeLabel}
-          </span>
+          </button>
         </div>
 
         {/* Stickers overlaid on the image, positioned higher to overlay more and avoid float badge */}
@@ -159,30 +176,34 @@ export default function ItemCardGrid({
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
           <div className="min-w-0">
             <span className="text-[8px] uppercase tracking-wide text-gray-500">Value</span>
-            <div
+            <button
+              type="button"
               className="text-xs font-semibold text-emerald-400 leading-tight truncate"
               style={{ fontSize: 'clamp(0.625rem, 2.5vw, 0.75rem)' }}
               onClick={(e) => {
                 e.stopPropagation();
                 onQuickEdit?.('price');
               }}
+              aria-label={`Edit value for ${item.name}`}
             >
               {formatPrice(item.price)}
-            </div>
+            </button>
           </div>
           {item.cost !== undefined && (
             <div className="min-w-0">
               <span className="text-[8px] uppercase tracking-wide text-gray-500">Cost</span>
-              <div
+              <button
+                type="button"
                 className="text-[10px] font-medium text-gray-200 leading-tight truncate"
                 style={{ fontSize: 'clamp(0.5rem, 2vw, 0.625rem)' }}
                 onClick={(e) => {
                   e.stopPropagation();
                   onQuickEdit?.('cost');
                 }}
+                aria-label={`Edit cost for ${item.name}`}
               >
                 {formatPrice(item.cost)}
-              </div>
+              </button>
             </div>
           )}
         </div>

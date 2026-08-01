@@ -134,7 +134,7 @@ if (connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreC
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(finalConnectionString));
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-    options.UseNpgsql(finalConnectionString));
+    options.UseNpgsql(finalConnectionString), ServiceLifetime.Scoped);
 builder.Services.AddHttpClient("csgoFloat");
 
 // Add CORS for Next.js frontend

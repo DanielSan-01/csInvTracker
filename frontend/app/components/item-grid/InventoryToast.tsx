@@ -17,6 +17,9 @@ export default function InventoryToast({ toast }: InventoryToastProps) {
   return (
     <div className="fixed left-1/2 top-6 z-[60] w-full max-w-lg -translate-x-1/2 px-4">
       <div
+        role={toast.type === 'error' ? 'alert' : 'status'}
+        aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+        aria-atomic="true"
         className={`rounded-2xl border px-4 py-3 text-sm font-medium shadow-lg backdrop-blur-sm transition-opacity ${intentStyles}`}
       >
         {toast.message}

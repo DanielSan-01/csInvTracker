@@ -86,6 +86,8 @@ const Navbar = ({
           <button
             type="button"
             aria-label="Toggle navigation"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-navigation-menu"
             onClick={() => setMenuOpen((prev) => !prev)}
             className="rounded-lg border border-gray-700 p-2 text-gray-300 transition hover:border-purple-400 hover:text-white"
           >
@@ -95,14 +97,19 @@ const Navbar = ({
           </button>
         </div>
 
-        <nav className="hidden items-center gap-3 md:flex">
+        <nav aria-label="Primary navigation" className="hidden items-center gap-3 md:flex">
           {renderPlanGoalLink('desktop')}
           {renderLoadoutLink('desktop')}
           {authControl && <div className="flex items-center">{authControl}</div>}
         </nav>
       </div>
 
-      <div className={`${menuOpen ? 'flex' : 'hidden'} flex-col gap-3 border-t border-gray-800 px-4 pb-4 md:hidden`}>
+      <nav
+        id="mobile-navigation-menu"
+        aria-label="Mobile navigation"
+        aria-hidden={!menuOpen}
+        className={`${menuOpen ? 'flex' : 'hidden'} flex-col gap-3 border-t border-gray-800 px-4 pb-4 md:hidden`}
+      >
         {/* Search Bar - Mobile */}
         {onQuickAddSkin && (
           <div className="w-full">
@@ -116,7 +123,7 @@ const Navbar = ({
         {renderPlanGoalLink('mobile')}
         {renderLoadoutLink('mobile')}
         {authControl && <div className="w-full">{authControl}</div>}
-      </div>
+      </nav>
     </header>
   );
 };

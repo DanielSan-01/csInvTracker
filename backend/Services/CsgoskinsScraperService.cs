@@ -19,7 +19,7 @@ public class CsgoskinsScraperService
 
     public CsgoskinsScraperService(
         IHttpClientFactory httpClientFactory,
-        IConfiguration configuration,
+        Microsoft.Extensions.Configuration.IConfiguration configuration,
         IMemoryCache cache,
         ILogger<CsgoskinsScraperService> logger)
     {
@@ -136,7 +136,7 @@ public class CsgoskinsScraperService
             // First find div.order-1 container (item details panel on the left)
             var order1Div = document.QuerySelector("div.order-1");
             
-            IHtmlElement? priceElement = null;
+            AngleSharp.Dom.IElement? priceElement = null;
             string? priceText = null;
 
             if (order1Div != null)

@@ -10,6 +10,7 @@ export default function SteamLoginButton() {
   const [isLoading, setIsLoading] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualSteamId, setManualSteamId] = useState('');
+  const manualSteamInputId = 'manual-steam-id-input';
 
   const handleLogin = () => {
     // Check if we're on localhost - if so, show manual input
@@ -111,16 +112,21 @@ export default function SteamLoginButton() {
     return (
       <div className="bg-gray-800 rounded-lg p-4 border border-gray-700 shadow-lg min-w-[300px]">
         <p className="text-sm text-gray-300 mb-3">
-          Steam OpenID doesn't work with localhost. Enter your Steam ID manually:
+          Steam OpenID doesn&apos;t work with localhost. Enter your Steam ID manually:
         </p>
         <div className="flex gap-2 mb-2">
+          <label htmlFor={manualSteamInputId} className="sr-only">
+            Steam ID
+          </label>
           <input
+            id={manualSteamInputId}
             type="text"
             value={manualSteamId}
             onChange={(e) => setManualSteamId(e.target.value)}
             placeholder="76561197996404463"
             className="flex-1 px-3 py-2 bg-gray-700 text-white rounded border border-gray-600 focus:outline-none focus:border-blue-500 text-sm"
-            onKeyPress={(e) => e.key === 'Enter' && handleManualSubmit()}
+            onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
+            aria-describedby="manual-steam-id-help"
           />
           <button
             onClick={handleManualSubmit}
@@ -137,7 +143,8 @@ export default function SteamLoginButton() {
             Cancel
           </button>
           <p className="text-xs text-gray-500 flex-1 text-right">
-            Find your Steam ID at <a href="https://steamid.io" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">steamid.io</a>
+            <span id="manual-steam-id-help">Find your Steam ID at </span>
+            <a href="https://steamid.io" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">steamid.io</a>
           </p>
         </div>
       </div>
@@ -148,6 +155,7 @@ export default function SteamLoginButton() {
     <button
       onClick={handleLogin}
       disabled={isLoading}
+      aria-label={isLoading ? 'Signing in with Steam' : 'Sign in through Steam'}
       className="relative inline-block transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
       style={{ border: 'none', background: 'none', padding: 0 }}
     >

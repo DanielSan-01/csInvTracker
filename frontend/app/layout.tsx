@@ -32,9 +32,17 @@ export default function RootLayout({
         <link rel="icon" href="/favicon-purple.ico" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:rounded-md focus:bg-purple-700 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:outline-none focus:ring-2 focus:ring-white"
+        >
+          Skip to main content
+        </a>
         <UserProvider>
           <div className="flex min-h-screen flex-col">
-            <main className="flex-1">{children}</main>
+            <main id="main-content" className="flex-1">
+              {children}
+            </main>
             <footer className="border-t border-gray-800 bg-black/70 py-3 text-center text-xs text-gray-400">
               csinvtracker.com © 2025 — not affiliated with Valve.
             </footer>
