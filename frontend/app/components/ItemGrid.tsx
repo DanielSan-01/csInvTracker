@@ -435,10 +435,52 @@ export default function ItemGrid() {
     setPrivateInventoryBanner(null);
 
     setIsLoadingSteam(true);
+    let progressPollInterval: ReturnType<typeof setInterval> | null = null;
+    let releasedLoaderFromProgress = false;
+
     try {
       // Use the new refreshFromSteam endpoint which handles everything on the backend
       const { steamInventoryApi } = await import('@/lib/api');
+
+      const pollSteamProgress = async () => {
+        try {
+          const status = await steamInventoryApi.getRefreshFromSteamStatus(user.id);
+          const pendingItems = Math.max(0, status.totalItems - status.imported - status.skipped - status.errors);
+          if (status.imported > 0 && status.totalItems > 0 && !releasedLoaderFromProgress) {
+            releasedLoaderFromProgress = true;
+            setIsLoadingSteam(false);
+            const progressParts: string[] = [];
+            if (pendingItems > 0) {
+              progressParts.push(`${pendingItems} on the way`);
+            }
+            if (status.skipped > 0) {
+              progressParts.push(`${status.skipped} skipped`);
+            }
+            if (status.errors > 0) {
+              progressParts.push(`${status.errors} error${status.errors !== 1 ? 's' : ''}`);
+            }
+            const progressSuffix = progressParts.length > 0 ? ` (${progressParts.join(', ')})` : '';
+            showToast(
+              `Imported ${status.imported} of ${status.totalItems} item${status.totalItems !== 1 ? 's' : ''}${progressSuffix}.`,
+              'info'
+            );
+          }
+        } catch {
+          // Progress polling is best-effort and should not interrupt refresh flow.
+        }
+      };
+
+      progressPollInterval = setInterval(() => {
+        void pollSteamProgress();
+      }, 1200);
+      void pollSteamProgress();
+
       const result = await steamInventoryApi.refreshFromSteam(user.id);
+
+      if (progressPollInterval) {
+        clearInterval(progressPollInterval);
+        progressPollInterval = null;
+      }
 
       const totalItems = result.totalItems > 0
         ? result.totalItems
@@ -586,6 +628,9 @@ export default function ItemGrid() {
       showToast(`Failed to refresh inventory from Steam: ${errorMessage}`, 'error');
       }
     } finally {
+      if (progressPollInterval) {
+        clearInterval(progressPollInterval);
+      }
       setIsLoadingSteam(false);
     }
   };

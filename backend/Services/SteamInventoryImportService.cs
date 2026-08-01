@@ -80,6 +80,8 @@ public class SteamInventoryImportService
         public List<string> SkippedItems { get; set; } = new(); // Track which items were skipped and why
     }
 
+    public readonly record struct ImportProgressSnapshot(int TotalItems, int Imported, int Skipped, int Errors);
+
     /// <summary>
     /// Imports Steam inventory items for a user
     /// </summary>
@@ -87,9 +89,16 @@ public class SteamInventoryImportService
         int userId,
         List<SteamInventoryItemDto> steamItems,
         bool fetchMarketPrices = true,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<ImportProgressSnapshot>? onProgress = null)
     {
         var result = new ImportResult { TotalItems = steamItems.Count };
+        void ReportProgress() => onProgress?.Invoke(new ImportProgressSnapshot(
+            result.TotalItems,
+            result.Imported,
+            result.Skipped,
+            result.Errors));
+        ReportProgress();
         var allSkins = await _context.Skins.ToListAsync(cancellationToken);
         _logger.LogInformation("Loaded {Count} skins from catalog for matching", allSkins.Count);
 
@@ -195,6 +204,7 @@ public class SteamInventoryImportService
                     _logger.LogDebug("Skipping non-marketable and non-tradable item: {MarketHashName}", steamItem.MarketHashName);
                     result.Skipped++;
                     result.SkippedItems.Add($"{steamItem.MarketHashName} (not marketable/tradable)");
+                    ReportProgress();
                     continue;
                 }
 
@@ -210,6 +220,7 @@ public class SteamInventoryImportService
                     result.Skipped++;
                     result.SkippedItems.Add($"{steamItem.MarketHashName} (no catalog match)");
                     result.ErrorMessages.Add($"No catalog match: {steamItem.MarketHashName}");
+                    ReportProgress();
                     continue;
                 }
 
@@ -271,6 +282,7 @@ public class SteamInventoryImportService
 
                     await _context.SaveChangesAsync(cancellationToken);
                     result.Imported++;
+                    ReportProgress();
 
                     _logger.LogInformation(
                         "Applied Steam properties to existing item {MarketHashName} ({AssetId}): float {OldFloat} -> {NewFloat}, exterior '{OldExterior}' -> '{NewExterior}'",
@@ -333,6 +345,7 @@ public class SteamInventoryImportService
                 }
 
                 result.Imported++;
+                ReportProgress();
 
                 if (ShouldFetchInspectFloat(steamItem))
                 {
@@ -350,6 +363,7 @@ public class SteamInventoryImportService
                 _logger.LogError(ex, "Error importing Steam item: {MarketHashName}", steamItem.MarketHashName);
                 result.Errors++;
                 result.ErrorMessages.Add($"Error importing {steamItem.MarketHashName}: {ex.Message}");
+                ReportProgress();
             }
         }
 

@@ -22,6 +22,7 @@ public class InventoryController : ControllerBase
     private readonly SteamApiService _steamApiService;
     private readonly CsMarketApiService _csMarketApiService;
     private readonly InspectFloatQueue _inspectQueue;
+    private static readonly SteamRefreshStatusTracker _steamRefreshStatusTracker = new();
     private const decimal SteamWalletLimit = 2000m;
     private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
     private static readonly object DebugLogLock = new();
@@ -67,6 +68,27 @@ public class InventoryController : ControllerBase
         };
 
         return Ok(dto);
+    }
+
+    [HttpGet("refresh-from-steam-status")]
+    public ActionResult<SteamRefreshStatus> GetRefreshFromSteamStatus([FromQuery] int? userId)
+    {
+        int targetUserId;
+        if (userId.HasValue)
+        {
+            targetUserId = userId.Value;
+        }
+        else
+        {
+            var userIdClaim = User.FindFirst("userId")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out targetUserId))
+            {
+                return Unauthorized(new { error = "User ID is required. Please provide userId query parameter or authenticate." });
+            }
+        }
+
+        return Ok(_steamRefreshStatusTracker.Get(targetUserId));
     }
 
     [HttpPost("apply-inspect")]
@@ -994,6 +1016,7 @@ public class InventoryController : ControllerBase
 
             var operationLabel = fetchMarketPrices ? "inventory refresh" : "float refresh";
             _logger.LogInformation("Starting Steam {Operation} for user {UserId} (SteamId: {SteamId})", operationLabel, targetUserId, user.SteamId);
+            _steamRefreshStatusTracker.Start(targetUserId);
 
             const int appId = 730;
             const int contextId = 2;
@@ -1050,6 +1073,7 @@ public class InventoryController : ControllerBase
                         {
                             if (string.IsNullOrWhiteSpace(errorText))
                             {
+                                _steamRefreshStatusTracker.Fail(targetUserId, "Steam returned 400 Bad Request with empty response");
                                 return BadRequest(new
                                 {
                                     error = "Steam returned 400 Bad Request with empty response",
@@ -1058,6 +1082,7 @@ public class InventoryController : ControllerBase
                                 });
                             }
 
+                            _steamRefreshStatusTracker.Fail(targetUserId, "Steam API returned 400 Bad Request");
                             return BadRequest(new
                             {
                                 error = "Steam API returned 400 Bad Request",
@@ -1067,6 +1092,7 @@ public class InventoryController : ControllerBase
                             });
                         }
 
+                        _steamRefreshStatusTracker.Fail(targetUserId, $"Steam API error: {response.StatusCode}");
                         return StatusCode((int)response.StatusCode, new
                         {
                             error = $"Steam API error: {response.StatusCode}",
@@ -1083,6 +1109,7 @@ public class InventoryController : ControllerBase
 
                         if (pageCount == 1)
                         {
+                            _steamRefreshStatusTracker.Fail(targetUserId, "Steam inventory is not accessible");
                             return BadRequest(new
                             {
                                 error = "Steam inventory is not accessible",
@@ -1103,6 +1130,7 @@ public class InventoryController : ControllerBase
                     if (data == null)
                     {
                         _logger.LogError("Failed to parse Steam API response (page {PageCount}). JSON: {Json}", pageCount, json.Length > 200 ? json.Substring(0, 200) : json);
+                        _steamRefreshStatusTracker.Fail(targetUserId, "Failed to parse Steam API response");
                         return StatusCode(500, new { error = "Failed to parse Steam API response" });
                     }
 
@@ -1113,6 +1141,7 @@ public class InventoryController : ControllerBase
 
                         if (pageCount == 1)
                         {
+                            _steamRefreshStatusTracker.Fail(targetUserId, "Steam inventory is not accessible");
                             return BadRequest(new
                             {
                                 error = "Steam inventory is not accessible",
@@ -1145,6 +1174,7 @@ public class InventoryController : ControllerBase
 
                     _logger.LogInformation("Page {PageCount} - Assets: {AssetCount}, Descriptions: {DescCount}, Total so far: {TotalAssets} assets, {TotalDescs} descriptions",
                         pageCount, data.Assets?.Count ?? 0, data.Descriptions?.Count ?? 0, allAssets.Count, allDescriptions.Count);
+                    _steamRefreshStatusTracker.SetFetchingProgress(targetUserId, pageCount, allAssets.Count);
 
                     hasMore = data.MoreItems == 1 || (!string.IsNullOrEmpty(data.LastAssetId) && data.LastAssetId != startAssetId);
                     if (hasMore && !string.IsNullOrEmpty(data.LastAssetId))
@@ -1164,6 +1194,7 @@ public class InventoryController : ControllerBase
                 catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
                 {
                     _logger.LogError("Timeout while fetching Steam inventory page {PageCount}", pageCount);
+                    _steamRefreshStatusTracker.Fail(targetUserId, "Request timeout");
                     return StatusCode(504, new
                     {
                         error = "Request timeout",
@@ -1174,6 +1205,7 @@ public class InventoryController : ControllerBase
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error fetching Steam inventory page {PageCount}", pageCount);
+                    _steamRefreshStatusTracker.Fail(targetUserId, ex.Message);
                     return StatusCode(500, new
                     {
                         error = "Error fetching Steam inventory",
@@ -1188,7 +1220,7 @@ public class InventoryController : ControllerBase
 
             if (allAssets.Count == 0)
             {
-                return Ok(new SteamInventoryImportService.ImportResult
+                var emptyResult = new SteamInventoryImportService.ImportResult
                 {
                     TotalItems = 0,
                     Imported = 0,
@@ -1196,7 +1228,9 @@ public class InventoryController : ControllerBase
                     Errors = 0,
                     ErrorMessages = new List<string> { "No items found in Steam inventory" },
                     SkippedItems = new List<string>()
-                });
+                };
+                _steamRefreshStatusTracker.Complete(targetUserId, emptyResult.TotalItems, emptyResult.Imported, emptyResult.Skipped, emptyResult.Errors);
+                return Ok(emptyResult);
             }
 
             var itemMap = new Dictionary<string, SteamItemDescription>();
@@ -1250,16 +1284,23 @@ public class InventoryController : ControllerBase
             }
 
             _logger.LogInformation("Converted {Count} Steam items to import format. Starting import...", importItems.Count);
+            _steamRefreshStatusTracker.SetImporting(targetUserId, importItems.Count);
 
             var result = await _steamImportService.ImportSteamInventoryAsync(
                 targetUserId,
                 importItems,
                 fetchMarketPrices,
-                cancellationToken);
+                cancellationToken,
+                progress => _steamRefreshStatusTracker.UpdateImportProgress(
+                    targetUserId,
+                    progress.Imported,
+                    progress.Skipped,
+                    progress.Errors));
 
             _logger.LogInformation(
                 "Steam {Operation} completed for user {UserId}: {Imported} imported, {Skipped} skipped, {Errors} errors",
                 operationLabel, targetUserId, result.Imported, result.Skipped, result.Errors);
+            _steamRefreshStatusTracker.Complete(targetUserId, result.TotalItems, result.Imported, result.Skipped, result.Errors);
 
             return Ok(result);
         }
@@ -1267,6 +1308,7 @@ public class InventoryController : ControllerBase
         {
             var contextMessage = fetchMarketPrices ? "refreshing inventory from Steam" : "refreshing floats from Steam";
             _logger.LogError(ex, "Error {Context}", contextMessage);
+            _steamRefreshStatusTracker.Fail(targetUserId, ex.Message);
             return StatusCode(500, new { error = $"An error occurred while {contextMessage}", message = ex.Message });
         }
     }

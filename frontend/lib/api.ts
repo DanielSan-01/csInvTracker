@@ -324,6 +324,18 @@ export interface SteamInventoryImportResult {
   errorMessages: string[];
 }
 
+export interface SteamRefreshStatus {
+  userId: number;
+  isActive: boolean;
+  phase: string;
+  totalItems: number;
+  imported: number;
+  skipped: number;
+  errors: number;
+  message: string;
+  updatedAtUtc: string;
+}
+
 export const steamInventoryApi = {
   importFromSteam: async (
     userId: number,
@@ -414,6 +426,23 @@ export const steamInventoryApi = {
         }
       }
       throw new Error(errorMessage);
+    }
+
+    return response.json();
+  },
+
+  getRefreshFromSteamStatus: async (userId?: number): Promise<SteamRefreshStatus> => {
+    const url = new URL(`${API_BASE_URL}/inventory/refresh-from-steam-status`);
+    if (userId) {
+      url.searchParams.append('userId', userId.toString());
+    }
+
+    const response = await fetch(url.toString(), {
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch Steam refresh status');
     }
 
     return response.json();
