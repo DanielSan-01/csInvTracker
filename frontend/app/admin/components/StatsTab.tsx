@@ -3,8 +3,13 @@
 import { useState, type ReactNode } from 'react';
 
 import type { AdminStats } from '../types';
+import { buildAuthenticatedHeaders } from '@/lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
+
+const getAuthHeaders = (): HeadersInit => {
+  return buildAuthenticatedHeaders(true);
+};
 
 type StatsTabProps = {
   stats: AdminStats;
@@ -29,9 +34,8 @@ const StatsTab = ({ stats, formatCurrency, formatDate, onImportComplete }: Stats
     try {
       const response = await fetch(`${API_BASE_URL}/admin/import-from-bymykel`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include',
+        headers: getAuthHeaders(),
       });
 
       const data = await response.json();
@@ -65,9 +69,8 @@ const StatsTab = ({ stats, formatCurrency, formatDate, onImportComplete }: Stats
     try {
       const response = await fetch(`${API_BASE_URL}/admin/refresh-from-steam`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include',
+        headers: getAuthHeaders(),
       });
 
       const data = await response.json();

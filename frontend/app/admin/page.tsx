@@ -12,6 +12,7 @@ import AdminLoadingState from './components/AdminLoadingState';
 import EditCatalogPrice from './components/EditCatalogPrice';
 import type { AdminStats, AdminUser, TabType, NewSkinFormState, AdminInventoryItem, AdminInventoryPage } from './types';
 import { formatCurrency, formatDate } from './utils';
+import { authApi, buildAuthenticatedHeaders } from '@/lib/api';
 import AdminUserInventory from './components/AdminUserInventory';
 
 const rawApiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5027/api';
@@ -30,9 +31,16 @@ const createInitialSkinState = (): NewSkinFormState => ({
   paintIndex: '',
 });
 
+const buildAuthHeaders = (includeJsonContentType = false): HeadersInit => {
+  return buildAuthenticatedHeaders(includeJsonContentType);
+};
+
 export default function AdminPage() {
   const [authorized, setAuthorized] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [currentSteamId, setCurrentSteamId] = useState<string | null>(null);
+  const [showWhitelistHelper, setShowWhitelistHelper] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [activeTab, setActiveTab] = useState<TabType>('stats');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -68,7 +76,10 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/users`, { credentials: 'include' });
+      const response = await fetch(`${API_BASE_URL}/admin/users`, {
+        credentials: 'include',
+        headers: buildAuthHeaders(),
+      });
       if (response.status === 401 || response.status === 403) {
         setAuthorized(false);
         throw new Error('Unauthorized');
@@ -87,7 +98,10 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/stats`, { credentials: 'include' });
+      const response = await fetch(`${API_BASE_URL}/admin/stats`, {
+        credentials: 'include',
+        headers: buildAuthHeaders(),
+      });
       if (response.status === 401 || response.status === 403) {
         setAuthorized(false);
         throw new Error('Unauthorized');
@@ -106,16 +120,47 @@ export default function AdminPage() {
     const verifyAuth = async () => {
       setAuthChecking(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/auth/me`, { credentials: 'include' });
-        if (!res.ok) {
-          throw new Error('Unauthorized');
+        const currentUser = await authApi.getCurrentUser();
+        if (!currentUser) {
+          setCurrentSteamId(null);
+          throw new Error('auth');
         }
-        await res.json();
+        setCurrentSteamId(currentUser?.steamId ?? null);
+
+        const adminRes = await fetch(`${API_BASE_URL}/admin/stats`, {
+          credentials: 'include',
+          headers: buildAuthHeaders(),
+        });
+        if (adminRes.status === 403) {
+          setShowWhitelistHelper(true);
+          throw new Error(`whitelist:${currentUser?.steamId ?? ''}`);
+        }
+        if (adminRes.status === 401) {
+          setCurrentSteamId(null);
+          throw new Error('auth');
+        }
+        if (!adminRes.ok) {
+          throw new Error('admin-check');
+        }
+
         setAuthorized(true);
+        setShowWhitelistHelper(false);
+        setCopyStatus('idle');
         setError(null);
       } catch (err) {
         setAuthorized(false);
-        setError('Admin access requires an authenticated, whitelisted account.');
+        if (err instanceof Error && err.message.startsWith('whitelist:')) {
+          const steamId = err.message.slice('whitelist:'.length);
+          const idSuffix = steamId ? ` (steam id: ${steamId})` : '';
+          setShowWhitelistHelper(true);
+          setError(`Your account is logged in but not on the admin allowlist${idSuffix}. Add your Steam ID to ADMIN_STEAM_IDS.`);
+        } else if (err instanceof Error && err.message === 'auth') {
+          setShowWhitelistHelper(false);
+          setError('Admin access requires an authenticated Steam session. Please log in again.');
+        } else {
+          setShowWhitelistHelper(false);
+          setError('Unable to verify admin access right now. Please try again in a moment.');
+        }
       } finally {
         setAuthChecking(false);
       }
@@ -141,7 +186,10 @@ export default function AdminPage() {
         const skip = (page - 1) * inventoryPageSize;
         const res = await fetch(
           `${API_BASE_URL}/admin/users/${userId}/inventory?skip=${skip}&take=${inventoryPageSize}`,
-          { credentials: 'include' }
+          {
+            credentials: 'include',
+            headers: buildAuthHeaders(),
+          }
         );
         if (res.status === 401 || res.status === 403) {
           setAuthorized(false);
@@ -196,7 +244,7 @@ export default function AdminPage() {
     try {
       const res = await fetch(`${API_BASE_URL}/admin/users/${selectedUser.id}/inventory/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders(true),
         credentials: 'include',
         body: JSON.stringify({
           // Only send the fields we care about changing
@@ -231,6 +279,19 @@ export default function AdminPage() {
     }
   };
 
+  const handleCopySteamId = async () => {
+    if (!currentSteamId) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(currentSteamId);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('failed');
+    }
+  };
+
   if (!authorized) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 px-4">
@@ -242,6 +303,25 @@ export default function AdminPage() {
           {error && !authChecking && (
             <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
               {error}
+            </div>
+          )}
+          {showWhitelistHelper && currentSteamId && !authChecking && (
+            <div className="mt-4 rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-3 text-left">
+              <p className="mb-2 text-xs uppercase tracking-wide text-blue-300">allowlist helper</p>
+              <p className="break-all rounded bg-gray-950/60 px-2 py-1 font-mono text-xs text-blue-100">{currentSteamId}</p>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="text-xs text-blue-200">Copy this into `ADMIN_STEAM_IDS`.</span>
+                <button
+                  type="button"
+                  onClick={handleCopySteamId}
+                  className="rounded-md border border-blue-300/50 bg-blue-500/20 px-2 py-1 text-xs font-semibold text-blue-100 transition hover:bg-blue-500/30"
+                >
+                  {copyStatus === 'copied' ? 'copied' : 'copy steam id'}
+                </button>
+              </div>
+              {copyStatus === 'failed' && (
+                <p className="mt-2 text-xs text-red-300">Clipboard failed, please copy manually.</p>
+              )}
             </div>
           )}
         </div>
@@ -264,7 +344,7 @@ export default function AdminPage() {
 
       const response = await fetch(`${API_BASE_URL}/admin/skins`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: buildAuthHeaders(true),
         credentials: 'include',
         body: JSON.stringify(skinData),
       });

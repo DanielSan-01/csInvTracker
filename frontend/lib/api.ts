@@ -19,6 +19,55 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+export const getClientAuthToken = (): string | null => {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  let token: string | null = null;
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const trimmed = cookie.trim();
+    if (!trimmed.startsWith('auth_token_client=')) {
+      continue;
+    }
+
+    token = trimmed.slice('auth_token_client='.length);
+    if (token) {
+      try {
+        localStorage.setItem('auth_token', token);
+      } catch {
+        // Ignore localStorage failures; cookie token is enough for this request.
+      }
+      break;
+    }
+  }
+
+  if (!token) {
+    try {
+      token = localStorage.getItem('auth_token');
+    } catch {
+      token = null;
+    }
+  }
+
+  return token;
+};
+
+export const buildAuthenticatedHeaders = (includeJsonContentType = false): HeadersInit => {
+  const headers: HeadersInit = {};
+  if (includeJsonContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const token = getClientAuthToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+};
+
 // Types matching backend DTOs
 export interface SkinDto {
   id: number;
@@ -232,51 +281,19 @@ export interface LoginResponse {
 export const authApi = {
   getCurrentUser: async (): Promise<User | null> => {
     try {
-      // Try to get token from cookie (set by Next.js API route)
-      // For cross-domain requests, we may need to send it in Authorization header
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Try to get token from non-HttpOnly cookie or localStorage
-      // This is a fallback for cross-domain cookie issues
-      let token: string | null = null;
-      if (typeof document !== 'undefined') {
-        // Try to read from cookie first
-        const cookies = document.cookie.split(';');
-        for (const cookie of cookies) {
-          const [name, value] = cookie.trim().split('=');
-          if (name === 'auth_token_client' && value) {
-            token = value;
-            // Also store in localStorage as backup
-            localStorage.setItem('auth_token', value);
-            break;
-          }
-        }
-        
-        // Fallback to localStorage if cookie not found
-        if (!token) {
-          token = localStorage.getItem('auth_token');
-        }
-        
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-          console.log('Sending token in Authorization header');
-        } else {
-          console.warn('No token found in cookies or localStorage');
-        }
+      const headers = buildAuthenticatedHeaders(true);
+      if (headers.Authorization) {
+        console.log('Sending token in Authorization header');
+      } else {
+        console.warn('No token found in cookies or localStorage');
       }
-      
+
       const response = await fetch(`${API_BASE_URL}/auth/me`, {
         credentials: 'include', // Include cookies
         headers,
       });
       if (!response.ok) {
         if (response.status === 401 || response.status === 404) {
-          // Clear invalid token from localStorage if present
-          if (typeof localStorage !== 'undefined') {
-            localStorage.removeItem('auth_token');
-          }
           return null;
         }
         throw new Error('Failed to get current user');

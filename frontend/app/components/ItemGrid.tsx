@@ -534,6 +534,16 @@ export default function ItemGrid() {
         showToast(`${result.errors} error${result.errors !== 1 ? 's' : ''} occurred during import. Check console for details.`, 'error');
       }
 
+      const skippedForCatalogMatch = result.errorMessages.filter((message) =>
+        message.startsWith('No catalog match:')
+      ).length;
+      if (skippedForCatalogMatch > 0) {
+        showToast(
+          `${skippedForCatalogMatch} Steam item${skippedForCatalogMatch !== 1 ? 's were' : ' was'} skipped due to missing catalog match. Run "Import Complete Catalog (ByMykel)" in Admin.`,
+          'info'
+        );
+      }
+
       if (inventoryRefreshTimedOut) {
         showToast('Steam refresh finished, but inventory update is taking longer than expected. Please refresh again.', 'info');
       }
