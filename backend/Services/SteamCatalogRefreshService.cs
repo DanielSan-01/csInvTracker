@@ -290,8 +290,14 @@ public class SteamCatalogRefreshService
 
     private string DetermineType(List<SteamTag> tags, string itemType, string name)
     {
+        // Name match first: Steam's tag/type data misclassifies knives and gloves as "Rifle".
+        var lowerNameFirst = name.ToLowerInvariant();
+        if (lowerNameFirst.Contains("glove")) return "Gloves";
+        if (lowerNameFirst.Contains("knife") || lowerNameFirst.Contains("karambit") ||
+            lowerNameFirst.Contains("bayonet") || lowerNameFirst.Contains("butterfly")) return "Knife";
+
         // Check tags first
-        var typeTag = tags.FirstOrDefault(t => 
+        var typeTag = tags.FirstOrDefault(t =>
             t.Category?.Equals("Type", StringComparison.OrdinalIgnoreCase) == true ||
             t.LocalizedCategoryName?.Equals("Type", StringComparison.OrdinalIgnoreCase) == true);
         

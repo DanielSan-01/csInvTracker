@@ -1,9 +1,28 @@
+import { useState } from 'react';
+
 type InventoryFilterInputProps = {
   value: string;
   onChange: (value: string) => void;
 };
 
 export default function InventoryFilterInput({ value, onChange }: InventoryFilterInputProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen && !value) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        aria-label="Filter your inventory"
+        className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-700 bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white"
+      >
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35m1.6-4.15a6.75 6.75 0 11-13.5 0 6.75 6.75 0 0113.5 0z" />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <div className="relative w-full">
         <label htmlFor="inventory-filter" className="sr-only">
@@ -17,9 +36,11 @@ export default function InventoryFilterInput({ value, onChange }: InventoryFilte
         <input
           id="inventory-filter"
           type="text"
+          autoFocus
           placeholder="Filter your items..."
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onBlur={() => setIsOpen(false)}
           className="w-full rounded-lg border border-gray-700 bg-gray-800 px-10 py-2 text-white placeholder-gray-400 focus:border-purple-500 focus:outline-none"
         />
     </div>

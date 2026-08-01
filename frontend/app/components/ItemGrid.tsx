@@ -993,7 +993,7 @@ export default function ItemGrid() {
 
       <div className="mx-auto mt-8 w-full max-w-7xl px-4 md:px-6">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex-1 min-w-[200px] max-w-md">
+          <div className="max-w-md">
             <InventoryFilterInput value={searchTerm} onChange={setSearchTerm} />
           </div>
           <div className="flex items-center gap-2">

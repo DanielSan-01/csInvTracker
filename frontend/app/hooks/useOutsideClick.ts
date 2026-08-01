@@ -3,13 +3,16 @@ import { useEffect } from 'react';
 type Handler = (event: MouseEvent | TouchEvent) => void;
 
 export default function useOutsideClick<T extends HTMLElement>(
-  ref: React.RefObject<T | null>,
+  refs: React.RefObject<T | null> | React.RefObject<T | null>[],
   handler: Handler
 ) {
   useEffect(() => {
+    const refList = Array.isArray(refs) ? refs : [refs];
+
     const listener = (event: MouseEvent | TouchEvent) => {
-      const element = ref.current;
-      if (!element || element.contains(event.target as Node)) {
+      const target = event.target as Node;
+      const isInside = refList.some((ref) => ref.current?.contains(target));
+      if (isInside) {
         return;
       }
       handler(event);
@@ -22,7 +25,7 @@ export default function useOutsideClick<T extends HTMLElement>(
       document.removeEventListener('mousedown', listener);
       document.removeEventListener('touchstart', listener);
     };
-  }, [ref, handler]);
+  }, [refs, handler]);
 }
 
 

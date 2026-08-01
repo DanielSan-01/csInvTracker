@@ -30,7 +30,7 @@ export default function GlobalSearchBar({
   const { skins, loading } = useSkinCatalog(searchTerm);
   const searchRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  useOutsideClick(searchRef, () => setShowResults(false));
+  useOutsideClick([searchRef, dropdownRef], () => setShowResults(false));
 
   // Update dropdown position when it's shown or window is resized/scrolled
   useEffect(() => {
