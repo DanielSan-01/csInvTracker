@@ -256,6 +256,19 @@ public class SteamInventoryImportService
                     _logger.LogDebug("Updating existing item with latest Steam data: AssetId {AssetId}, {MarketHashName}",
                         steamItem.AssetId, steamItem.MarketHashName);
 
+                    var previousSkinId = existingItem.SkinId;
+                    if (existingItem.SkinId != matchingSkin.Id)
+                    {
+                        // Correct stale/incorrect skin linkage when refreshed Steam data resolves to a different catalog entry.
+                        existingItem.SkinId = matchingSkin.Id;
+                        _logger.LogInformation(
+                            "Corrected skin mapping for AssetId {AssetId}: SkinId {PreviousSkinId} -> {NewSkinId} ({MarketHashName})",
+                            steamItem.AssetId,
+                            previousSkinId,
+                            matchingSkin.Id,
+                            steamItem.MarketHashName);
+                    }
+
                     var (updatedFloatValue, updatedExterior, updatedPaintSeed, updatedPaintIndex, updatedStickers) =
                         await ExtractItemPropertiesAsync(steamItem, cancellationToken);
 
@@ -425,46 +438,9 @@ public class SteamInventoryImportService
             return exactNormalizedMatch;
         }
 
-        // Strategy 4: Contains match (either direction) - WARNING: Less reliable, may cause mismatches
-        var containsMatch = skins.FirstOrDefault(s =>
-        {
-            var normalizedSkin = NormalizeSkinName(s.Name);
-            return normalizedSkin.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
-                   normalizedSearch.Contains(normalizedSkin, StringComparison.OrdinalIgnoreCase);
-        });
-        if (containsMatch != null)
-        {
-            _logger.LogWarning("Contains match found (may be inaccurate): {MarketHashName} -> {SkinName}. " +
-                "Consider refreshing catalog from Steam to get exact MarketHashName.", 
-                marketHashName, containsMatch.Name);
-            return containsMatch;
-        }
-
-        // Strategy 5: Word-based fuzzy matching - WARNING: Least reliable, may cause mismatches
-        var searchWords = normalizedSearch.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-            .Where(w => w.Length > 2) // Ignore very short words
-            .ToArray();
-            
-        if (searchWords.Length > 0)
-        {
-            var bestMatch = skins
-                .Select(s => new { 
-                    Skin = s, 
-                    Score = CalculateMatchScore(NormalizeSkinName(s.Name), normalizedSearch, searchWords) 
-                })
-                .Where(x => x.Score > 20) // Require at least 2 words to match
-                .OrderByDescending(x => x.Score)
-                .FirstOrDefault();
-
-            if (bestMatch != null)
-            {
-                _logger.LogWarning("Fuzzy match found (score: {Score}, may be inaccurate): {MarketHashName} -> {SkinName}. " +
-                    "Consider refreshing catalog from Steam to get exact MarketHashName.", 
-                    bestMatch.Score, marketHashName, bestMatch.Skin.Name);
-                return bestMatch.Skin;
-            }
-        }
-
+        _logger.LogWarning(
+            "No strict match found for MarketHashName {MarketHashName}; skipping item to avoid false import",
+            marketHashName);
         return null;
     }
 
@@ -485,49 +461,6 @@ public class SteamInventoryImportService
             .Trim()
             .Replace("  ", " ", StringComparison.OrdinalIgnoreCase)
             .Replace("  ", " ", StringComparison.OrdinalIgnoreCase); // Do it twice to catch triple spaces
-    }
-
-    private static int CalculateMatchScore(string skinName, string searchName, string[] searchWords)
-    {
-        var score = 0;
-        var normalizedSkin = NormalizeSkinName(skinName).ToLowerInvariant();
-        var normalizedSearch = searchName.ToLowerInvariant();
-
-        // Score based on word matches
-        foreach (var word in searchWords)
-        {
-            var wordLower = word.ToLowerInvariant();
-            if (normalizedSkin.Contains(wordLower))
-            {
-                // Longer words are more significant
-                score += Math.Min(word.Length * 2, 20);
-            }
-        }
-
-        // Bonus for containing the full search string
-        if (normalizedSkin.Contains(normalizedSearch))
-        {
-            score += 50;
-        }
-
-        // Bonus for starting with the same words
-        var skinWords = normalizedSkin.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var searchWordsLower = searchWords.Select(w => w.ToLowerInvariant()).ToArray();
-        var matchingStartWords = 0;
-        for (int i = 0; i < Math.Min(skinWords.Length, searchWordsLower.Length); i++)
-        {
-            if (skinWords[i] == searchWordsLower[i])
-            {
-                matchingStartWords++;
-            }
-            else
-            {
-                break;
-            }
-        }
-        score += matchingStartWords * 15;
-
-        return score;
     }
 
     /// <summary>
