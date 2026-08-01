@@ -105,8 +105,9 @@ public class SteamInventoryImportService
         static bool HasMeaningfulFloat(double value) => value > 0 && Math.Abs(value - 0.5) > 0.000001;
         static double NormalizeFloat(double value) => HasMeaningfulFloat(value) ? value : 0.5;
 
+        var shouldFetchMarketPrices = fetchMarketPrices;
         Dictionary<string, decimal?> marketPrices = new(StringComparer.OrdinalIgnoreCase);
-        if (fetchMarketPrices)
+        if (shouldFetchMarketPrices)
         {
             var marketHashNames = steamItems
                 .Where(item => !string.IsNullOrWhiteSpace(item.MarketHashName))
@@ -115,10 +116,21 @@ public class SteamInventoryImportService
                 .ToList();
 
             _logger.LogInformation("Fetching CSMarket prices for {Count} items...", marketHashNames.Count);
-            marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
-                marketHashNames,
-                delayMs: 200,
-                cancellationToken: cancellationToken);
+            using var marketPriceTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            // Keep Steam refresh request responsive on hosted environments with hard request timeouts.
+            marketPriceTimeout.CancelAfter(TimeSpan.FromSeconds(20));
+            try
+            {
+                marketPrices = await _csMarketApiService.GetBestListingPricesAsync(
+                    marketHashNames,
+                    delayMs: 200,
+                    cancellationToken: marketPriceTimeout.Token);
+            }
+            catch (OperationCanceledException) when (marketPriceTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogWarning("Timed out fetching CSMarket prices; continuing Steam import without market prices");
+                shouldFetchMarketPrices = false;
+            }
 
             var pricesFound = marketPrices.Values.Count(p => p.HasValue);
             _logger.LogInformation("Fetched market prices for {Found}/{Total} items", pricesFound, marketHashNames.Count);
@@ -165,7 +177,7 @@ public class SteamInventoryImportService
 
         decimal ResolveMarketPrice(SteamInventoryItemDto steamItem, Skin matchingSkin)
         {
-            if (!fetchMarketPrices)
+            if (!shouldFetchMarketPrices)
             {
                 return 0m;
             }
@@ -273,7 +285,7 @@ public class SteamInventoryImportService
                     existingItem.SteamMarketHashName = trimmedMarketHashName;
 
                     var price = ResolveMarketPrice(steamItem, matchingSkin);
-                    if (price > 0 || (fetchMarketPrices && existingItem.Price == 0))
+                    if (price > 0 || (shouldFetchMarketPrices && existingItem.Price == 0))
                     {
                         existingItem.Price = price;
                     }
