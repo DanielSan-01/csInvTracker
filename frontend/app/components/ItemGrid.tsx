@@ -437,6 +437,62 @@ export default function ItemGrid() {
     setIsLoadingSteam(true);
     let progressPollInterval: ReturnType<typeof setInterval> | null = null;
     let releasedLoaderFromProgress = false;
+    const waitForBackgroundRefreshToSettle = async (): Promise<boolean> => {
+      if (!user) {
+        return false;
+      }
+
+      const { steamInventoryApi } = await import('@/lib/api');
+      const deadline = Date.now() + 120000;
+      let sawActiveRefresh = false;
+
+      while (Date.now() < deadline) {
+        const status = await steamInventoryApi.getRefreshFromSteamStatus(user.id);
+        if (!status) {
+          return false;
+        }
+
+        if (status.isActive) {
+          sawActiveRefresh = true;
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          continue;
+        }
+
+        if (!sawActiveRefresh && status.phase !== 'completed') {
+          return false;
+        }
+
+        try {
+          await refreshWithTimeout();
+        } catch {
+          // best-effort inventory refresh after background completion
+        }
+
+        if (status.phase === 'failed') {
+          showToast(
+            `Steam refresh failed: ${status.message || 'Unknown error'}`,
+            'error'
+          );
+          return true;
+        }
+
+        const doneParts: string[] = [];
+        if (status.skipped > 0) {
+          doneParts.push(`${status.skipped} skipped`);
+        }
+        if (status.errors > 0) {
+          doneParts.push(`${status.errors} error${status.errors !== 1 ? 's' : ''}`);
+        }
+        const doneSuffix = doneParts.length > 0 ? ` (${doneParts.join(', ')})` : '';
+        showToast(
+          `Steam refresh completed in background. Imported ${status.imported} of ${status.totalItems} item${status.totalItems !== 1 ? 's' : ''}${doneSuffix}.`,
+          status.errors > 0 ? 'info' : 'success'
+        );
+        return true;
+      }
+
+      return false;
+    };
 
     try {
       // Use the new refreshFromSteam endpoint which handles everything on the backend
@@ -554,6 +610,27 @@ export default function ItemGrid() {
       }
     } catch (error) {
       console.error('Error refreshing from Steam:', error);
+
+      if (error instanceof Error) {
+        const lower = error.message.toLowerCase();
+        const looksLikeGatewayOrCorsFailure =
+          lower.includes('networkerror') ||
+          lower.includes('failed to fetch') ||
+          lower.includes('load failed') ||
+          lower.includes('cors') ||
+          lower.includes('502');
+
+        if (looksLikeGatewayOrCorsFailure) {
+          try {
+            const recovered = await waitForBackgroundRefreshToSettle();
+            if (recovered) {
+              return;
+            }
+          } catch {
+            // Continue to normal error handling below.
+          }
+        }
+      }
       
       // Try to parse error response to detect private inventory
       let errorMessage = 'Unknown error';

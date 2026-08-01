@@ -886,7 +886,9 @@ public class InventoryController : ControllerBase
                 return BadRequest(new { error = "User not found" });
             }
 
-            return await RefreshFromSteamInternal(user, targetUserId, fetchMarketPrices: true, cancellationToken);
+            // Do not tie long-running Steam refresh to request-abort token; edge/proxy timeouts
+            // can cancel the HTTP response while the backend work should still complete.
+            return await RefreshFromSteamInternal(user, targetUserId, fetchMarketPrices: true, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -925,7 +927,8 @@ public class InventoryController : ControllerBase
                 return BadRequest(new { error = "User not found" });
             }
 
-            return await RefreshFromSteamInternal(user, targetUserId, fetchMarketPrices: false, cancellationToken);
+            // Same behavior as full refresh: keep refresh running even if client connection drops.
+            return await RefreshFromSteamInternal(user, targetUserId, fetchMarketPrices: false, CancellationToken.None);
         }
         catch (Exception ex)
         {
