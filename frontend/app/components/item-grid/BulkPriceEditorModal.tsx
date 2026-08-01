@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { InventoryItemDto, UpdateInventoryItemDto } from '@/lib/api';
+import { UpdateInventoryItemDto } from '@/lib/api';
 import { CSItem, shouldShowFloat } from '@/lib/mockData';
 
 type BulkPriceEditorModalProps = {
@@ -10,6 +10,7 @@ type BulkPriceEditorModalProps = {
   onClose: () => void;
   onSave: (updates: Array<{ id: number; data: UpdateInventoryItemDto }>) => Promise<void>;
   onDeleteItem: (item: CSItem) => void;
+  onDeleteSelected: (items: CSItem[]) => Promise<void>;
 };
 
 type ItemUpdate = {
@@ -25,10 +26,12 @@ export default function BulkPriceEditorModal({
   onClose,
   onSave,
   onDeleteItem,
+  onDeleteSelected,
 }: BulkPriceEditorModalProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [itemUpdates, setItemUpdates] = useState<Map<string, ItemUpdate>>(new Map());
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
 
@@ -151,6 +154,25 @@ export default function BulkPriceEditorModal({
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedItems.length === 0) {
+      setError('No items selected to delete');
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      setError(null);
+      await onDeleteSelected(selectedItems);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete selected items');
+      console.error('Error deleting selected items:', err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const displayedItems = useMemo(() => {
     if (showSelectedOnly && selectedItemIds.size > 0) {
       return items.filter((item) => selectedItemIds.has(item.id));
@@ -182,7 +204,7 @@ export default function BulkPriceEditorModal({
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -195,12 +217,14 @@ export default function BulkPriceEditorModal({
           <div className="flex items-center gap-3">
             <button
               onClick={selectAll}
+              disabled={isSaving || isDeleting}
               className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
             >
               Select All
             </button>
             <button
               onClick={deselectAll}
+              disabled={isSaving || isDeleting}
               className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
             >
               Deselect All
@@ -208,9 +232,19 @@ export default function BulkPriceEditorModal({
             {selectedItemIds.size > 0 && (
               <button
                 onClick={() => setShowSelectedOnly(!showSelectedOnly)}
+                disabled={isSaving || isDeleting}
                 className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
               >
                 {showSelectedOnly ? 'Show All' : `Show Selected (${selectedItemIds.size})`}
+              </button>
+            )}
+            {selectedItemIds.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                disabled={isSaving || isDeleting}
+                className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? 'Deleting...' : `Delete Selected (${selectedItemIds.size})`}
               </button>
             )}
           </div>
@@ -263,7 +297,7 @@ export default function BulkPriceEditorModal({
                         <button
                           type="button"
                           onClick={() => onDeleteItem(item)}
-                          disabled={isSaving}
+                          disabled={isSaving || isDeleting}
                           className="mt-2 inline-flex items-center rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           Delete
@@ -412,13 +446,13 @@ export default function BulkPriceEditorModal({
             <button
               onClick={onClose}
               className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
-              disabled={isSaving || selectedItemIds.size === 0}
+              disabled={isSaving || isDeleting || selectedItemIds.size === 0}
               className="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSaving ? (

@@ -651,6 +651,56 @@ export default function ItemGrid() {
     }
   };
 
+  const handleBulkDeleteFromEditor = async (itemsToDelete: CSItem[]) => {
+    if (!user) {
+      showToast('Please log in with Steam first!', 'error');
+      return;
+    }
+
+    if (itemsToDelete.length === 0) {
+      showToast('No items selected to delete.', 'error');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${itemsToDelete.length} selected item${itemsToDelete.length !== 1 ? 's' : ''} from inventory? This cannot be undone.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const item of itemsToDelete) {
+        const success = await deleteItem(Number(item.id));
+        if (success) {
+          successCount += 1;
+          if (selectedItemId === item.id) {
+            setSelectedItemId(null);
+          }
+        } else {
+          errorCount += 1;
+        }
+      }
+
+      await refresh();
+
+      if (successCount > 0) {
+        showToast(
+          `Deleted ${successCount} item${successCount !== 1 ? 's' : ''} from inventory (server)${errorCount > 0 ? ` (${errorCount} failed)` : ''}.`,
+          errorCount > 0 ? 'info' : 'success'
+        );
+      } else {
+        showToast('Failed to delete selected items.', 'error');
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
 
   const statsSummary = useMemo(() => {
     if (!stats) {
@@ -732,6 +782,7 @@ export default function ItemGrid() {
         onClose={() => setShowBulkPriceEditor(false)}
         onSave={handleBulkPriceSave}
         onDeleteItem={handleDeleteFromBulkEditor}
+        onDeleteSelected={handleBulkDeleteFromEditor}
       />
 
       {/* Loading overlays */}
