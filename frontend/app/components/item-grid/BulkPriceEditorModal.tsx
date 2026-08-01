@@ -9,6 +9,7 @@ type BulkPriceEditorModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSave: (updates: Array<{ id: number; data: UpdateInventoryItemDto }>) => Promise<void>;
+  onDeleteItem: (item: CSItem) => void;
 };
 
 type ItemUpdate = {
@@ -23,6 +24,7 @@ export default function BulkPriceEditorModal({
   isOpen,
   onClose,
   onSave,
+  onDeleteItem,
 }: BulkPriceEditorModalProps) {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [itemUpdates, setItemUpdates] = useState<Map<string, ItemUpdate>>(new Map());
@@ -169,12 +171,12 @@ export default function BulkPriceEditorModal({
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div>
             <h2 className="text-2xl font-bold text-white">
-              Add Float & Cost
+              Edit Skins
             </h2>
             <p className="text-sm text-gray-400 mt-1">
               {selectedItemIds.size > 0 
                 ? `${selectedItemIds.size} of ${items.length} items selected`
-                : `${items.length} items - Select items to add cost and float for`}
+                : `${items.length} items - Select items to edit`}
             </p>
           </div>
           <button
@@ -258,6 +260,14 @@ export default function BulkPriceEditorModal({
                         <div className="text-sm font-medium text-white line-clamp-2">
                           {item.name}
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteItem(item)}
+                          disabled={isSaving}
+                          className="mt-2 inline-flex items-center rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
                       </div>
 
                       {/* Input Fields */}
