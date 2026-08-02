@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { CSItem } from '@/lib/mockData';
 import AddSkinForm from './AddSkinForm';
 import type { NewSkinData } from './add-skin/types';
@@ -63,6 +63,7 @@ export default function ItemGrid() {
   const [dismissedManualPricingBanner, setDismissedManualPricingBanner] = useState(false);
   const [showManualPricingBanner, setShowManualPricingBanner] = useState(false);
   const [pendingEditField, setPendingEditField] = useState<'price' | 'cost' | 'float' | null>(null);
+  const hasAttemptedAutoImportRef = useRef(false);
   const { toast, showToast } = useToast();
   const { floatStatus } = useFloatStatusPolling();
 
@@ -89,11 +90,13 @@ export default function ItemGrid() {
       !loading &&
       !isLoadingSteam &&
       items.length === 0 &&
-      justAuthenticated
+      justAuthenticated &&
+      !hasAttemptedAutoImportRef.current
     ) {
+      hasAttemptedAutoImportRef.current = true;
       // Small delay to ensure user context is fully loaded
       const timer = setTimeout(() => {
-        handleLoadFromSteam();
+        void handleLoadFromSteam();
       }, 1000);
       
       return () => clearTimeout(timer);

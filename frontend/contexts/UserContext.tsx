@@ -94,10 +94,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     
     // Mark as processed immediately to prevent re-runs
     hasProcessedAuthRef.current = true;
-    
-    // Prevent concurrent refresh calls
-    if (isRefreshingRef.current) return;
-    
+
     // Try to get token from cookie and store in localStorage as fallback
     // This helps with cross-domain cookie issues
     if (typeof document !== 'undefined') {
@@ -111,12 +108,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    
+
     // Clean up URL immediately to prevent re-triggering
     window.history.replaceState({}, '', window.location.pathname);
-    
+
+    // Prevent concurrent refresh calls
+    if (isRefreshingRef.current) return;
+
     // Refresh user data after successful authentication
-    refreshUser();
+    void refreshUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
