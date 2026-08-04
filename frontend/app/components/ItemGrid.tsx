@@ -5,6 +5,7 @@ import { CSItem } from '@/lib/mockData';
 import AddSkinForm from './AddSkinForm';
 import type { NewSkinData } from './add-skin/types';
 import { useInventory } from '@/hooks/useInventory';
+import { useDemoInventory } from '@/hooks/useDemoInventory';
 import { useFloatStatusPolling } from '@/hooks/useFloatStatusPolling';
 import { useManualPricingStatus } from '@/hooks/useManualPricingStatus';
 import { useUser } from '@/contexts/UserContext';
@@ -13,6 +14,8 @@ import {
   CreateInventoryItemDto,
   UpdateInventoryItemDto,
   SkinDto,
+  User,
+  usersApi,
 } from '@/lib/api';
 // Removed fetchSteamInventory - now handled by backend
 import { formatCurrency, calculateValveTradeLockDate } from '@/lib/utils';
@@ -36,9 +39,41 @@ import FloatStatusToast from './item-grid/FloatStatusToast';
 import InventorySortSelector, { sortItems, type SortOption } from './item-grid/InventorySortSelector';
 import MarketSelector from './item-grid/MarketSelector';
 
-export default function ItemGrid() {
-  const { user, loading: userLoading } = useUser();
-  const { items: backendItems, stats, loading, refreshing, error, createItem, updateItem, deleteItem, refresh } = useInventory(user?.id);
+interface ItemGridProps {
+  /** Renders the same page against a local-only copy of demoUserId's data - no writes ever reach the backend. */
+  demoMode?: boolean;
+  demoUserId?: number;
+}
+
+export default function ItemGrid({ demoMode = false, demoUserId = 1 }: ItemGridProps = {}) {
+  const { user: realUser, loading: realUserLoading } = useUser();
+  const [demoUser, setDemoUser] = useState<User | null>(null);
+  const [demoUserLoading, setDemoUserLoading] = useState(demoMode);
+
+  useEffect(() => {
+    if (!demoMode) return;
+    let mounted = true;
+    usersApi
+      .getUserById(demoUserId)
+      .then((u) => {
+        if (mounted) setDemoUser(u);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (mounted) setDemoUserLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [demoMode, demoUserId]);
+
+  const user = demoMode ? demoUser : realUser;
+  const userLoading = demoMode ? demoUserLoading : realUserLoading;
+
+  const backendInventory = useInventory(demoMode ? undefined : user?.id);
+  const demoInventory = useDemoInventory(demoUserId, demoMode);
+  const { items: backendItems, stats, loading, refreshing, error, createItem, updateItem, deleteItem, refresh } =
+    demoMode ? demoInventory : backendInventory;
   const items = inventoryItemsToCSItems(backendItems);
   const [sortOption, setSortOption] = useState<SortOption>('price-high-low');
   const sortedItems = useMemo(() => {
@@ -85,6 +120,7 @@ export default function ItemGrid() {
     const justAuthenticated = params.get('authenticated') === 'true';
     
     if (
+      !demoMode &&
       user &&
       !userLoading &&
       !loading &&
@@ -98,11 +134,11 @@ export default function ItemGrid() {
       const timer = setTimeout(() => {
         void handleLoadFromSteam();
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userLoading, loading, isLoadingSteam, items.length]);
+  }, [demoMode, user, userLoading, loading, isLoadingSteam, items.length]);
 
   // No more localStorage - data comes from backend!
 
@@ -920,7 +956,7 @@ export default function ItemGrid() {
     <div className="relative min-h-screen bg-gray-950 pb-16">
       <Navbar
         isAuthenticated={!!user}
-        authControl={<SteamLoginButton />}
+        authControl={demoMode ? null : <SteamLoginButton />}
         userInventory={sortedItems}
         onQuickAddSkin={handleQuickAddSkin}
         canAdd={!!user}
@@ -929,6 +965,17 @@ export default function ItemGrid() {
       <InventoryToast toast={toast} />
 
       <FloatStatusToast summary={floatStatusSummary} />
+
+      {demoMode && (
+        <div className="mx-auto mt-6 w-full max-w-7xl px-4 md:px-6">
+          <AnimatedBanner
+            message="Demo mode: you're viewing a local copy of pink panther's inventory. Changes here stay in your browser only and are never sent to the server."
+            intent="info"
+            autoClose={false}
+            onDismiss={undefined}
+          />
+        </div>
+      )}
 
       {/* Private Inventory Banner - Show prominently at top */}
       {privateInventoryBanner && (
@@ -1003,32 +1050,36 @@ export default function ItemGrid() {
           <div className="flex items-center gap-2">
           {user && (
               <>
-              <MarketSelector
-                value={selectedMarkets}
-                onChange={setSelectedMarkets}
-              />
-              <button
-                onClick={handleLoadFromSteam}
-                disabled={isLoadingSteam}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Refresh your inventory from Steam"
-              >
-                {isLoadingSteam ? (
-                  <>
-                    <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Refresh from Steam
-                  </>
-                )}
-              </button>
+              {!demoMode && (
+                <>
+                <MarketSelector
+                  value={selectedMarkets}
+                  onChange={setSelectedMarkets}
+                />
+                <button
+                  onClick={handleLoadFromSteam}
+                  disabled={isLoadingSteam}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh your inventory from Steam"
+                >
+                  {isLoadingSteam ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh from Steam
+                    </>
+                  )}
+                </button>
+                </>
+              )}
               <button
                 onClick={() => setShowBulkPriceEditor(true)}
                 disabled={isUpdating || manualPricingItems.length === 0}

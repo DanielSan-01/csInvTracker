@@ -127,7 +127,7 @@ export const exteriorAbbr: Record<Exterior, string> = {
 };
 
 // Helper function to determine exterior from float
-function getExteriorFromFloat(float: number): Exterior {
+export function getExteriorFromFloat(float: number): Exterior {
   if (float < 0.07) return 'Factory New';
   if (float < 0.15) return 'Minimal Wear';
   if (float < 0.38) return 'Field-Tested';
