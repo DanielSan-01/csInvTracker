@@ -22,10 +22,8 @@ public class InventoryController : ControllerBase
     private readonly SteamApiService _steamApiService;
     private readonly CsMarketApiService _csMarketApiService;
     private readonly InspectFloatQueue _inspectQueue;
-    private static readonly SteamRefreshStatusTracker _steamRefreshStatusTracker = new();
+    private readonly SteamRefreshStatusTracker _steamRefreshStatusTracker;
     private const decimal SteamWalletLimit = 2000m;
-    private const string DebugLogPath = "/Users/danielostensen/commonplace/csInvTracker/.cursor/debug.log";
-    private static readonly object DebugLogLock = new();
 
     public InventoryController(
         ApplicationDbContext context,
@@ -34,7 +32,8 @@ public class InventoryController : ControllerBase
         SteamInventoryImportService steamImportService,
         SteamApiService steamApiService,
         CsMarketApiService csMarketApiService,
-        InspectFloatQueue inspectFloatQueue)
+        InspectFloatQueue inspectFloatQueue,
+        SteamRefreshStatusTracker steamRefreshStatusTracker)
     {
         _context = context;
         _dopplerPhaseService = dopplerPhaseService;
@@ -43,6 +42,7 @@ public class InventoryController : ControllerBase
         _steamApiService = steamApiService;
         _csMarketApiService = csMarketApiService;
         _inspectQueue = inspectFloatQueue;
+        _steamRefreshStatusTracker = steamRefreshStatusTracker;
     }
 
     [HttpGet("float-status")]
@@ -284,38 +284,6 @@ public class InventoryController : ControllerBase
         };
 
         return Ok(ApplyInspectResponse.SuccessResponse(result));
-    }
-
-    private static void DebugLog(string hypothesisId, string location, string message, object data)
-    {
-        try
-        {
-            var directory = Path.GetDirectoryName(DebugLogPath);
-            if (!string.IsNullOrEmpty(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-
-            var payload = new
-            {
-                sessionId = "debug-session",
-                runId = "pre-fix",
-                hypothesisId,
-                location,
-                message,
-                data,
-                timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
-            var json = JsonSerializer.Serialize(payload);
-            lock (DebugLogLock)
-            {
-                global::System.IO.File.AppendAllText(DebugLogPath, json + Environment.NewLine);
-            }
-        }
-        catch
-        {
-            // Swallow instrumentation errors
-        }
     }
 
     // Helper method to determine exterior from float
@@ -1741,20 +1709,6 @@ public class InventoryController : ControllerBase
 
         var result = candidates.ToList();
 
-#region agent log
-        DebugLog(
-            hypothesisId: "H2",
-            location: "InventoryController.BuildMarketHashCandidates",
-            message: "Built market hash candidates",
-            data: new
-            {
-                itemId = item.Id,
-                item.SteamMarketHashName,
-                item.Exterior,
-                Candidates = result
-            });
-#endregion
-
         return result;
     }
 
@@ -1823,22 +1777,6 @@ public class InventoryController : ControllerBase
             .Replace("%classid%", asset.ClassId, StringComparison.OrdinalIgnoreCase)
             .Replace("%instanceid%", asset.InstanceId, StringComparison.OrdinalIgnoreCase)
             .Replace("%contextid%", contextId, StringComparison.OrdinalIgnoreCase);
-
-        if (!link.Contains('%'))
-        {
-            DebugLog(
-                "inspect-link",
-                "BuildInspectLink",
-                "Constructed inspect link",
-                new
-                {
-                    ownerSteamId,
-                    asset.AssetId,
-                    DParamPresent = link.Contains("%20S", StringComparison.OrdinalIgnoreCase) &&
-                                    link.Contains("D", StringComparison.OrdinalIgnoreCase),
-                    Link = link
-                });
-        }
 
         return link;
     }

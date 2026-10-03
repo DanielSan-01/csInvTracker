@@ -106,7 +106,7 @@ const typePriority: Record<string, number> = {
   'Sniper Rifle': 6,
   Shotgun: 7,
   'Machine Gun': 8,
-  Agent: 9,
+  Agent: 9,w
   Equipment: 10,
   Collectible: 11,
   'Music Kit': 12,

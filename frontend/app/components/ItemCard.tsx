@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSItem } from '@/lib/mockData';
-import ItemCardDetailed from './ItemCardDetailed';
+import ItemDetailPanel from './ItemDetailPanel';
 import ItemCardGrid from './ItemCardGrid';
 import { useItemCardAnimation } from './ItemCardShared';
 
@@ -32,7 +32,7 @@ export default function ItemCard({
 
   if (variant === 'detailed') {
     return (
-      <ItemCardDetailed
+      <ItemDetailPanel
         item={item}
         animation={animation}
         onEdit={onEdit}

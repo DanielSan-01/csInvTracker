@@ -383,12 +383,6 @@ public class SkinImportService
             {
                 existingSkin.ImageUrl = imageUrl;
             }
-            // TODO: Re-enable after migration is applied
-            // Update MarketHashName if provided and not already set (Steam data is more authoritative)
-            // if (!string.IsNullOrWhiteSpace(marketHashName) && string.IsNullOrEmpty(existingSkin.MarketHashName))
-            // {
-            //     existingSkin.MarketHashName = marketHashName;
-            // }
             existingSkin.DefaultPrice = GetDefaultPriceForRarity(rarity);
             if (paintIndex.HasValue)
             {

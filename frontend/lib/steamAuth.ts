@@ -22,49 +22,4 @@ export function initiateSteamLogin(returnUrl: string = '/') {
   window.location.href = `https://steamcommunity.com/openid/login?${params.toString()}`;
 }
 
-/**
- * Gets Steam ID from URL (after authentication callback)
- */
-export function getSteamIdFromUrl(): string | null {
-  if (typeof window === 'undefined') return null;
-  
-  const params = new URLSearchParams(window.location.search);
-  return params.get('steamId');
-}
-
-/**
- * Checks if user is authenticated (has Steam ID in URL or session)
- * In production, check session/cookies instead
- */
-export function isAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false;
-  
-  const params = new URLSearchParams(window.location.search);
-  return params.get('authenticated') === 'true' || !!getSteamIdFromUrl();
-}
-
-/**
- * Stores Steam ID in localStorage (temporary solution)
- * In production, use secure HTTP-only cookies or sessions
- */
-export function storeSteamId(steamId: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem('steamId', steamId);
-}
-
-/**
- * Retrieves stored Steam ID
- */
-export function getStoredSteamId(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('steamId');
-}
-
-/**
- * Clears stored Steam ID
- */
-export function clearSteamId(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem('steamId');
-}
 

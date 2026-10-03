@@ -137,7 +137,7 @@ export function expandSearchTerm(term: string): string[] {
  * Fuzzy match - more forgiving search
  * Returns true if searchTerm matches targetString loosely
  */
-export function fuzzyMatch(searchTerm: string, targetString: string): boolean {
+function fuzzyMatch(searchTerm: string, targetString: string): boolean {
   const search = searchTerm.toLowerCase().replace(/[^a-z0-9]/g, '');
   const target = targetString.toLowerCase().replace(/[^a-z0-9]/g, '');
   

@@ -100,8 +100,8 @@ builder.Services.AddScoped<OpenIdVerificationService>();
 builder.Services.AddScoped<StickerCatalogService>();
 builder.Services.AddScoped<SteamInventoryImportService>();
 builder.Services.AddScoped<SteamCatalogRefreshService>();
-builder.Services.AddScoped<CsgoskinsScraperService>();
 builder.Services.AddSingleton<InspectFloatQueue>();
+builder.Services.AddSingleton<SteamRefreshStatusTracker>();
 
 // Add Entity Framework Core with PostgreSQL
 // Support Railway's DATABASE_URL or fall back to ConnectionStrings__DefaultConnection
